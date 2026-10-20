@@ -31,6 +31,7 @@ import {
   ConfidenceLevel,
   RpmAssumption,
 } from "@/lib/types/revenue";
+import { RevenueCharts } from "./RevenueCharts";
 
 interface RevenueAnalyticsViewProps {
   initialChannelId?: string;
@@ -629,6 +630,12 @@ export const RevenueAnalyticsView: React.FC<RevenueAnalyticsViewProps> = ({
                   </div>
                 </div>
               </div>
+
+              {/* Revenue & Growth Analytics Charts */}
+              <RevenueCharts
+                estimate={selectedEstimate}
+                currencySymbol={currencySymbol}
+              />
 
               {/* Format Breakdown (Long-form vs Shorts) if available */}
               {selectedEstimate.formatEstimates && selectedEstimate.formatEstimates.length > 0 && (

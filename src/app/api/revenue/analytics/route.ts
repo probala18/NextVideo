@@ -63,7 +63,9 @@ export async function GET(req: NextRequest) {
         snapshots,
         days,
         channelRpm || appliedRpm,
-        trackedVideos.length
+        trackedVideos.length,
+        undefined,
+        trackedVideos
       );
 
       channelEstimates.push(estimate);

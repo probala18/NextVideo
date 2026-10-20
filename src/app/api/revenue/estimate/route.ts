@@ -91,7 +91,8 @@ export async function GET(req: NextRequest) {
       days,
       rpm,
       trackedVideos.length,
-      formatBreakdown
+      formatBreakdown,
+      trackedVideos
     );
 
     return NextResponse.json(estimate);

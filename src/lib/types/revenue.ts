@@ -106,6 +106,13 @@ export interface FormatRevenueEstimate {
   source: string;
 }
 
+export interface SnapshotPoint {
+  date: string;
+  cumulativeViews: number;
+  periodViews: number;
+  estimatedRevenue: number;
+}
+
 export interface RevenueEstimate {
   channel: {
     id: string;
@@ -159,6 +166,8 @@ export interface RevenueEstimate {
   };
   calculationInputs: RevenueCalculationInputs;
   disclaimer: string;
+  snapshots?: SnapshotPoint[];
+  recentVideos?: TrackedVideo[];
 }
 
 export interface ComparativeChannelMetric {

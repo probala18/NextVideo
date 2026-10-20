@@ -307,9 +307,34 @@ export function buildRevenueEstimate(
     longFormViews: number;
     shortsViews: number;
     shortsRpm?: RpmAssumption | null;
-  }
+  },
+  recentVideos?: any[]
 ): RevenueEstimate {
   const viewsResult = calculateObservedViews(snapshots, requestedPeriodDays);
+
+  // Deduplicate and sort snapshots for timeline plotting
+  const uniqueMap = new Map<string, ChannelViewSnapshot>();
+  for (const s of snapshots) {
+    const key = s.observed_at.slice(0, 10);
+    if (!uniqueMap.has(key) || (s.id && s.id > (uniqueMap.get(key)?.id || 0))) {
+      uniqueMap.set(key, s);
+    }
+  }
+  const sortedSnapshots = Array.from(uniqueMap.values()).sort(
+    (a, b) => new Date(a.observed_at).getTime() - new Date(b.observed_at).getTime()
+  );
+
+  const baseViews = sortedSnapshots[0]?.cumulative_views || 0;
+  const snapshotPoints = sortedSnapshots.map((s) => {
+    const delta = Math.max(0, s.cumulative_views - baseViews);
+    const estRev = rpm ? Math.round((delta / 1000) * rpm.rpm_typical * 100) / 100 : 0;
+    return {
+      date: s.observed_at.slice(0, 10),
+      cumulativeViews: s.cumulative_views,
+      periodViews: delta,
+      estimatedRevenue: estRev,
+    };
+  });
 
   if (!rpm) {
     return {
@@ -362,6 +387,8 @@ export function buildRevenueEstimate(
       },
       disclaimer:
         "ESTIMATE ONLY: Competitor revenue cannot be verified through public YouTube API data. Figures represent potential AdSense and viewer revenue based on observed view changes and industry RPM benchmarks.",
+      snapshots: snapshotPoints,
+      recentVideos,
     };
   }
 
@@ -510,5 +537,7 @@ export function buildRevenueEstimate(
     },
     disclaimer:
       "ESTIMATE ONLY: Competitor revenue cannot be verified through public YouTube API data. Figures represent potential AdSense and viewer revenue based on observed view changes and industry RPM benchmarks. Actual creator revenue varies based on monetization eligibility, brand deals, memberships, and audience geography.",
+    snapshots: snapshotPoints,
+    recentVideos,
   };
 }
