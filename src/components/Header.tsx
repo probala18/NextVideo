@@ -40,6 +40,8 @@ export const Header: React.FC<HeaderProps> = ({
         return "Channel Discovery & Intel";
       case "audit":
         return "Public Channel Audit";
+      case "revenue":
+        return "Revenue Analytics & Channel Estimator";
       case "diagnosis":
         return "Performance Clinic";
       case "opportunities":

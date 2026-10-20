@@ -13,6 +13,7 @@ import {
   ExternalLink,
   ChevronRight,
   ShieldCheck,
+  DollarSign,
   X,
 } from "lucide-react";
 
@@ -37,6 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "discover", label: "Channel discovery", icon: Search },
     { id: "audit", label: "Channel audit", icon: ScanEye },
+    { id: "revenue", label: "Revenue analytics", icon: DollarSign, badge: "NEW" },
     { id: "diagnosis", label: "Performance clinic", icon: Activity },
     { id: "opportunities", label: "Video opportunities", icon: Sparkles },
     { id: "strategy", label: "Video strategy", icon: FileText },

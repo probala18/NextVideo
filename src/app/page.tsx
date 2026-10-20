@@ -7,6 +7,7 @@ import { Header } from "@/components/Header";
 import { OverviewView } from "@/components/OverviewView";
 import { DiscoverView } from "@/components/DiscoverView";
 import { AuditView } from "@/components/AuditView";
+import { RevenueAnalyticsView } from "@/components/RevenueAnalyticsView";
 import { ClinicView } from "@/components/ClinicView";
 import { OpportunitiesView } from "@/components/OpportunitiesView";
 import { StrategyView } from "@/components/StrategyView";
@@ -514,6 +515,10 @@ export default function Home() {
                   }}
                   onToast={showToast}
                 />
+              )}
+
+              {currentView === "revenue" && (
+                <RevenueAnalyticsView />
               )}
 
               {currentView === "diagnosis" && (
