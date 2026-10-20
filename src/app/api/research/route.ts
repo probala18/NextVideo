@@ -179,7 +179,7 @@ export async function GET(req: NextRequest) {
 
     const videoItems = (videoSearch.items || []).filter((x: any) => x.id?.videoId);
     const videoIds = videoItems.map((x: any) => x.id.videoId);
-    const channelIds = [...new Set(videoItems.map((x: any) => x.snippet?.channelId).filter(Boolean))];
+    const channelIds = Array.from(new Set(videoItems.map((x: any) => x.snippet?.channelId).filter(Boolean)));
 
     const [channelResult, videoResult] = await Promise.all([
       channelIds.length

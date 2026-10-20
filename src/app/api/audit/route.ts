@@ -231,7 +231,7 @@ export async function GET(req: NextRequest) {
         if (word.length > 2 && !stop.has(word)) freq.set(word, (freq.get(word) || 0) + 1);
       }
     }
-    const repeated = [...freq.entries()]
+    const repeated = Array.from(freq.entries())
       .filter((x) => x[1] > 1)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
