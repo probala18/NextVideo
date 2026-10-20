@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#101114" />
+  <meta name="description" content="CreatorLens helps YouTube creators discover their niche, study similar channels, find video opportunities, and build a better content strategy." />
+  <title>CreatorLens — Grow with clarity</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css" />
+  <script defer src="/app.js"></script>
+  <script defer src="/production.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <a href="#" class="brand" aria-label="CreatorLens home">
+        <span class="brand-mark"><span></span><span></span><span></span></span>
+        <span>creator<span class="brand-light">lens</span><sup>beta</sup></span>
+      </a>
+      <div class="workspace-label">WORKSPACE</div>
+      <nav class="nav">
+        <button class="nav-item active" data-view="overview"><span class="nav-icon">◫</span> Overview</button>
+        <button class="nav-item" data-view="discover"><span class="nav-icon">⌕</span> Channel discovery</button>
+        <button class="nav-item" data-view="audit"><span class="nav-icon">◎</span> Channel audit</button>
+        <button class="nav-item" data-view="diagnosis"><span class="nav-icon">⌁</span> Performance clinic</button>
+        <button class="nav-item" data-view="opportunities"><span class="nav-icon">✳</span> Video opportunities</button>
+        <button class="nav-item" data-view="strategy"><span class="nav-icon">▤</span> Video strategy</button>
+        <button class="nav-item" data-view="production"><span class="nav-icon">✦</span> Production studio</button>
+        <button class="nav-item" data-view="planner"><span class="nav-icon">▦</span> Content planner <span class="nav-count" id="planCount">0</span></button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="help-card">
+          <div class="help-spark">✦</div>
+          <strong>Grow with clarity.</strong>
+          <p>Learn from what works. Create what only you can.</p>
+          <button id="readPrinciples" class="link-button">Creator principles <span>↗</span></button>
+        </div>
+        <div class="user-mini"><div class="avatar">CL</div><div><strong>Creator workspace</strong><span>Personal edition</span></div><button class="more-button" aria-label="Workspace menu">···</button></div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <button id="mobileMenu" class="mobile-menu" aria-label="Open navigation">☰</button>
+        <div class="breadcrumb"><span>Workspace</span><span class="crumb-sep">/</span><strong id="currentSection">Overview</strong></div>
+        <div class="top-actions"><span class="data-status"><i></i><span id="dataStatusText">Demo research data</span></span><button class="icon-button" id="helpButton" aria-label="Help">?</button><div class="top-avatar">CL</div></div>
+      </header>
+
+      <section class="page-view active" id="view-overview">
+        <div class="welcome-row">
+          <div><div class="eyebrow"><span class="eyebrow-dot"></span> YOUR CREATOR RESEARCH DESK</div><h1>Make your next video<br><span class="muted-heading">a more informed decision.</span></h1><p class="lead">Find your space. Learn from proven videos. Build a strategy that fits your audience.</p></div>
+          <div class="date-chip"><span class="date-dot"></span> Creator intelligence <span class="date-divider">/</span> <span>Workspace</span></div>
+        </div>
+
+        <div class="search-panel">
+          <div class="search-panel-copy"><div class="search-glyph">⌕</div><div><strong>What are you planning to create?</strong><p>Enter a topic, niche, or tutorial idea to research the landscape.</p></div></div>
+          <form id="researchForm" class="research-form">
+            <label class="sr-only" for="topicInput">Topic or niche</label><input id="topicInput" value="beginner Python tutorials" placeholder="e.g. AI tools for students, beginner photography…" maxlength="140" required />
+            <select id="regionSelect" aria-label="Research region"><option value="IN" selected>India</option><option value="US">United States</option><option value="GB">United Kingdom</option><option value="CA">Canada</option><option value="AU">Australia</option><option value="global">Global</option></select>
+            <button class="primary-button" type="submit"><span>Research niche</span><span class="arrow">↗</span></button>
+          </form>
+          <div class="quick-topics"><span>TRY A NICHE</span><button data-topic="AI tools for students">AI tools</button><button data-topic="beginner web development">Web development</button><button data-topic="personal finance basics">Personal finance</button><button data-topic="fitness for beginners">Fitness</button></div>
+        </div>
+
+        <div class="section-heading"><div><div class="eyebrow">YOUR RESEARCH SNAPSHOT</div><h2>Understand the landscape</h2></div><button class="subtle-button" id="refreshData">↻ Refresh research</button></div>
+        <div class="metric-grid">
+          <article class="metric-card"><div class="metric-top"><span>Relevant channels</span><span class="metric-icon orange">◎</span></div><div class="metric-value" id="metricChannels">3</div><div class="metric-foot"><span class="mini-bar" id="channelSpark"></span><span>Channels to study in your niche</span></div></article>
+          <article class="metric-card"><div class="metric-top"><span>Videos scanned</span><span class="metric-icon violet">▷</span></div><div class="metric-value" id="metricVideos">3</div><div class="metric-foot"><span class="foot-bullet violet-bullet"></span><span>Recent examples, not predictions</span></div></article>
+          <article class="metric-card"><div class="metric-top"><span>Ideas surfaced</span><span class="metric-icon green">✳</span></div><div class="metric-value" id="metricIdeas">6</div><div class="metric-foot"><span class="foot-bullet green-bullet"></span><span>Angles to validate with your audience</span></div></article>
+          <article class="metric-card"><div class="metric-top"><span>Plan readiness</span><span class="metric-icon blue">↗</span></div><div class="metric-value" id="metricPlans">0<span class="metric-unit"> saved</span></div><div class="metric-foot"><span class="foot-bullet blue-bullet"></span><span>Ideas in your content planner</span></div></article>
+        </div>
+
+        <div class="content-grid">
+          <section class="panel featured-panel">
+            <div class="panel-head"><div><div class="eyebrow">NICHE RADAR</div><h3 id="radarTitle">What's getting attention</h3></div><button class="text-action" data-goto="opportunities">Explore ideas <span>↗</span></button></div>
+            <div id="featuredVideos" class="featured-videos"></div>
+          </section>
+          <section class="panel insight-panel">
+            <div class="panel-head"><div><div class="eyebrow">CREATOR PLAYBOOK</div><h3>Good creators ask better questions.</h3></div><div class="spark-badge">✦</div></div>
+            <div class="playbook-list">
+              <div class="playbook-item"><span class="playbook-number">01</span><div><strong>Earn the click honestly</strong><p>Make the title and thumbnail clear, specific, and true to the video.</p></div></div>
+              <div class="playbook-item"><span class="playbook-number">02</span><div><strong>Deliver value early</strong><p>Open with the problem and outcome. Skip the long introduction.</p></div></div>
+              <div class="playbook-item"><span class="playbook-number">03</span><div><strong>Study the audience</strong><p>Use comments, retention, and your own analytics to decide what to improve.</p></div></div>
+            </div>
+            <button class="outline-button full-width" data-goto="strategy">Build a video strategy <span>→</span></button>
+          </section>
+        </div>
+
+        <div class="section-heading section-heading-lower"><div><div class="eyebrow">CHANNELS WORTH STUDYING</div><h2>Learn from your neighbors</h2><p class="section-description">Relevant channels can teach you formats and audience expectations. Subscriber count alone doesn't tell the whole story.</p></div><button class="subtle-button" data-goto="discover">View all channels ↗</button></div>
+        <div id="channelPreview" class="channel-grid"></div>
+        <div class="disclaimer-row"><span class="info-icon">i</span><p>CreatorLens does not know YouTube's private recommendation formula. Public channel stats and video patterns are research signals—not guarantees of future views.</p><a href="https://support.google.com/youtube/answer/16533387" target="_blank" rel="noreferrer">How recommendations work ↗</a></div>
+      </section>
+
+      <section class="page-view" id="view-discover">
+        <div class="page-title-row"><div><div class="eyebrow">CHANNEL INTELLIGENCE</div><h1>Find your creator neighbors.</h1><p class="lead">Discover channels covering similar topics, compare their public metrics, and inspect their strongest recent videos.</p></div></div>
+        <div class="inline-search-panel"><form id="discoverForm"><input id="discoverInput" value="beginner Python tutorials" placeholder="Search a niche or keyword" maxlength="140"/><select id="discoverRegion" aria-label="Region"><option value="IN">India</option><option value="US">United States</option><option value="GB">United Kingdom</option><option value="global">Global</option></select><select id="discoverSort" aria-label="Video sort order"><option value="popular">Most viewed</option><option value="recent">Newest first</option><option value="relevance">Relevance</option></select><button class="primary-button">Research niche ↗</button></form></div>
+        <div class="filter-row"><div class="filter-group"><button class="filter-button active" data-filter="all">All stages</button><button class="filter-button" data-filter="emerging">Emerging</button><button class="filter-button" data-filter="growing">Growing</button><button class="filter-button" data-filter="established">Established</button></div><span class="result-count" id="channelResultCount">3 sample profiles</span></div>
+        <div id="channelDirectory" class="channel-directory"></div>
+        <section class="panel watchlist-panel">
+          <div class="panel-head"><div><div class="eyebrow">YOUR RESEARCH SHORTLIST</div><h3>Channels to study later <span class="watchlist-count" id="watchlistCount">0 saved</span></h3></div><button class="subtle-button" id="exportWatchlist">Export shortlist ↓</button></div>
+          <div id="watchlistList" class="watchlist-list"></div>
+          <div id="watchlistEmpty" class="watchlist-empty">Save a channel from the results above to build a focused competitor study list.</div>
+        </section>
+        <section class="video-research-section">
+          <div class="section-heading section-heading-lower"><div><div class="eyebrow">VIDEO RESEARCH</div><h2>Videos to learn from</h2><p class="section-description">Compare public views with channel size and video age. High relative reach is a research lead, not proof of why a video succeeded.</p></div><span class="result-count" id="videoResultCount">3 sample videos</span></div>
+          <div id="videoResearchList" class="video-research-list"></div>
+        </section>
+        <div class="note-panel"><span class="info-icon">i</span><div><strong>How to read channel metrics</strong><p>Subscriber counts indicate audience size; public view counts show observed activity. A useful comparison also considers topic fit, video age, format, typical views, and whether a small channel has an unusually successful video. These public signals cannot reveal a channel's private impressions, click-through rate, or retention.</p></div></div>
+      </section>
+
+      <section class="page-view" id="view-audit">
+        <div class="page-title-row"><div><div class="eyebrow">EXISTING CREATOR WORKSPACE</div><h1>Audit your public channel.</h1><p class="lead">Review recent video performance against your own channel baseline, find standout topics, and turn the results into the next experiment.</p></div></div>
+        <div class="inline-search-panel"><form id="auditForm"><input id="auditChannel" value="" placeholder="Paste your YouTube channel URL or @handle" maxlength="240" required aria-label="YouTube channel URL or handle"/><button class="primary-button">Audit channel ↗</button></form></div>
+        <div class="note-panel" style="margin-top:0;margin-bottom:20px"><span class="info-icon">i</span><div><strong>Public-data audit</strong><p>This reads public channel and video statistics only. Your private impressions, click-through rate, audience retention, traffic sources, and revenue are not public and are not included.</p></div></div>
+        <div id="auditEmpty" class="planner-empty"><div class="empty-icon">◎</div><h2>Start with your channel URL.</h2><p>We’ll inspect up to 20 recent public uploads and compare videos against your channel’s recent baseline. Add the YouTube Data API key in project Setup to enable live audits.</p></div>
+        <div id="auditResults" class="hidden">
+          <div class="audit-profile panel"><div id="auditAvatar" class="channel-avatar av1">CL</div><div class="audit-profile-name"><h2 id="auditName">Channel name</h2><p id="auditDescription"></p><a id="auditPublicLink" href="#" target="_blank" rel="noreferrer">Open channel on YouTube ↗</a></div><div class="audit-profile-subs"><span>SUBSCRIBERS</span><strong id="auditSubs">—</strong></div></div>
+          <div class="metric-grid audit-metrics"><article class="metric-card"><div class="metric-top"><span>Total channel views</span><span class="metric-icon orange">▷</span></div><div class="metric-value" id="auditTotalViews">—</div><div class="metric-foot">Public lifetime view count</div></article><article class="metric-card"><div class="metric-top"><span>Recent uploads analyzed</span><span class="metric-icon violet">▤</span></div><div class="metric-value" id="auditVideosCount">—</div><div class="metric-foot">Up to 20 latest public uploads</div></article><article class="metric-card"><div class="metric-top"><span>Median recent views</span><span class="metric-icon green">⌁</span></div><div class="metric-value" id="auditMedianViews">—</div><div class="metric-foot">Your recent baseline, not a target</div></article><article class="metric-card"><div class="metric-top"><span>Median views / subscriber</span><span class="metric-icon blue">↗</span></div><div class="metric-value" id="auditViewRatio">—</div><div class="metric-foot">A rough public comparison signal</div></article></div>
+          <div class="content-grid audit-bottom-grid"><section class="panel featured-panel"><div class="panel-head"><div><div class="eyebrow">RECENT UPLOADS</div><h3>Videos to investigate</h3></div></div><div id="auditVideoList" class="audit-video-list"></div></section><section class="panel featured-panel"><div class="panel-head"><div><div class="eyebrow">NEXT EXPERIMENTS</div><h3>What to test next</h3></div><div class="spark-badge">✦</div></div><div id="auditInsights" class="audit-insights"></div><button id="auditToPlanner" class="outline-button full-width">Plan a follow-up video ↗</button></section></div>
+        </div>
+      </section>
+
+      <section class="page-view" id="view-diagnosis">
+        <div class="page-title-row"><div><div class="eyebrow">VIDEO PERFORMANCE CLINIC</div><h1>Diagnose with your own data.</h1><p class="lead">Compare a video's first 7 or 28 days with your own similar videos. Get a practical next experiment—not a made-up algorithm score.</p></div></div>
+        <div class="diagnosis-layout">
+          <form id="diagnosisForm" class="panel diagnosis-form">
+            <div class="form-head"><div><div class="eyebrow">YOUR YOUTUBE STUDIO NUMBERS</div><h2>What happened after publishing?</h2></div><div class="form-icon">⌁</div></div>
+            <label for="perfTopic">Video or topic <span class="optional-label">OPTIONAL</span></label><input id="perfTopic" maxlength="160" placeholder="e.g. Build a Python budget tracker"/>
+            <div class="two-col-form"><div><label for="perfFormat">Format</label><select id="perfFormat"><option value="long">Long-form video</option><option value="short">YouTube Short</option></select></div><div><label for="perfSource">Main traffic source</label><select id="perfSource"><option value="Search">YouTube Search</option><option value="Browse">Browse / Home</option><option value="Suggested">Suggested videos</option><option value="Shorts feed">Shorts feed</option><option value="External">External</option><option value="Mixed">Mixed / not sure</option></select></div></div>
+            <label for="perfWindow">Compare the same time after publishing</label><select id="perfWindow"><option value="7">First 7 days</option><option value="28">First 28 days</option></select>
+            <div class="metric-input-section"><div class="metric-input-heading"><strong id="packagingMetricLabel">Impressions click-through rate (%)</strong><span>Packaging signal</span></div><div class="two-col-form"><div><label for="perfCurrentPackaging">This video</label><input id="perfCurrentPackaging" type="number" min="0" max="100" step="0.1" value="4.2" required/></div><div><label for="perfBaselinePackaging">Your usual baseline (%)</label><input id="perfBaselinePackaging" type="number" min="0" max="100" step="0.1" value="5" required/></div></div></div>
+            <div class="metric-input-section"><div class="metric-input-heading"><strong>Average percentage viewed (%)</strong><span>Viewing signal</span></div><div class="two-col-form"><div><label for="perfCurrentRetention">This video</label><input id="perfCurrentRetention" type="number" min="0" max="100" step="0.1" value="35" required/></div><div><label for="perfBaselineRetention">Your usual baseline (%)</label><input id="perfBaselineRetention" type="number" min="0" max="100" step="0.1" value="40" required/></div></div></div>
+            <div class="metric-input-section"><div class="metric-input-heading"><strong>Views in the selected period</strong><span>Reach signal</span></div><div class="two-col-form"><div><label for="perfCurrentViews">This video</label><input id="perfCurrentViews" type="number" min="0" step="1" value="1200" required/></div><div><label for="perfBaselineViews">Usual similar-video views</label><input id="perfBaselineViews" type="number" min="0" step="1" value="1500" required/></div></div></div>
+            <button class="primary-button full-width diagnose-button" type="submit">Diagnose performance <span>↗</span></button>
+            <p class="form-footnote">Use values from YouTube Studio and compare similar video lengths, publishing ages, and traffic sources where possible. These are your inputs; CreatorLens does not access private analytics automatically.</p>
+          </form>
+          <section id="diagnosisOutput" class="panel diagnosis-output">
+            <div class="output-empty"><div class="empty-icon">⌁</div><h2>Your diagnosis will appear here.</h2><p>Enter this video's performance and your normal results to identify the next thing worth testing.</p><div class="empty-lines"><span></span><span></span><span></span></div></div>
+          </section>
+        </div>
+        <div class="note-panel"><span class="info-icon">i</span><div><strong>Why compare like with like?</strong><p>CTR can vary across search, Home, and suggested traffic. A lower CTR by itself doesn't prove a video's packaging is bad, and public competitor data cannot show private impressions or retention. Compare similar time windows and use one change per experiment.</p><a class="source-link" href="https://support.google.com/youtube/answer/16767369" target="_blank" rel="noreferrer">YouTube guidance on CTR and impressions ↗</a></div></div>
+      </section>
+
+      <section class="page-view" id="view-opportunities">
+        <div class="page-title-row"><div><div class="eyebrow">TOPIC RESEARCH</div><h1>Find the next useful angle.</h1><p class="lead">Move beyond copying popular titles. Spot viewer problems, format patterns, and gaps you could serve better.</p></div></div>
+        <div class="opportunity-banner"><div><span class="banner-eyebrow">OPPORTUNITY WORKBENCH</span><h2 id="opportunityTopic">Beginner Python tutorials</h2><p id="opportunitySub">A mix of proven questions and fresh ways to explain them.</p></div><button class="light-button" id="generateIdeas">Generate new angles <span>✳</span></button></div>
+        <div class="opportunity-layout"><div><div class="section-heading compact"><div><h2>Ideas to investigate</h2><p class="section-description">Scores are prioritization heuristics—not predictions of views.</p></div></div><div id="ideaList" class="idea-list"></div></div><aside class="side-stack"><div class="panel side-panel"><div class="eyebrow">THE GAP CHECK</div><h3>Before you record</h3><div class="checklist"><label><input type="checkbox"/> I know exactly who this helps</label><label><input type="checkbox"/> I can offer a clear outcome</label><label><input type="checkbox"/> I can improve on existing examples</label><label><input type="checkbox"/> I can deliver the title's promise</label></div><div class="small-note">Aim for a distinct point of view—not a clone of a larger channel.</div></div><div class="panel side-panel"><div class="eyebrow">SEARCH THE WEB</div><h3>Validate the question</h3><p class="muted-copy">Check autocomplete and current search results before committing. Viewer demand changes with time and audience.</p><button class="outline-button full-width" id="openYoutubeSearch">Open YouTube search ↗</button></div></aside></div>
+      </section>
+
+      <section class="page-view" id="view-strategy">
+        <div class="page-title-row"><div><div class="eyebrow">VIDEO STRATEGY STUDIO</div><h1>Turn research into a video.</h1><p class="lead">Create a focused brief with an audience promise, title options, opening hook, and a practical structure.</p></div></div>
+        <div class="strategy-layout"><form id="strategyForm" class="panel strategy-form"><div class="form-head"><div><div class="eyebrow">NEW VIDEO BRIEF</div><h2>Start with the viewer.</h2></div><div class="form-icon">✎</div></div><label for="strategyTopic">What is the video about?</label><input id="strategyTopic" required value="Python projects for absolute beginners" maxlength="180" placeholder="What will you teach or explain?"/><label for="strategyAudience">Who is this for?</label><input id="strategyAudience" value="Students who have never built a project" maxlength="180"/><label for="strategyGoal">What should they be able to do after watching?</label><textarea id="strategyGoal" rows="3" maxlength="400" placeholder="Describe a clear outcome">Build and understand their first small Python project without getting stuck.</textarea><div class="two-col-form"><div><label for="strategyFormat">Video format</label><select id="strategyFormat"><option>Tutorial (6–12 min)</option><option>YouTube Short (under 60 sec)</option><option>Explainer (8–15 min)</option><option>Project walkthrough</option><option>Comparison / review</option></select></div><div><label for="strategyLevel">Creator stage</label><select id="strategyLevel"><option>New channel</option><option>Growing channel</option><option>Established channel</option></select></div></div><label for="strategyDifferentiator">Your unique angle <span class="optional-label">OPTIONAL</span></label><input id="strategyDifferentiator" maxlength="200" placeholder="e.g. explain it for students using only free tools"/><button class="primary-button full-width generate-strategy" type="submit"><span>Build my video brief</span><span>✦</span></button><p class="form-footnote">The brief helps you plan. Review facts, test claims, and adapt the ideas to your own voice.</p></form><section class="panel output-panel" id="strategyOutput"><div class="output-empty"><div class="empty-icon">✳</div><h2>Your brief will appear here.</h2><p>Fill in your topic and audience to generate title ideas, an opening hook, and a structured outline.</p><div class="empty-lines"><span></span><span></span><span></span></div></div></section></div>
+      </section>
+
+      <section class="page-view" id="view-production">
+        <div class="page-title-row"><div><div class="eyebrow">AI CREATOR WORKFLOW · STAGE 02</div><h1>From idea to shoot-ready.</h1><p class="lead">Build a production pack with a complete script, scene plan, visual prompts, voiceover, and upload metadata—all in one place.</p></div></div>
+        <div class="production-layout">
+          <form id="productionForm" class="panel production-form">
+            <div class="form-head"><div><div class="eyebrow">PRODUCTION BRIEF</div><h2>Tell us what you're making.</h2></div><div class="form-icon">✦</div></div>
+            <label for="prodTopic">Video topic</label><input id="prodTopic" maxlength="180" required value="Build a useful Python project for beginners" placeholder="What will the video teach?"/>
+            <label for="prodAudience">Target viewer</label><input id="prodAudience" maxlength="180" required value="Students who are new to Python" placeholder="Who is this for?"/>
+            <label for="prodOutcome">Viewer's desired outcome</label><textarea id="prodOutcome" rows="3" maxlength="360" required>Build one small project and understand how each part works.</textarea>
+            <div class="two-col-form"><div><label for="prodFormat">Video format</label><select id="prodFormat"><option value="Long-form" selected>Long-form video</option><option value="Short">YouTube Short</option></select></div><div><label for="prodDuration">Target duration</label><select id="prodDuration"><option>30–45 seconds</option><option>60 seconds</option><option>3–5 minutes</option><option selected>6–8 minutes</option><option>8–12 minutes</option><option>12–18 minutes</option></select></div></div>
+            <div class="two-col-form"><div><label for="prodTone">Delivery style</label><select id="prodTone"><option>Friendly teacher</option><option>Fast and energetic</option><option>Calm and detailed</option><option>Story-led</option><option>Professional explainer</option></select></div><div><label for="prodLanguage">Script language</label><select id="prodLanguage"><option selected>English</option><option>Simple English</option><option>Hindi</option><option>Tamil</option><option>Hinglish</option><option>English with Tamil terms</option></select></div></div>
+            <label for="prodDifference">Your unique angle <span class="optional-label">OPTIONAL</span></label><input id="prodDifference" maxlength="240" placeholder="e.g. free tools only, for college students"/>
+            <label for="prodCTA">Call to action <span class="optional-label">OPTIONAL</span></label><input id="prodCTA" maxlength="300" placeholder="e.g. Ask viewers which project they want next"/>
+            <button class="primary-button full-width production-generate" type="submit"><span>Generate production pack</span><span>✦</span></button>
+            <p class="form-footnote">This creates an editable production draft, not a rendered video. Verify technical details and adapt the words to your real experience before recording.</p>
+          </form>
+          <section id="productionOutput" class="panel production-output">
+            <div class="production-empty"><div class="empty-icon">✦</div><h2>Your production pack will appear here.</h2><p>Generate a script, shot list, on-screen captions, visual prompts, upload description, and recording checklist.</p><div class="empty-lines"><span></span><span></span><span></span></div></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="page-view" id="view-planner">
+        <div class="page-title-row"><div><div class="eyebrow">YOUR PUBLISHING PIPELINE</div><h1>A plan you can actually follow.</h1><p class="lead">Save video ideas, give each one a next step, and build consistency without burning out.</p></div><button class="primary-button" id="addPlanManual">+ Add an idea</button></div>
+        <div class="planner-summary"><div><span>IDEAS SAVED</span><strong id="savedTotal">0</strong></div><div><span>IN PROGRESS</span><strong id="progressTotal">0</strong></div><div><span>READY TO RECORD</span><strong id="readyTotal">0</strong></div></div>
+        <div class="planner-toolbar"><div class="filter-group"><button class="planner-filter active" data-plan-filter="all">All ideas</button><button class="planner-filter" data-plan-filter="Idea">Ideas</button><button class="planner-filter" data-plan-filter="In progress">In progress</button><button class="planner-filter" data-plan-filter="Ready to record">Ready to record</button></div><button class="text-action" id="exportPlans">Export plan ↓</button></div>
+        <div id="plannerList" class="planner-list"></div>
+        <div id="plannerEmpty" class="planner-empty hidden"><div class="empty-icon">▦</div><h2>Your next video starts with an idea.</h2><p>Save an opportunity or add an idea to build your own publishing pipeline.</p><button class="primary-button" id="emptyAddIdea">+ Add your first idea</button></div>
+      </section>
+
+      <footer class="app-footer"><span>creatorlens <span class="footer-beta">BETA</span></span><span>Built for creators who learn, test, and improve.</span><span><a href="https://support.google.com/youtube/answer/16533387" target="_blank" rel="noreferrer">YouTube recommendation guidance ↗</a></span></footer>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <dialog id="ideaDialog" class="modal"><form method="dialog" id="ideaForm"><div class="modal-head"><div><div class="eyebrow">CONTENT PLANNER</div><h2>Add a video idea</h2></div><button class="icon-button close-modal" aria-label="Close">×</button></div><label for="manualIdea">Video idea</label><input id="manualIdea" required maxlength="180" placeholder="What will you create?"/><label for="manualNote">Why your audience needs it</label><textarea id="manualNote" rows="3" maxlength="400" placeholder="The specific problem this solves"></textarea><div class="modal-actions"><button type="button" class="outline-button" id="cancelIdea">Cancel</button><button type="submit" class="primary-button">Save idea</button></div></form></dialog>
+  <dialog id="principlesDialog" class="modal"><form method="dialog"><div class="modal-head"><div><div class="eyebrow">CREATOR PRINCIPLES</div><h2>There is no magic formula.</h2></div><button class="icon-button" aria-label="Close">×</button></div><p class="modal-copy">YouTube recommendations are personalized. Focus on the viewer, make a clear promise, deliver value early, and use your channel's own analytics to learn. Successful channels are examples to study—not templates to copy.</p><ul class="principle-list"><li><strong>Appeal:</strong> does the topic, title, and thumbnail make the value clear?</li><li><strong>Engagement:</strong> does the video deliver on its promise and keep viewers interested?</li><li><strong>Satisfaction:</strong> do viewers find the experience useful and worth their time?</li></ul><a class="source-link" href="https://support.google.com/youtube/answer/16559650" target="_blank" rel="noreferrer">Read YouTube's official creator guidance ↗</a></form></dialog>
+</body>
+</html>

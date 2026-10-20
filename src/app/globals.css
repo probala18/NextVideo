@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #0A0B0D;
+  --bg-surface: #121418;
+  --bg-elevated: #181A20;
+  --bg-muted: #20232B;
+  --border-primary: #272B35;
+  --border-subtle: #1C1F26;
+  --text-primary: #F3F4F6;
+  --text-secondary: #9DA3B4;
+  --text-muted: #646A7C;
+  --studio-orange: #F97316;
+  --studio-emerald: #10B981;
+  --studio-crimson: #EF4444;
+  --studio-blue: #38BDF8;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+/* Custom crisp dark scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0D0E12;
+}
+::-webkit-scrollbar-thumb {
+  background: #252833;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #363B4B;
+}
+
+/* Studio custom utilities */
+.studio-glass {
+  background-color: rgba(18, 20, 24, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid #272B35;
+}
+
+.tally-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  background-color: #F97316;
+}
+
+.tally-dot.live {
+  background-color: #10B981;
+  box-shadow: 0 0 8px #10B981;
+}
+
+/* Filmstrip tick lines */
+.filmstrip-ticks {
+  background-image: repeating-linear-gradient(
+    90deg,
+    #2B303C,
+    #2B303C 1px,
+    transparent 1px,
+    transparent 12px
+  );
+}
+
+.filmstrip-ticks-major {
+  background-image: repeating-linear-gradient(
+    90deg,
+    #474E61,
+    #474E61 1px,
+    transparent 1px,
+    transparent 60px
+  );
+}
