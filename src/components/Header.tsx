@@ -4,16 +4,12 @@ import React from "react";
 import {
   Bell,
   PanelLeft,
-  Sparkles,
-  BookOpen,
-  Search,
   Plus,
   Compass,
   LayoutDashboard,
   DollarSign,
   Video,
-  FileEdit,
-  ArrowUpRight
+  FileEdit
 } from "lucide-react";
 
 interface HeaderProps {
@@ -116,16 +112,6 @@ export const Header: React.FC<HeaderProps> = ({
         >
           <Bell className="w-4 h-4" />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#3B82F6]" />
-        </button>
-
-        {/* Sonic Landing Button */}
-        <button
-          onClick={() => onSelectView("landing")}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-black uppercase tracking-wider text-white bg-[#FF4500] hover:bg-[#E03E00] rounded-full transition shadow-xs cursor-pointer"
-          title="Return to Sonic Landing Showcase"
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Sonic Landing</span>
         </button>
 
         {/* User Circular Avatar */}

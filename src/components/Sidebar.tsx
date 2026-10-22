@@ -12,10 +12,8 @@ import {
   Activity,
   FileText,
   Plus,
-  Settings,
   BookOpen,
-  PanelLeftClose,
-  ArrowUpRight
+  PanelLeftClose
 } from "lucide-react";
 
 interface SidebarProps {
@@ -162,20 +160,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </nav>
         </div>
 
-        {/* Bottom Section: Sonic Landing & Principles */}
+        {/* Bottom Section: Studio Principles */}
         <div className="pt-3 border-t border-[#E8EAEE] space-y-1.5 px-1">
-          {/* Sonic Landing Switcher Button */}
-          <button
-            onClick={() => onSelectView("landing")}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-2xl text-xs font-bold text-white bg-[#FF4500] hover:bg-[#E03E00] shadow-xs transition cursor-pointer"
-          >
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Sonic Landing</span>
-            </div>
-            <ArrowUpRight className="w-3.5 h-3.5" />
-          </button>
-
           <button
             onClick={onOpenPrinciples}
             className="w-full flex items-center gap-2.5 px-3.5 py-2 rounded-2xl text-xs font-medium text-[#64748B] hover:text-[#111827] hover:bg-white/60 transition cursor-pointer"

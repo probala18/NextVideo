@@ -473,26 +473,6 @@ export default function Home() {
     showToast("Brief transferred to Production Studio. Configure and generate.", "info");
   };
 
-  if (currentView === "landing") {
-    return (
-      <div className="min-h-screen bg-[#F9F9FB]">
-        <SonicLandingView
-          onEnterStudio={(targetView) => setCurrentView(targetView || "overview")}
-        />
-        <PrinciplesModal
-          isOpen={isPrinciplesOpen}
-          onClose={() => setIsPrinciplesOpen(false)}
-        />
-        <ManualIdeaModal
-          isOpen={isManualIdeaOpen}
-          onClose={() => setIsManualIdeaOpen(false)}
-          onSave={(t, n) => handleSaveIdeaToPlanner(t, n)}
-        />
-        <Toast toast={toast} onClose={() => setToast(null)} />
-      </div>
-    );
-  }
-
   return (
     <div className="flex min-h-screen bg-[#ECEEF2] font-sans text-gray-900 transition-colors">
       {/* Sidebar Navigation matching Outcrowd Layout */}
