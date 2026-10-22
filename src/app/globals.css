@@ -3,72 +3,69 @@
 @tailwind utilities;
 
 :root {
-  --bg-primary: #0A0B0D;
-  --bg-surface: #121418;
-  --bg-elevated: #181A20;
-  --bg-muted: #20232B;
-  --border-primary: #272B35;
-  --border-subtle: #1C1F26;
-  --text-primary: #F3F4F6;
-  --text-secondary: #9DA3B4;
-  --text-muted: #646A7C;
-  --studio-orange: #F97316;
-  --studio-emerald: #10B981;
-  --studio-crimson: #EF4444;
-  --studio-blue: #38BDF8;
+  --bg-app: #F8FAF9;
+  --bg-sidebar: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --border-card: #E5E7EB;
+  --text-main: #111827;
+  --text-muted: #6B7280;
+  --brand-green: #65A30D;
+}
+
+.dark {
+  --bg-app: #0A0C10;
+  --bg-sidebar: #10131A;
+  --bg-card: #151821;
+  --border-card: #272D3D;
+  --text-main: #F3F4F6;
+  --text-muted: #9CA3AF;
+  --brand-green: #84CC16;
 }
 
 body {
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
+  background-color: var(--bg-app);
+  color: var(--text-main);
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   overflow-x: hidden;
   margin: 0;
   padding: 0;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Custom crisp dark scrollbar */
+/* Custom crisp scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0D0E12;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #252833;
-  border-radius: 3px;
+  background: #D1D5DB;
+  border-radius: 9999px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #2D3748;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #363B4B;
-}
-
-/* Studio custom utilities */
-.studio-glass {
-  background-color: rgba(18, 20, 24, 0.95);
-  backdrop-filter: blur(12px);
-  border: 1px solid #272B35;
-}
-
-.tally-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-  background-color: #F97316;
-}
-
-.tally-dot.live {
-  background-color: #10B981;
-  box-shadow: 0 0 8px #10B981;
+  background: #9CA3AF;
 }
 
 /* Filmstrip tick lines */
 .filmstrip-ticks {
   background-image: repeating-linear-gradient(
     90deg,
-    #2B303C,
-    #2B303C 1px,
+    #CBD5E1,
+    #CBD5E1 1px,
+    transparent 1px,
+    transparent 12px
+  );
+}
+.dark .filmstrip-ticks {
+  background-image: repeating-linear-gradient(
+    90deg,
+    #334155,
+    #334155 1px,
     transparent 1px,
     transparent 12px
   );
@@ -77,8 +74,17 @@ body {
 .filmstrip-ticks-major {
   background-image: repeating-linear-gradient(
     90deg,
-    #474E61,
-    #474E61 1px,
+    #94A3B8,
+    #94A3B8 1px,
+    transparent 1px,
+    transparent 60px
+  );
+}
+.dark .filmstrip-ticks-major {
+  background-image: repeating-linear-gradient(
+    90deg,
+    #64748B,
+    #64748B 1px,
     transparent 1px,
     transparent 60px
   );

@@ -3,18 +3,19 @@
 import React from "react";
 import {
   LayoutDashboard,
-  Search,
+  Compass,
   ScanEye,
-  Activity,
   Sparkles,
-  FileText,
-  Video,
-  Kanban,
-  ExternalLink,
-  ChevronRight,
-  ShieldCheck,
   DollarSign,
-  X,
+  Video,
+  FileEdit,
+  Activity,
+  FileText,
+  Plus,
+  Settings,
+  BookOpen,
+  PanelLeftClose,
+  ArrowUpRight
 } from "lucide-react";
 
 interface SidebarProps {
@@ -24,6 +25,7 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenPrinciples: () => void;
+  onNewResearch: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -33,17 +35,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
   onClose,
   onOpenPrinciples,
+  onNewResearch,
 }) => {
-  const navItems = [
-    { id: "overview", label: "Overview", icon: LayoutDashboard },
-    { id: "discover", label: "Channel discovery", icon: Search },
-    { id: "audit", label: "Channel audit", icon: ScanEye },
-    { id: "revenue", label: "Revenue analytics", icon: DollarSign, badge: "NEW" },
-    { id: "diagnosis", label: "Performance clinic", icon: Activity },
-    { id: "opportunities", label: "Video opportunities", icon: Sparkles },
-    { id: "strategy", label: "Video strategy", icon: FileText },
-    { id: "production", label: "Production studio", icon: Video, badge: "AI" },
-    { id: "planner", label: "Content planner", icon: Kanban, count: planCount },
+  const mainNavigation = [
+    { id: "overview", label: "Dashboard", icon: LayoutDashboard, badge: undefined },
+    { id: "discover", label: "Channel Intel", icon: Compass, badge: undefined },
+    { id: "audit", label: "Channel Audit", icon: ScanEye, badge: undefined },
+    { id: "opportunities", label: "Opportunities", icon: Sparkles, badge: undefined },
+    { id: "revenue", label: "Revenue Engine", icon: DollarSign, badge: "PRO" },
+    { id: "production", label: "Production Studio", icon: Video, badge: "AI" },
+    { id: "planner", label: "Content Planner", icon: FileEdit, badge: planCount > 0 ? `${planCount}` : undefined },
+    { id: "diagnosis", label: "Performance Clinic", icon: Activity, badge: undefined },
+    { id: "strategy", label: "Video Strategy", icon: FileText, badge: undefined },
   ];
 
   return (
@@ -52,54 +55,70 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {isOpen && (
         <div
           onClick={onClose}
-          className="fixed inset-0 bg-ink-950/80 backdrop-blur-sm z-40 lg:hidden"
+          className="fixed inset-0 bg-black/30 backdrop-blur-xs z-40 lg:hidden"
         />
       )}
 
+      {/* Floating Outcrowd-styled sidebar */}
       <aside
-        className={`fixed lg:sticky top-0 left-0 h-screen w-64 bg-ink-950 border-r border-ink-800 flex flex-col justify-between z-50 transition-transform duration-200 ease-in-out ${
+        className={`fixed lg:sticky top-0 left-0 h-screen w-64 bg-[#F7F8FA] border-r border-[#E8EAEE] flex flex-col justify-between z-50 transition-all duration-200 ease-in-out p-4 ${
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
-        <div>
-          {/* Brand Header */}
-          <div className="flex items-center justify-between p-4 border-b border-ink-800">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-ink-900 border border-ink-700 flex items-center justify-center p-1.5">
-                <div className="flex gap-0.5 items-end h-full">
-                  <span className="w-1 bg-studio-orange h-3/5 rounded-full" />
-                  <span className="w-1 bg-studio-orange h-full rounded-full" />
-                  <span className="w-1 bg-studio-orange h-4/5 rounded-full" />
+        <div className="flex flex-col h-full overflow-y-auto">
+          {/* Top Logo Emblem */}
+          <div className="flex items-center justify-between px-2 py-3 mb-3">
+            <button
+              onClick={() => onSelectView("overview")}
+              className="flex items-center gap-3 cursor-pointer text-left group"
+            >
+              {/* Outcrowd Dual-Pill Emblem */}
+              <div className="w-9 h-9 rounded-2xl bg-white border border-[#E2E5EB] shadow-xs flex items-center justify-center p-1.5 group-hover:shadow-sm transition">
+                <div className="flex items-center gap-0.5">
+                  <div className="w-2.5 h-5 bg-[#3B82F6] rounded-full" />
+                  <div className="w-2.5 h-3.5 bg-[#93C5FD] rounded-full" />
                 </div>
               </div>
               <div>
-                <div className="flex items-center gap-1.5 font-bold tracking-tight text-ink-50 text-sm">
-                  <span>creator</span>
-                  <span className="text-ink-400 font-light">lens</span>
-                  <span className="text-[9px] px-1 py-0.2 bg-ink-800 text-studio-orange font-mono rounded border border-ink-700">
-                    STUDIO
-                  </span>
-                </div>
-                <div className="text-[10px] text-ink-500 font-mono">INTELLIGENCE DESK</div>
+                <span className="font-bold text-base tracking-tight text-[#111827]">
+                  Creator<span className="text-[#3B82F6]">Lens</span>
+                </span>
+                <span className="text-[10px] text-[#8C95A6] block -mt-1 font-medium">
+                  Studio Workspace
+                </span>
               </div>
-            </div>
+            </button>
 
             <button
               onClick={onClose}
-              aria-label="Close menu"
-              className="lg:hidden p-1 text-ink-400 hover:text-ink-200"
+              aria-label="Toggle sidebar"
+              className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-200/50 transition lg:hidden"
             >
-              <X className="w-4 h-4" />
+              <PanelLeftClose className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="px-4 py-2 text-[10px] font-mono text-ink-500 tracking-wider">
-            WORKSPACE NAVIGATION
+          {/* "+ New Research" Pill Button */}
+          <div className="px-1 py-1 mb-4">
+            <button
+              onClick={() => {
+                onNewResearch();
+                onClose();
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-white hover:bg-[#F2F4F8] text-[#1F2937] border border-[#E2E5EB] hover:border-[#CBD2E1] rounded-full text-xs font-semibold shadow-xs transition cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5 text-[#3B82F6]" />
+              <span>New Research</span>
+            </button>
           </div>
 
-          {/* Navigation Links */}
-          <nav className="px-2 space-y-0.5">
-            {navItems.map((item) => {
+          {/* Section: Workspace Navigation */}
+          <div className="px-2 pb-1.5 text-[11px] font-bold text-[#8C95A6] uppercase tracking-wider">
+            Workspace
+          </div>
+
+          <nav className="space-y-1">
+            {mainNavigation.map((item) => {
               const Icon = item.icon;
               const isActive = currentView === item.id;
               return (
@@ -109,28 +128,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     onSelectView(item.id);
                     onClose();
                   }}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition ${
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition cursor-pointer ${
                     isActive
-                      ? "bg-ink-850 text-ink-50 border border-ink-700 font-semibold"
-                      : "text-ink-400 hover:text-ink-200 hover:bg-ink-900 border border-transparent"
+                      ? "bg-white text-[#111827] shadow-xs border border-[#E2E5EB]"
+                      : "text-[#64748B] hover:text-[#111827] hover:bg-white/60"
                   }`}
                 >
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-3">
                     <Icon
                       className={`w-4 h-4 ${
-                        isActive ? "text-studio-orange" : "text-ink-500"
+                        isActive ? "text-[#3B82F6]" : "text-[#94A3B8]"
                       }`}
                     />
                     <span>{item.label}</span>
                   </div>
 
-                  {item.count !== undefined && item.count > 0 && (
-                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-studio-orange text-white font-bold">
-                      {item.count}
-                    </span>
-                  )}
                   {item.badge && (
-                    <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-ink-800 text-studio-orange border border-ink-700">
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        item.badge === "PRO"
+                          ? "bg-[#FEF3C7] text-[#D97706]"
+                          : item.badge === "AI"
+                          ? "bg-[#E0E7FF] text-[#4F46E5]"
+                          : "bg-[#E2E8F0] text-[#475569]"
+                      }`}
+                    >
                       {item.badge}
                     </span>
                   )}
@@ -140,38 +162,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </nav>
         </div>
 
-        {/* Sidebar Bottom */}
-        <div className="p-3 border-t border-ink-800 space-y-3">
-          {/* Help & Principles Card */}
-          <div className="p-3 bg-ink-900 border border-ink-800 rounded-lg">
-            <div className="flex items-center gap-1.5 text-studio-orange text-xs font-mono mb-1">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>CREATOR PRINCIPLE</span>
-            </div>
-            <p className="text-xs text-ink-300 font-medium leading-relaxed">
-              Grow with clarity. Learn from what works. Create what only you can.
-            </p>
-            <button
-              onClick={onOpenPrinciples}
-              className="mt-2 text-[11px] text-studio-orange hover:underline flex items-center gap-1 font-mono"
-            >
-              Read guidelines <ExternalLink className="w-2.5 h-2.5" />
-            </button>
-          </div>
-
-          {/* User mini card */}
-          <div className="flex items-center justify-between p-2 bg-ink-900 border border-ink-800 rounded-md">
+        {/* Bottom Section: Sonic Landing & Principles */}
+        <div className="pt-3 border-t border-[#E8EAEE] space-y-1.5 px-1">
+          {/* Sonic Landing Switcher Button */}
+          <button
+            onClick={() => onSelectView("landing")}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-2xl text-xs font-bold text-white bg-[#FF4500] hover:bg-[#E03E00] shadow-xs transition cursor-pointer"
+          >
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded bg-ink-800 border border-ink-700 text-ink-300 flex items-center justify-center font-mono text-[10px] font-bold">
-                CL
-              </div>
-              <div className="leading-tight">
-                <div className="text-xs text-ink-200 font-medium">Creator Lab</div>
-                <div className="text-[10px] text-ink-500 font-mono">Personal Studio</div>
-              </div>
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Sonic Landing</span>
             </div>
-            <span className="w-2 h-2 rounded-full bg-studio-emerald" />
-          </div>
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            onClick={onOpenPrinciples}
+            className="w-full flex items-center gap-2.5 px-3.5 py-2 rounded-2xl text-xs font-medium text-[#64748B] hover:text-[#111827] hover:bg-white/60 transition cursor-pointer"
+          >
+            <BookOpen className="w-4 h-4 text-[#94A3B8]" />
+            <span>Studio Principles</span>
+          </button>
         </div>
       </aside>
     </>

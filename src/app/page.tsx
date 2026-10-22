@@ -200,6 +200,7 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isPrinciplesOpen, setIsPrinciplesOpen] = useState(false);
   const [isManualIdeaOpen, setIsManualIdeaOpen] = useState(false);
+  const [isDark, setIsDark] = useState(false);
 
   const [topic, setTopic] = useState("beginner Python tutorials");
   const [region, setRegion] = useState("IN");
@@ -222,6 +223,36 @@ export default function Home() {
   } | undefined>(undefined);
 
   const [toast, setToast] = useState<ToastMessage | null>(null);
+
+  // Theme synchronization
+  useEffect(() => {
+    try {
+      const savedTheme = localStorage.getItem("creatorlens-theme");
+      if (savedTheme === "dark") {
+        setIsDark(true);
+        document.documentElement.classList.add("dark");
+      } else {
+        setIsDark(false);
+        document.documentElement.classList.remove("dark");
+      }
+    } catch {
+      // Default to light matching the reference uploaded screenshot
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    setIsDark((prev) => {
+      const next = !prev;
+      if (next) {
+        document.documentElement.classList.add("dark");
+        localStorage.setItem("creatorlens-theme", "dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+        localStorage.setItem("creatorlens-theme", "light");
+      }
+      return next;
+    });
+  };
 
   // Load persisted plans & watchlist from localStorage
   useEffect(() => {
@@ -442,9 +473,29 @@ export default function Home() {
     showToast("Brief transferred to Production Studio. Configure and generate.", "info");
   };
 
+  if (currentView === "landing") {
+    return (
+      <div className="min-h-screen bg-[#F9F9FB]">
+        <SonicLandingView
+          onEnterStudio={(targetView) => setCurrentView(targetView || "overview")}
+        />
+        <PrinciplesModal
+          isOpen={isPrinciplesOpen}
+          onClose={() => setIsPrinciplesOpen(false)}
+        />
+        <ManualIdeaModal
+          isOpen={isManualIdeaOpen}
+          onClose={() => setIsManualIdeaOpen(false)}
+          onSave={(t, n) => handleSaveIdeaToPlanner(t, n)}
+        />
+        <Toast toast={toast} onClose={() => setToast(null)} />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-h-screen bg-ink-950 font-sans text-ink-100">
-      {/* Sidebar Navigation */}
+    <div className="flex min-h-screen bg-[#ECEEF2] font-sans text-gray-900 transition-colors">
+      {/* Sidebar Navigation matching Outcrowd Layout */}
       <Sidebar
         currentView={currentView}
         onSelectView={setCurrentView}
@@ -452,19 +503,26 @@ export default function Home() {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onOpenPrinciples={() => setIsPrinciplesOpen(true)}
+        onNewResearch={() => {
+          setCurrentView("overview");
+          setTopic("");
+        }}
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <Header
-          currentView={currentView}
-          isLive={isLive}
-          statusText={statusText}
-          onOpenPrinciples={() => setIsPrinciplesOpen(true)}
-          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-        />
+      <div className="flex-1 flex flex-col min-w-0 p-2 sm:p-4 lg:p-5">
+        <div className="flex-1 flex flex-col min-w-0 bg-[#F5F6F9] rounded-[32px] border border-[#E0E4EB] shadow-[0_10px_35px_rgba(0,0,0,0.03)] overflow-hidden">
+          <Header
+            currentView={currentView}
+            onSelectView={setCurrentView}
+            isDark={isDark}
+            onToggleTheme={toggleTheme}
+            onOpenPrinciples={() => setIsPrinciplesOpen(true)}
+            onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+            isSidebarOpen={sidebarOpen}
+          />
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">
+          <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentView}
@@ -477,8 +535,10 @@ export default function Home() {
                 <OverviewView
                   topic={topic}
                   region={region}
+                  sort={sort}
                   onTopicChange={setTopic}
                   onRegionChange={setRegion}
+                  onSortChange={setSort}
                   onSearch={handleSearch}
                   isSearching={isSearching}
                   channels={channels}
@@ -569,26 +629,7 @@ export default function Home() {
             </motion.div>
           </AnimatePresence>
         </main>
-
-        {/* Studio Footer */}
-        <footer className="px-6 py-4 border-t border-ink-800 text-xs font-mono text-ink-500 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="text-ink-300 font-bold">creatorlens</span>
-            <span className="px-1.5 py-0.2 bg-ink-900 border border-ink-800 text-studio-orange text-[10px] rounded">
-              STUDIO EDITION
-            </span>
-            <span>· Built for creators who test, learn, and improve.</span>
-          </div>
-
-          <a
-            href="https://support.google.com/youtube/answer/16533387"
-            target="_blank"
-            rel="noreferrer"
-            className="hover:text-studio-orange transition"
-          >
-            Official YouTube recommendation guidance ↗
-          </a>
-        </footer>
+        </div>
       </div>
 
       {/* Modals & Toasts */}

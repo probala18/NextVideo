@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Sparkles, ArrowUpRight, Plus, ExternalLink, CheckSquare } from "lucide-react";
+import { Sparkles, ArrowUpRight, Plus, ExternalLink, CheckSquare, Library, Lightbulb, Bookmark, CheckCircle2 } from "lucide-react";
 import { IdeaItem } from "@/types";
 
 interface OpportunitiesViewProps {
@@ -20,173 +20,152 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({
   onSaveIdeaToPlanner,
 }) => {
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Title Header */}
-      <div className="pb-2 border-b border-ink-800">
-        <div className="text-xs font-mono text-studio-orange">TOPIC RESEARCH & OPPORTUNITY WORKBENCH</div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-ink-50 mt-1">
-          Find the next useful angle.
-        </h1>
-        <p className="text-xs sm:text-sm text-ink-400 mt-1">
-          Move beyond copying popular titles. Spot viewer problems, format patterns, and gaps you could serve better.
-        </p>
-      </div>
-
-      {/* Opportunity Banner */}
-      <div className="p-5 bg-ink-900 border border-ink-700 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <span className="text-[10px] font-mono text-studio-orange">ACTIVE NICHE</span>
-          <h2 className="text-lg font-bold text-ink-50 capitalize">{topic}</h2>
-          <p className="text-xs text-ink-400 mt-0.5">
-            A mix of proven tutorial patterns and differentiated ways to explain them.
-          </p>
-        </div>
-
-        <button
-          onClick={onGenerateAngles}
-          className="flex items-center gap-1.5 px-4 py-2.5 bg-ink-800 hover:bg-ink-700 text-ink-100 border border-ink-600 rounded-lg text-xs font-mono font-bold tracking-wide transition self-start sm:self-auto"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-studio-orange" />
-          <span>GENERATE NEW ANGLES</span>
-        </button>
-      </div>
-
-      {/* Layout Grid: Ideas + Sidebar Gap Check */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Idea List (8 cols) */}
-        <div className="lg:col-span-8 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-ink-100">Ideas to investigate</h2>
-            <span className="text-xs text-ink-500 font-mono">
-              Priority heuristics · not view predictions
-            </span>
+    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+      {/* ========================================================================= */}
+      {/* 1. TOP HEADER CARD (OUTCROWD MODULAR CARD)                                */}
+      {/* ========================================================================= */}
+      <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 sm:p-8 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#EFF6FF] text-[#2563EB] rounded-full text-xs font-bold mb-2">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Angle Generation & Opportunities</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#111827] tracking-tight">
+              Differentiated Video Angles
+            </h1>
+            <p className="text-xs sm:text-sm text-[#6B7280] mt-1 max-w-2xl">
+              Break away from recycled competitor titles. Surface specific audience problems, retention loops, and packaging angles.
+            </p>
           </div>
 
-          <div className="space-y-3">
-            {ideas.map((idea, idx) => (
-              <div
-                key={idx}
-                className="p-4 bg-ink-900 border border-ink-800 rounded-xl space-y-3 hover:border-ink-700 transition"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <span className="text-xs font-mono text-ink-500 font-bold mt-0.5">
-                      {String(idx + 1).padStart(2, "0")}
-                    </span>
-                    <div>
-                      <h3 className="text-sm font-bold text-ink-100">{idea.title}</h3>
-                      <p className="text-xs text-ink-300 mt-1">{idea.desc}</p>
-                    </div>
-                  </div>
+          <button
+            onClick={onGenerateAngles}
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-full text-xs font-bold shadow-xs transition cursor-pointer self-start sm:self-auto"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Generate Fresh Angles</span>
+          </button>
+        </div>
 
-                  <div className="p-2 bg-ink-950 border border-ink-800 rounded font-mono text-right flex-shrink-0">
-                    <div className="text-xs font-bold text-studio-orange">{idea.score}</div>
-                    <div className="text-[9px] text-ink-500">PRIORITY</div>
+        {/* Active Niche Banner */}
+        <div className="p-4 bg-[#F9FAFB] border border-[#E8EAEE] rounded-2xl flex items-center justify-between">
+          <div>
+            <span className="text-[10px] text-[#9CA3AF] uppercase tracking-wider block font-bold">
+              Active Topic Query
+            </span>
+            <span className="text-sm font-bold text-[#111827] capitalize">
+              {topic || "Beginner Python tutorials"}
+            </span>
+          </div>
+          <span className="text-xs font-bold text-[#2563EB] bg-[#EFF6FF] px-3 py-1 rounded-full">
+            {ideas.length} opportunities ready
+          </span>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 2. IDEAS LIST + VERIFICATION CHECKLIST (OUTCROWD 2-COLUMN LAYOUT)         */}
+      {/* ========================================================================= */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: Idea Cards (8 cols) */}
+        <div className="lg:col-span-8 space-y-4">
+          {ideas.map((idea, idx) => (
+            <div
+              key={idx}
+              className="p-5 bg-white border border-[#E8EAEE] hover:border-[#3B82F6] rounded-[24px] shadow-xs hover:shadow-md transition space-y-4 group"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3.5">
+                  <span className="w-8 h-8 rounded-full bg-[#F3F4F6] text-[#374151] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                    {idx + 1}
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-bold text-[#111827] group-hover:text-[#3B82F6] transition">
+                      {idea.title}
+                    </h3>
+                    <p className="text-xs text-[#6B7280] mt-1 leading-relaxed">
+                      {idea.desc}
+                    </p>
                   </div>
                 </div>
 
-                {idea.hook && (
-                  <div className="p-2.5 bg-ink-950/80 border border-ink-800 rounded text-xs text-ink-300 italic">
-                    {idea.hook}
-                  </div>
-                )}
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => onSaveIdeaToPlanner(idea)}
+                    className="p-2 rounded-full border border-[#E2E5EB] hover:bg-[#F3F4F6] text-[#6B7280] hover:text-[#111827] transition cursor-pointer"
+                    title="Save to Planner"
+                  >
+                    <Bookmark className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => onSelectIdeaForBrief(idea)}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#111827] hover:bg-[#3B82F6] text-white rounded-full text-xs font-bold shadow-xs transition cursor-pointer"
+                  >
+                    <span>Build Brief</span>
+                    <ArrowUpRight className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
 
-                <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                  {idea.tags.map((tag, tIdx) => (
+              {/* Hook Preview Box */}
+              {idea.hook && (
+                <div className="p-3 bg-[#F9FAFB] rounded-xl border border-[#E8EAEE] text-xs text-[#4B5563] italic">
+                  {idea.hook}
+                </div>
+              )}
+
+              {/* Tags & Score */}
+              <div className="flex items-center justify-between pt-2 border-t border-[#F0F2F5] text-xs">
+                <div className="flex flex-wrap gap-1.5">
+                  {idea.tags?.map((tag) => (
                     <span
-                      key={tIdx}
-                      className="text-[10px] font-mono px-2 py-0.5 rounded bg-ink-950 text-ink-400 border border-ink-800"
+                      key={tag}
+                      className="text-[10px] font-bold bg-[#F3F4F6] text-[#4B5563] px-2.5 py-0.5 rounded-full"
                     >
                       {tag}
                     </span>
                   ))}
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-studio-orange/10 text-studio-orange border border-studio-orange/20">
-                    {idea.type}
+                </div>
+
+                {idea.score && (
+                  <span className="text-[11px] font-bold text-[#10B981] bg-[#DCFCE7] px-2.5 py-0.5 rounded-full">
+                    Score: {idea.score}/100
                   </span>
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-ink-800">
-                  <button
-                    onClick={() => onSaveIdeaToPlanner(idea)}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-ink-950 hover:bg-ink-800 text-ink-300 hover:text-ink-100 border border-ink-700 rounded text-xs font-mono transition"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>Save to planner</span>
-                  </button>
-
-                  <button
-                    onClick={() => onSelectIdeaForBrief(idea)}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-studio-orange hover:bg-studio-orange-hover text-white rounded text-xs font-mono font-semibold transition"
-                  >
-                    <span>Build video brief</span>
-                    <ArrowUpRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+                )}
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
 
-        {/* Right Column: Gap Check Checklist (4 cols) */}
-        <div className="lg:col-span-4 space-y-4">
-          <div className="p-5 bg-ink-900 border border-ink-800 rounded-xl space-y-3">
-            <div className="text-[10px] font-mono text-studio-orange">THE GAP CHECK</div>
-            <h3 className="text-sm font-bold text-ink-100">Before you record</h3>
-
-            <div className="space-y-2.5 text-xs text-ink-300 pt-2">
-              <label className="flex items-center gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="rounded bg-ink-950 border-ink-700 text-studio-orange focus:ring-0"
-                />
-                <span>I know exactly who this helps</span>
-              </label>
-
-              <label className="flex items-center gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="rounded bg-ink-950 border-ink-700 text-studio-orange focus:ring-0"
-                />
-                <span>I can offer one concrete outcome</span>
-              </label>
-
-              <label className="flex items-center gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="rounded bg-ink-950 border-ink-700 text-studio-orange focus:ring-0"
-                />
-                <span>I can improve on existing examples</span>
-              </label>
-
-              <label className="flex items-center gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="rounded bg-ink-950 border-ink-700 text-studio-orange focus:ring-0"
-                />
-                <span>I can deliver the title&apos;s promise</span>
-              </label>
-            </div>
-
-            <div className="text-[11px] text-ink-500 pt-2 border-t border-ink-800 font-mono">
-              Aim for a distinct point of view—never a copy of a larger channel.
-            </div>
+        {/* Right Column: Outcrowd Creative Checklist Card (4 cols) */}
+        <div className="lg:col-span-4 bg-white rounded-[28px] border border-[#E8EAEE] p-6 shadow-xs space-y-4">
+          <div className="flex items-center gap-2 mb-2">
+            <CheckSquare className="w-4 h-4 text-[#3B82F6]" />
+            <h3 className="text-sm font-bold text-[#111827]">
+              Angle Differentiation Filter
+            </h3>
           </div>
 
-          <div className="p-5 bg-ink-900 border border-ink-800 rounded-xl space-y-3">
-            <div className="text-[10px] font-mono text-studio-orange">VALIDATE SEARCH DEMAND</div>
-            <h3 className="text-sm font-bold text-ink-100">Check autocomplete</h3>
-            <p className="text-xs text-ink-400">
-              Verify live search phrasing before writing the title. Audience vocabulary changes over time.
-            </p>
-            <a
-              href={`https://www.youtube.com/results?search_query=${encodeURIComponent(topic)}`}
-              target="_blank"
-              rel="noreferrer"
-              className="w-full py-2 bg-ink-950 hover:bg-ink-800 text-ink-200 border border-ink-700 rounded-md text-xs font-mono flex items-center justify-center gap-1.5 transition"
-            >
-              <span>Open YouTube search</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
+          <p className="text-xs text-[#6B7280] leading-relaxed">
+            Before approving an angle into scripting, verify it clears all three creator filters:
+          </p>
+
+          <div className="space-y-3 pt-2">
+            <div className="p-3 rounded-2xl bg-[#F9FAFB] border border-[#E8EAEE] space-y-1">
+              <div className="text-xs font-bold text-[#111827]">1. Specific First Viewer</div>
+              <p className="text-[11px] text-[#6B7280]">Who has this pain right now? (Avoid "anyone who wants to learn").</p>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-[#F9FAFB] border border-[#E8EAEE] space-y-1">
+              <div className="text-xs font-bold text-[#111827]">2. High-Payoff Outcome</div>
+              <p className="text-[11px] text-[#6B7280]">Can the viewer complete or understand one small thing end-to-end?</p>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-[#F9FAFB] border border-[#E8EAEE] space-y-1">
+              <div className="text-xs font-bold text-[#111827]">3. Thumbnail Clarity</div>
+              <p className="text-[11px] text-[#6B7280]">Can the core contrast be expressed in under 4 words or 1 visual?</p>
+            </div>
           </div>
         </div>
       </div>

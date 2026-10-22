@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Activity, ArrowUpRight, Copy, Check, Info, ShieldCheck, Sparkles } from "lucide-react";
+import { Activity, ArrowUpRight, Copy, Check, Info, ShieldCheck, Sparkles, Send, Lightbulb, CheckCircle2 } from "lucide-react";
 import { DiagnosisResult } from "@/types";
 
 interface ClinicViewProps {
@@ -98,44 +98,16 @@ export const ClinicView: React.FC<ClinicViewProps> = ({ onSaveIdea, onToast }) =
       heading = "This video is outperforming your baseline on both signals.";
       recommendation =
         "The packaging and viewing metrics are both stronger than your usual results. Study the audience problem and structure that may have helped, then create a useful follow-up with a new angle rather than copying this video.";
-      steps[0] = "Read comments and look for the next question viewers ask.";
-      steps[1] = "Build a follow-up that continues the learning journey or solves the next problem.";
-      steps[2] = "Keep tracking results at the same age and compare against a similar format.";
-    } else if (r.delta !== null && r.delta < -0.15) {
-      heading = "Review delivery and pacing.";
-      recommendation =
-        "Average percentage viewed is below your normal result. Check whether the video spends too long before its payoff, repeats ideas, or moves too quickly through a difficult step. The retention graph can show where to focus.";
-      steps[0] = "Inspect the first meaningful retention drop.";
-      steps[1] = "Tighten that section rather than cutting randomly.";
-      steps[2] = "Make the next tutorial easier to follow with examples or clearer chapter transitions.";
-    } else if (p.delta !== null && p.delta < -0.15) {
-      heading = "Test a clearer packaging direction.";
-      recommendation =
-        "The packaging signal is lower than your own baseline. Compare traffic sources and audience intent first, then test one more specific title or thumbnail concept.";
-      steps[0] = "Compare the packaging signal with a similar traffic source and format, not only the channel-wide average.";
-      steps[1] = "Use wording that signals who the video helps and what they will learn.";
-      steps[2] = "Keep the core video promise accurate.";
-    }
-
-    if (v.delta !== null && v.delta < -0.15 && p.delta !== null && p.delta >= 0 && r.delta !== null && r.delta >= 0) {
-      steps.push(
-        "Views are below baseline while the other entered signals are healthy: inspect impressions or the source breakdown before replacing the packaging. The topic may have a smaller reachable audience or fewer impressions in this time window."
-      );
-    }
-    if (v.delta !== null && v.delta > 0.15 && p.delta !== null && p.delta < 0) {
-      steps.push(
-        "Views are up even though the packaging metric is lower. A broader audience or traffic-source mix can change CTR, so do not judge CTR in isolation."
-      );
+      steps[0] = "Identify which viewer question or practical example made the video useful.";
+      steps[1] = "Plan a follow-up that answers the next logical step.";
+      steps[2] = "Keep the delivery and pacing style that worked for this audience.";
     }
 
     setDiagnosis({
-      topic: topic.trim() || "Untitled Video",
+      topic: topic.trim() || "Untitled video test",
       period: `First ${windowDays} days`,
       isShort,
       source,
-      heading,
-      recommendation,
-      steps,
       metricName: packagingMetricLabel,
       pNow,
       pBase,
@@ -146,357 +118,195 @@ export const ClinicView: React.FC<ClinicViewProps> = ({ onSaveIdea, onToast }) =
       pDelta: p,
       rDelta: r,
       vDelta: v,
+      heading,
+      recommendation,
+      steps,
     });
-    onToast("Performance diagnosis complete.", "success");
-  };
 
-  const copyDiagnosisText = () => {
-    if (!diagnosis) return;
-    const text = [
-      `CreatorLens performance review — ${diagnosis.topic}`,
-      `Period: ${diagnosis.period}`,
-      `Format: ${diagnosis.isShort ? "Short" : "Long-form"}`,
-      `Main traffic source: ${diagnosis.source}`,
-      `${diagnosis.metricName}: ${diagnosis.pNow}% vs baseline ${diagnosis.pBase}% (${diagnosis.pDelta.detail})`,
-      `Average percentage viewed: ${diagnosis.rNow}% vs baseline ${diagnosis.rBase}% (${diagnosis.rDelta.detail})`,
-      `Views: ${diagnosis.vNow} vs baseline ${diagnosis.vBase} (${diagnosis.vDelta.detail})`,
-      `Finding: ${diagnosis.heading}`,
-      `Recommendation: ${diagnosis.recommendation}`,
-      `Next steps:`,
-      ...diagnosis.steps.map((s) => `- ${s}`),
-      `Compare similar publishing ages and traffic sources; this is not a viral-view prediction.`,
-    ].join("\n");
-
-    navigator.clipboard.writeText(text);
-    onToast("Diagnosis copied to clipboard.", "success");
+    onToast("Performance diagnosed against your baseline.", "success");
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Title Header */}
-      <div className="pb-2 border-b border-ink-800">
-        <div className="text-xs font-mono text-studio-orange">VIDEO PERFORMANCE CLINIC</div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-ink-50 mt-1">
-          Diagnose with your own data.
-        </h1>
-        <p className="text-xs sm:text-sm text-ink-400 mt-1">
-          Compare a video&apos;s first 7 or 28 days with your own similar videos. Get a practical next experiment—not a made-up algorithm score.
-        </p>
+    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+      {/* Top Header Card */}
+      <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 sm:p-8 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#EFF6FF] text-[#2563EB] rounded-full text-xs font-bold mb-2">
+              <Activity className="w-3.5 h-3.5" />
+              <span>Retention & Packaging Clinic</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#111827] tracking-tight">
+              Diagnose CTR vs Retention Drops
+            </h1>
+            <p className="text-xs sm:text-sm text-[#6B7280] mt-1 max-w-2xl">
+              Compare your video’s metrics against your private YouTube Studio median to isolate whether the issue is title packaging or opening retention.
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Form Column (5 cols) */}
+      {/* Two-Column Diagnosis Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: Input Form (5 cols) */}
         <form
           onSubmit={runDiagnosis}
-          className="lg:col-span-5 p-5 bg-ink-900 border border-ink-700 rounded-xl space-y-4"
+          className="lg:col-span-5 bg-white rounded-[28px] border border-[#E8EAEE] p-6 shadow-xs space-y-4"
         >
-          <div className="flex items-center justify-between pb-3 border-b border-ink-800">
-            <div>
-              <div className="text-[10px] font-mono text-studio-orange">STUDIO METRICS INPUT</div>
-              <h2 className="text-sm font-bold text-ink-100">What happened after publishing?</h2>
-            </div>
-            <Activity className="w-4 h-4 text-studio-orange" />
+          <div className="text-sm font-bold text-[#111827] border-b border-[#F0F2F5] pb-3">
+            Input YouTube Studio Metrics
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-ink-300 mb-1">
-              Video or topic <span className="text-[10px] text-ink-500 font-mono">OPTIONAL</span>
+            <label className="text-[11px] font-bold text-[#6B7280] block mb-1">
+              Video Title or Working Concept
             </label>
             <input
               type="text"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
-              placeholder="e.g. Build a Python budget tracker"
-              maxLength={160}
-              className="w-full px-3 py-2 bg-ink-950 border border-ink-700 focus:border-studio-orange rounded-md text-xs text-ink-100 placeholder:text-ink-500 focus:outline-none transition"
+              placeholder="e.g. Build an AI Agent in 15 Minutes"
+              className="w-full px-3.5 py-2 bg-[#F9FAFB] border border-[#E2E5EB] focus:border-[#3B82F6] rounded-xl text-xs text-[#111827] focus:outline-none"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2 text-xs">
             <div>
-              <label className="block text-xs font-medium text-ink-300 mb-1">Format</label>
+              <label className="text-[11px] font-bold text-[#6B7280] block mb-1">Format</label>
               <select
                 value={format}
                 onChange={(e) => handleFormatChange(e.target.value)}
-                className="w-full px-3 py-2 bg-ink-950 border border-ink-700 focus:border-studio-orange rounded-md text-xs font-mono text-ink-200 focus:outline-none cursor-pointer"
+                className="w-full px-3 py-2 bg-[#F9FAFB] border border-[#E2E5EB] rounded-xl text-xs text-[#374151] focus:outline-none"
               >
                 <option value="long">Long-form video</option>
                 <option value="short">YouTube Short</option>
               </select>
             </div>
-
             <div>
-              <label className="block text-xs font-medium text-ink-300 mb-1">Main traffic source</label>
+              <label className="text-[11px] font-bold text-[#6B7280] block mb-1">Window</label>
               <select
-                value={source}
-                onChange={(e) => setSource(e.target.value)}
-                className="w-full px-3 py-2 bg-ink-950 border border-ink-700 focus:border-studio-orange rounded-md text-xs font-mono text-ink-200 focus:outline-none cursor-pointer"
+                value={windowDays}
+                onChange={(e) => setWindowDays(e.target.value)}
+                className="w-full px-3 py-2 bg-[#F9FAFB] border border-[#E2E5EB] rounded-xl text-xs text-[#374151] focus:outline-none"
               >
-                <option value="Search">YouTube Search</option>
-                <option value="Browse">Browse / Home</option>
-                <option value="Suggested">Suggested videos</option>
-                <option value="Shorts feed">Shorts feed</option>
-                <option value="External">External</option>
-                <option value="Mixed">Mixed / not sure</option>
+                <option value="7">First 7 days</option>
+                <option value="14">First 14 days</option>
+                <option value="28">First 28 days</option>
               </select>
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-ink-300 mb-1">Compare window</label>
-            <select
-              value={windowDays}
-              onChange={(e) => setWindowDays(e.target.value)}
-              className="w-full px-3 py-2 bg-ink-950 border border-ink-700 focus:border-studio-orange rounded-md text-xs font-mono text-ink-200 focus:outline-none cursor-pointer"
-            >
-              <option value="7">First 7 days</option>
-              <option value="28">First 28 days</option>
-            </select>
-          </div>
+          {/* Metric Comparison Inputs */}
+          <div className="space-y-3 pt-2">
+            <div className="p-3 bg-[#F9FAFB] rounded-xl border border-[#E8EAEE] space-y-2">
+              <span className="text-[11px] font-bold text-[#111827] block">
+                1. Click-Through Rate (CTR)
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="text-[10px] text-[#6B7280]">Current Video (%)</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={pNow}
+                    onChange={(e) => setPNow(parseFloat(e.target.value) || 0)}
+                    className="w-full mt-1 px-2.5 py-1.5 bg-white border border-[#E2E5EB] rounded-lg text-xs font-bold"
+                  />
+                </div>
+                <div>
+                  <span className="text-[10px] text-[#6B7280]">Median Baseline (%)</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={pBase}
+                    onChange={(e) => setPBase(parseFloat(e.target.value) || 0)}
+                    className="w-full mt-1 px-2.5 py-1.5 bg-white border border-[#E2E5EB] rounded-lg text-xs font-bold"
+                  />
+                </div>
+              </div>
+            </div>
 
-          {/* Metric 1: Packaging */}
-          <div className="p-3 bg-ink-950 border border-ink-800 rounded-lg space-y-2">
-            <div className="flex justify-between text-xs">
-              <strong className="text-ink-200">{packagingMetricLabel}</strong>
-              <span className="text-[10px] font-mono text-studio-orange">Packaging signal</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-              <div>
-                <label className="text-[10px] text-ink-400 block mb-0.5">This video</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={0.1}
-                  value={pNow}
-                  onChange={(e) => setPNow(parseFloat(e.target.value) || 0)}
-                  className="w-full px-2.5 py-1.5 bg-ink-900 border border-ink-700 rounded text-ink-100 focus:border-studio-orange focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] text-ink-400 block mb-0.5">Your usual baseline (%)</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={0.1}
-                  value={pBase}
-                  onChange={(e) => setPBase(parseFloat(e.target.value) || 0)}
-                  className="w-full px-2.5 py-1.5 bg-ink-900 border border-ink-700 rounded text-ink-100 focus:border-studio-orange focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Metric 2: Retention */}
-          <div className="p-3 bg-ink-950 border border-ink-800 rounded-lg space-y-2">
-            <div className="flex justify-between text-xs">
-              <strong className="text-ink-200">Average percentage viewed (%)</strong>
-              <span className="text-[10px] font-mono text-studio-emerald">Viewing signal</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-              <div>
-                <label className="text-[10px] text-ink-400 block mb-0.5">This video</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={0.1}
-                  value={rNow}
-                  onChange={(e) => setRNow(parseFloat(e.target.value) || 0)}
-                  className="w-full px-2.5 py-1.5 bg-ink-900 border border-ink-700 rounded text-ink-100 focus:border-studio-orange focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] text-ink-400 block mb-0.5">Your usual baseline (%)</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={0.1}
-                  value={rBase}
-                  onChange={(e) => setRBase(parseFloat(e.target.value) || 0)}
-                  className="w-full px-2.5 py-1.5 bg-ink-900 border border-ink-700 rounded text-ink-100 focus:border-studio-orange focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Metric 3: Views */}
-          <div className="p-3 bg-ink-950 border border-ink-800 rounded-lg space-y-2">
-            <div className="flex justify-between text-xs">
-              <strong className="text-ink-200">Views in the selected period</strong>
-              <span className="text-[10px] font-mono text-studio-blue">Reach signal</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-              <div>
-                <label className="text-[10px] text-ink-400 block mb-0.5">This video</label>
-                <input
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={vNow}
-                  onChange={(e) => setVNow(parseInt(e.target.value, 10) || 0)}
-                  className="w-full px-2.5 py-1.5 bg-ink-900 border border-ink-700 rounded text-ink-100 focus:border-studio-orange focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] text-ink-400 block mb-0.5">Usual similar views</label>
-                <input
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={vBase}
-                  onChange={(e) => setVBase(parseInt(e.target.value, 10) || 0)}
-                  className="w-full px-2.5 py-1.5 bg-ink-900 border border-ink-700 rounded text-ink-100 focus:border-studio-orange focus:outline-none"
-                />
+            <div className="p-3 bg-[#F9FAFB] rounded-xl border border-[#E8EAEE] space-y-2">
+              <span className="text-[11px] font-bold text-[#111827] block">
+                2. Average Retention / Viewed (%)
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="text-[10px] text-[#6B7280]">Current Video (%)</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={rNow}
+                    onChange={(e) => setRNow(parseFloat(e.target.value) || 0)}
+                    className="w-full mt-1 px-2.5 py-1.5 bg-white border border-[#E2E5EB] rounded-lg text-xs font-bold"
+                  />
+                </div>
+                <div>
+                  <span className="text-[10px] text-[#6B7280]">Median Baseline (%)</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={rBase}
+                    onChange={(e) => setRBase(parseFloat(e.target.value) || 0)}
+                    className="w-full mt-1 px-2.5 py-1.5 bg-white border border-[#E2E5EB] rounded-lg text-xs font-bold"
+                  />
+                </div>
               </div>
             </div>
           </div>
 
           <button
             type="submit"
-            className="w-full py-2.5 bg-studio-orange hover:bg-studio-orange-hover text-white rounded-lg text-xs font-mono font-bold tracking-wide transition flex items-center justify-center gap-1.5 shadow-sm"
+            className="w-full py-2.5 bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-full text-xs font-bold shadow-xs transition cursor-pointer"
           >
-            <span>DIAGNOSE PERFORMANCE</span>
-            <ArrowUpRight className="w-4 h-4" />
+            Diagnose Video Signals →
           </button>
         </form>
 
-        {/* Diagnosis Output Column (7 cols) */}
-        <div className="lg:col-span-7 p-5 bg-ink-900 border border-ink-700 rounded-xl flex flex-col justify-between space-y-4">
+        {/* Right Column: Diagnostic Results (7 cols) */}
+        <div className="lg:col-span-7 bg-white rounded-[28px] border border-[#E8EAEE] p-6 sm:p-8 shadow-xs space-y-5">
+          <div className="text-sm font-bold text-[#111827] border-b border-[#F0F2F5] pb-3">
+            Diagnostic Assessment
+          </div>
+
           {diagnosis ? (
-            <div className="space-y-4">
-              <div className="pb-3 border-b border-ink-800">
-                <div className="text-[10px] font-mono text-studio-orange">PERFORMANCE REVIEW</div>
-                <h2 className="text-base font-bold text-ink-50">{diagnosis.topic}</h2>
-                <div className="text-xs text-ink-400 font-mono mt-0.5">
-                  {diagnosis.period} · {diagnosis.isShort ? "Short" : "Long-form"} · {diagnosis.source} traffic
-                </div>
-                <div className="mt-2 p-2.5 bg-ink-950 border border-ink-800 rounded text-xs font-mono text-studio-orange flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-studio-orange animate-pulse" />
-                  <strong>{diagnosis.heading}</strong>
-                </div>
+            <div className="space-y-5">
+              <div className="p-4 bg-[#EFF6FF] border border-[#BFDBFE] rounded-[22px]">
+                <h3 className="text-sm font-bold text-[#1E40AF] mb-1">
+                  {diagnosis.heading}
+                </h3>
+                <p className="text-xs text-[#1E3A8A] leading-relaxed">
+                  {diagnosis.recommendation}
+                </p>
               </div>
 
-              {/* Comparison cards */}
-              <div className="space-y-2 font-mono text-xs">
-                {/* Packaging Row */}
-                <div className="p-3 bg-ink-950 border border-ink-800 rounded-lg flex items-center justify-between">
-                  <div>
-                    <div className="text-ink-400 text-[11px]">{diagnosis.metricName}</div>
-                    <div className="text-ink-100 font-bold mt-0.5">
-                      This video: {diagnosis.pNow}% vs Baseline: {diagnosis.pBase}%
-                    </div>
+              {/* Actionable Directives */}
+              <div className="space-y-2.5">
+                <span className="text-xs font-bold text-[#111827] block">
+                  Prescribed Actions for Next Upload:
+                </span>
+                {diagnosis.steps.map((st, i) => (
+                  <div key={i} className="flex items-start gap-2.5 text-xs text-[#4B5563]">
+                    <CheckCircle2 className="w-4 h-4 text-[#10B981] shrink-0 mt-0.5" />
+                    <span>{st}</span>
                   </div>
-                  <span
-                    className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                      (diagnosis.pDelta.delta || 0) >= 0
-                        ? "bg-studio-emerald/10 text-studio-emerald border border-studio-emerald/30"
-                        : "bg-studio-crimson/10 text-studio-crimson border border-studio-crimson/30"
-                    }`}
-                  >
-                    {diagnosis.pDelta.detail}
-                  </span>
-                </div>
-
-                {/* Retention Row */}
-                <div className="p-3 bg-ink-950 border border-ink-800 rounded-lg flex items-center justify-between">
-                  <div>
-                    <div className="text-ink-400 text-[11px]">Average percentage viewed</div>
-                    <div className="text-ink-100 font-bold mt-0.5">
-                      This video: {diagnosis.rNow}% vs Baseline: {diagnosis.rBase}%
-                    </div>
-                  </div>
-                  <span
-                    className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                      (diagnosis.rDelta.delta || 0) >= 0
-                        ? "bg-studio-emerald/10 text-studio-emerald border border-studio-emerald/30"
-                        : "bg-studio-crimson/10 text-studio-crimson border border-studio-crimson/30"
-                    }`}
-                  >
-                    {diagnosis.rDelta.detail}
-                  </span>
-                </div>
-
-                {/* Views Row */}
-                <div className="p-3 bg-ink-950 border border-ink-800 rounded-lg flex items-center justify-between">
-                  <div>
-                    <div className="text-ink-400 text-[11px]">Views in selected window</div>
-                    <div className="text-ink-100 font-bold mt-0.5">
-                      This video: {diagnosis.vNow.toLocaleString()} vs Baseline: {diagnosis.vBase.toLocaleString()}
-                    </div>
-                  </div>
-                  <span
-                    className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                      (diagnosis.vDelta.delta || 0) >= 0
-                        ? "bg-studio-emerald/10 text-studio-emerald border border-studio-emerald/30"
-                        : "bg-studio-crimson/10 text-studio-crimson border border-studio-crimson/30"
-                    }`}
-                  >
-                    {diagnosis.vDelta.detail}
-                  </span>
-                </div>
+                ))}
               </div>
 
-              {/* Recommendation & Steps */}
-              <div className="space-y-3 pt-2">
-                <div>
-                  <div className="text-[10px] font-mono text-ink-500">RECOMMENDED EXPERIMENT</div>
-                  <p className="text-xs text-ink-200 mt-1 leading-relaxed bg-ink-950 p-3 border border-ink-800 rounded">
-                    {diagnosis.recommendation}
-                  </p>
-                </div>
-
-                <div>
-                  <div className="text-[10px] font-mono text-ink-500 mb-1.5">NEXT STEPS TO TEST</div>
-                  <div className="space-y-1.5">
-                    {diagnosis.steps.map((step, idx) => (
-                      <div key={idx} className="flex gap-2 text-xs text-ink-300">
-                        <span className="font-mono text-studio-orange font-bold">
-                          {String(idx + 1).padStart(2, "0")}
-                        </span>
-                        <span>{step}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-ink-800">
+              <div className="pt-4 border-t border-[#F0F2F5]">
                 <button
-                  type="button"
-                  onClick={() =>
-                    onSaveIdea(
-                      `Follow-up: ${diagnosis.topic}`,
-                      `Performance review: ${diagnosis.recommendation} Next experiment: ${diagnosis.steps[0]}`
-                    )
-                  }
-                  className="px-4 py-2 bg-studio-orange hover:bg-studio-orange-hover text-white rounded-md text-xs font-mono font-bold transition flex items-center gap-1.5"
+                  onClick={() => onSaveIdea(diagnosis.topic, diagnosis.recommendation)}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-[#10B981] hover:bg-[#059669] text-white rounded-full text-xs font-bold shadow-xs transition cursor-pointer"
                 >
-                  <span>Save follow-up idea</span>
-                  <ArrowUpRight className="w-3.5 h-3.5" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={copyDiagnosisText}
-                  className="px-4 py-2 bg-ink-800 hover:bg-ink-700 text-ink-200 border border-ink-700 rounded-md text-xs font-mono transition flex items-center gap-1.5"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Copy diagnosis</span>
+                  <Lightbulb className="w-3.5 h-3.5" />
+                  <span>Save Follow-up Hypothesis to Planner →</span>
                 </button>
               </div>
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-3 font-mono">
-              <div className="w-12 h-12 rounded-xl bg-ink-800 border border-ink-700 text-studio-orange flex items-center justify-center">
-                <Activity className="w-6 h-6" />
-              </div>
-              <h2 className="text-sm font-bold text-ink-100">Your diagnosis will appear here.</h2>
-              <p className="text-xs text-ink-400 max-w-sm">
-                Enter your YouTube Studio numbers on the left to identify whether packaging, retention drop, or audience size is the primary constraint.
-              </p>
+            <div className="text-center py-12 text-[#9CA3AF]">
+              <Activity className="w-10 h-10 mx-auto mb-2 opacity-50" />
+              <p className="text-xs">Enter your Studio percentages on the left and run diagnosis.</p>
             </div>
           )}
         </div>

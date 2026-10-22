@@ -1,7 +1,22 @@
 "use client";
 
 import React, { useState } from "react";
-import { ScanEye, ArrowUpRight, Play, ExternalLink, Info, Sparkles, TrendingUp, AlertTriangle } from "lucide-react";
+import {
+  ScanEye,
+  ArrowUpRight,
+  ExternalLink,
+  Sparkles,
+  TrendingUp,
+  AlertTriangle,
+  History,
+  Send,
+  Calendar,
+  CheckCircle2,
+  BarChart3,
+  Lightbulb,
+  Clock,
+  Play
+} from "lucide-react";
 import { AuditData } from "@/types";
 
 interface AuditViewProps {
@@ -53,217 +68,198 @@ export const AuditView: React.FC<AuditViewProps> = ({ onPlanFollowup, onToast })
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Title Header */}
-      <div className="pb-2 border-b border-ink-800">
-        <div className="text-xs font-mono text-studio-orange">EXISTING CREATOR WORKSPACE</div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-ink-50 mt-1">
-          Audit your public channel.
-        </h1>
-        <p className="text-xs sm:text-sm text-ink-400 mt-1">
-          Review recent video performance against your own channel baseline, discover standout topics, and convert insights into the next experiment.
-        </p>
-      </div>
-
-      {/* Audit Input Form */}
-      <form
-        onSubmit={handleAuditSubmit}
-        className="p-3 sm:p-4 bg-ink-900 border border-ink-700 rounded-xl flex flex-col sm:flex-row gap-2.5"
-      >
-        <div className="relative flex-1">
-          <input
-            type="text"
-            value={channelInput}
-            onChange={(e) => setChannelInput(e.target.value)}
-            placeholder="Paste your YouTube channel URL, ID, or @handle (e.g. @mkbhd, @veritasium)"
-            maxLength={240}
-            required
-            className="w-full px-3 py-2 bg-ink-950 border border-ink-700 focus:border-studio-orange rounded-lg text-xs sm:text-sm text-ink-100 placeholder:text-ink-500 focus:outline-none transition font-sans"
-          />
+    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+      {/* ========================================================================= */}
+      {/* 1. TOP AUDIT INPUT CARD (OUTCROWD MODULAR CARD)                           */}
+      {/* ========================================================================= */}
+      <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 sm:p-8 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#EFF6FF] text-[#2563EB] rounded-full text-xs font-bold mb-2">
+              <ScanEye className="w-3.5 h-3.5" />
+              <span>Channel Forensics & Audit</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#111827] tracking-tight">
+              Audit Channel Baseline
+            </h1>
+            <p className="text-xs sm:text-sm text-[#6B7280] mt-1 max-w-2xl">
+              Inspect historical upload metrics against median baselines, spot outlier topics, and uncover audience retention opportunities.
+            </p>
+          </div>
         </div>
 
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="px-5 py-2 bg-studio-orange hover:bg-studio-orange-hover text-white rounded-lg text-xs font-mono font-bold tracking-wide transition disabled:opacity-50 flex items-center justify-center gap-1.5"
+        {/* Input Bar */}
+        <form
+          onSubmit={handleAuditSubmit}
+          className="bg-[#F9FAFB] border border-[#E2E5EB] focus-within:border-[#3B82F6] rounded-2xl p-2.5 sm:p-3 shadow-xs transition"
         >
-          <span>{isLoading ? "AUDITING CHANNEL…" : "AUDIT CHANNEL"}</span>
-          <ArrowUpRight className="w-4 h-4" />
-        </button>
-      </form>
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <div className="flex-1 flex items-center gap-2.5 w-full px-2">
+              <Sparkles className="w-4 h-4 text-[#3B82F6] shrink-0" />
+              <input
+                type="text"
+                placeholder="Paste channel URL or @handle (e.g., @Fireship, @TraversyMedia)..."
+                value={channelInput}
+                onChange={(e) => setChannelInput(e.target.value)}
+                className="w-full bg-transparent text-xs sm:text-sm font-medium text-[#111827] placeholder:text-[#9CA3AF] focus:outline-none"
+              />
+            </div>
 
-      {/* Public data disclosure notice */}
-      <div className="p-3 bg-ink-900/60 border border-ink-800 rounded-lg flex items-start gap-2.5 text-xs text-ink-400">
-        <Info className="w-4 h-4 text-studio-orange flex-shrink-0 mt-0.5" />
-        <div>
-          <strong className="text-ink-200">Public-data audit: </strong>
-          This analyzes public video and channel metrics only. Private click-through rate, first-30-second retention, traffic sources, and demographics are never accessible to public tools.
-        </div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full sm:w-auto bg-[#3B82F6] hover:bg-[#2563EB] disabled:bg-gray-300 text-white font-bold text-xs px-6 py-2.5 rounded-full transition shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>{isLoading ? "Running Audit..." : "Run Audit →"}</span>
+            </button>
+          </div>
+        </form>
+
+        {errorNotice && (
+          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-2xl flex items-center gap-2 text-xs text-red-700">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>{errorNotice}</span>
+          </div>
+        )}
       </div>
 
-      {/* Loading state */}
-      {isLoading && (
-        <div className="p-12 bg-ink-900 border border-ink-800 rounded-xl text-center space-y-3 font-mono">
-          <div className="w-10 h-10 border-2 border-studio-orange border-t-transparent rounded-full animate-spin mx-auto" />
-          <div className="text-sm font-bold text-ink-100">Fetching channel metadata & recent uploads…</div>
-          <div className="text-xs text-ink-400">Analyzing baseline and calculating median performance</div>
-        </div>
-      )}
-
-      {/* Error state */}
-      {!isLoading && errorNotice && (
-        <div className="p-6 bg-studio-crimson/10 border border-studio-crimson/30 rounded-xl space-y-2">
-          <div className="flex items-center gap-2 text-studio-crimson font-mono text-xs font-bold">
-            <AlertTriangle className="w-4 h-4" />
-            <span>AUDIT NOTICE</span>
-          </div>
-          <p className="text-xs text-ink-200">{errorNotice}</p>
-          <div className="text-[11px] text-ink-400">
-            Note: Live audits require a configured YOUTUBE_API_KEY in server environment.
-          </div>
-        </div>
-      )}
-
-      {/* Empty State when no audit ran yet */}
-      {!isLoading && !auditData && !errorNotice && (
-        <div className="p-12 bg-ink-900 border border-ink-800 rounded-xl text-center space-y-3">
-          <div className="w-12 h-12 rounded-xl bg-ink-800 border border-ink-700 text-studio-orange flex items-center justify-center mx-auto">
-            <ScanEye className="w-6 h-6" />
-          </div>
-          <h2 className="text-base font-bold text-ink-100">Start with your channel URL or handle.</h2>
-          <p className="text-xs text-ink-400 max-w-md mx-auto">
-            We will inspect up to 20 recent public uploads, evaluate upload cadence, identify standout videos, and suggest high-yield follow-up experiments.
-          </p>
-        </div>
-      )}
-
-      {/* Audit Results */}
-      {!isLoading && auditData && (
+      {/* ========================================================================= */}
+      {/* 2. AUDIT RESULTS: KPI CARDS & OUTLIERS                                     */}
+      {/* ========================================================================= */}
+      {auditData && (
         <div className="space-y-6">
-          {/* Channel Profile Header */}
-          <div className="p-5 bg-ink-900 border border-ink-800 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-xl bg-ink-800 border border-ink-700 text-studio-orange font-mono font-bold text-base flex items-center justify-center flex-shrink-0">
-                {auditData.channel.title.slice(0, 2).toUpperCase()}
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-ink-50">{auditData.channel.title}</h2>
-                <p className="text-xs text-ink-400 line-clamp-1">{auditData.channel.description || "Public YouTube channel"}</p>
-                <a
-                  href={auditData.channel.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs text-studio-orange hover:underline font-mono inline-flex items-center gap-1 mt-0.5"
-                >
-                  Open channel on YouTube <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
-            </div>
-
-            <div className="p-3 bg-ink-950 border border-ink-800 rounded-lg text-right font-mono self-stretch sm:self-auto">
-              <div className="text-[10px] text-ink-500">SUBSCRIBERS</div>
-              <div className="text-lg font-bold text-ink-100">{auditData.channel.subscribers}</div>
-            </div>
-          </div>
-
-          {/* Audit Metrics */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="p-4 bg-ink-900 border border-ink-800 rounded-lg font-mono">
-              <div className="text-[10px] text-ink-500">TOTAL CHANNEL VIEWS</div>
-              <div className="text-xl font-bold text-ink-100 mt-1">{auditData.channel.views}</div>
-              <div className="text-[10px] text-ink-400 mt-1">Lifetime public count</div>
-            </div>
-
-            <div className="p-4 bg-ink-900 border border-ink-800 rounded-lg font-mono">
-              <div className="text-[10px] text-ink-500">UPLOADS ANALYZED</div>
-              <div className="text-xl font-bold text-ink-100 mt-1">{auditData.videos.length}</div>
-              <div className="text-[10px] text-ink-400 mt-1">Latest public sample</div>
-            </div>
-
-            <div className="p-4 bg-ink-900 border border-ink-800 rounded-lg font-mono">
-              <div className="text-[10px] text-ink-500">MEDIAN RECENT VIEWS</div>
-              <div className="text-xl font-bold text-studio-emerald mt-1">{auditData.medianRecentViewsLabel}</div>
-              <div className="text-[10px] text-ink-400 mt-1">Your recent baseline</div>
-            </div>
-
-            <div className="p-4 bg-ink-900 border border-ink-800 rounded-lg font-mono">
-              <div className="text-[10px] text-ink-500">VIEWS / SUBSCRIBER</div>
-              <div className="text-xl font-bold text-studio-blue mt-1">
-                {auditData.medianViewsPerSubscriber !== null ? `${auditData.medianViewsPerSubscriber}%` : "—"}
-              </div>
-              <div className="text-[10px] text-ink-400 mt-1">Public benchmark ratio</div>
-            </div>
-          </div>
-
-          {/* Bottom Grid: Recent Uploads & Insights */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Recent Uploads */}
-            <div className="p-5 bg-ink-900 border border-ink-800 rounded-xl space-y-3">
-              <div className="pb-3 border-b border-ink-800">
-                <div className="text-[10px] font-mono text-studio-orange">RECENT UPLOADS</div>
-                <h3 className="text-sm font-bold text-ink-100">Videos to investigate</h3>
-              </div>
-
-              <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1">
-                {auditData.videos.map((v, i) => (
-                  <div
-                    key={v.id}
-                    className="p-3 bg-ink-950 border border-ink-800 rounded-lg flex items-center justify-between gap-3"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-6 h-6 rounded bg-ink-800 border border-ink-700 text-ink-300 font-mono text-xs flex items-center justify-center font-bold flex-shrink-0">
-                        {String(i + 1).padStart(2, "0")}
-                      </div>
-                      <div className="min-w-0">
-                        <a
-                          href={v.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-xs font-bold text-ink-100 hover:text-studio-orange transition truncate block"
-                        >
-                          {v.title}
-                        </a>
-                        <div className="text-[10px] text-ink-400 font-mono">
-                          {v.publishedAt ? v.publishedAt.slice(0, 10) : "Date n/a"}
-                          {v.likes !== null && ` · ${v.likes} likes`}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-right flex-shrink-0 font-mono">
-                      <div className="text-xs font-bold text-ink-100">{v.views}</div>
-                      <div className="text-[10px] text-ink-500">views</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Next Experiments Insights */}
-            <div className="p-5 bg-ink-900 border border-ink-800 rounded-xl flex flex-col justify-between space-y-4">
-              <div>
-                <div className="pb-3 border-b border-ink-800">
-                  <div className="text-[10px] font-mono text-studio-orange">NEXT EXPERIMENTS</div>
-                  <h3 className="text-sm font-bold text-ink-100">What to test next</h3>
+          {/* Channel Overview & Action Header */}
+          <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-full bg-[#E0E7FF] border-2 border-white flex items-center justify-center font-bold text-sm text-[#4F46E5] shadow-xs">
+                  {auditData.channel.title.slice(0, 2).toUpperCase()}
                 </div>
-
-                <div className="mt-3 space-y-3">
-                  {auditData.insights.map((insight, idx) => (
-                    <div key={idx} className="p-3 bg-ink-950 border border-ink-800 rounded-lg text-xs space-y-1">
-                      <strong className="text-ink-100 block font-semibold">{insight.title}</strong>
-                      <p className="text-ink-300 text-[11px] leading-relaxed">{insight.body}</p>
-                    </div>
-                  ))}
+                <div>
+                  <h2 className="text-lg font-bold text-[#111827]">
+                    {auditData.channel.title}
+                  </h2>
+                  <p className="text-xs text-[#6B7280]">
+                    {auditData.channel.handle || "YouTube Channel"} • {auditData.channel.subscribers}
+                  </p>
                 </div>
               </div>
 
               <button
                 onClick={handlePlanClick}
-                className="w-full py-2.5 bg-studio-orange hover:bg-studio-orange-hover text-white rounded-md text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition"
+                className="flex items-center gap-2 px-4 py-2 bg-[#10B981] hover:bg-[#059669] text-white rounded-full text-xs font-bold shadow-xs transition cursor-pointer"
               >
-                <span>PLAN A FOLLOW-UP VIDEO</span>
-                <ArrowUpRight className="w-4 h-4" />
+                <Lightbulb className="w-3.5 h-3.5" />
+                <span>Create Follow-up Plan →</span>
               </button>
+            </div>
+
+            {/* Outcrowd 4-Column Baseline KPI Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+              <div className="p-4 bg-[#F9FAFB] border border-[#E8EAEE] rounded-[20px]">
+                <span className="text-[11px] font-bold uppercase text-[#9CA3AF] block">
+                  Median Views Baseline
+                </span>
+                <span className="text-2xl font-black text-[#111827] mt-1 block">
+                  {auditData.medianRecentViews.toLocaleString()}
+                </span>
+                <span className="text-[10px] text-[#2563EB] font-bold mt-0.5 block">
+                  {auditData.medianRecentViewsLabel}
+                </span>
+              </div>
+
+              <div className="p-4 bg-[#F9FAFB] border border-[#E8EAEE] rounded-[20px]">
+                <span className="text-[11px] font-bold uppercase text-[#9CA3AF] block">
+                  Total Channel Views
+                </span>
+                <span className="text-2xl font-black text-[#111827] mt-1 block">
+                  {auditData.channel.views}
+                </span>
+                <span className="text-[10px] text-[#6B7280] mt-0.5 block">
+                  Cumulative all-time
+                </span>
+              </div>
+
+              <div className="p-4 bg-[#F9FAFB] border border-[#E8EAEE] rounded-[20px]">
+                <span className="text-[11px] font-bold uppercase text-[#9CA3AF] block">
+                  Video Catalog Count
+                </span>
+                <span className="text-2xl font-black text-[#111827] mt-1 block">
+                  {auditData.channel.videoCount}
+                </span>
+                <span className="text-[10px] text-[#6B7280] mt-0.5 block">
+                  Public uploads
+                </span>
+              </div>
+
+              <div className="p-4 bg-[#F9FAFB] border border-[#E8EAEE] rounded-[20px]">
+                <span className="text-[11px] font-bold uppercase text-[#9CA3AF] block">
+                  Recent Uploads Scanned
+                </span>
+                <span className="text-2xl font-black text-[#111827] mt-1 block">
+                  {auditData.videos.length}
+                </span>
+                <span className="text-[10px] text-[#6B7280] mt-0.5 block">
+                  Latest catalog audit
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Standout Outliers Table */}
+          <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 shadow-xs">
+            <h3 className="font-bold text-base text-[#111827] mb-4">
+              Recent Video Performance vs Median Baseline
+            </h3>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-[#F0F2F5] text-[#9CA3AF]">
+                    <th className="pb-3 font-bold uppercase tracking-wider">Video Title</th>
+                    <th className="pb-3 font-bold uppercase tracking-wider">Views</th>
+                    <th className="pb-3 font-bold uppercase tracking-wider">vs Baseline</th>
+                    <th className="pb-3 font-bold uppercase tracking-wider text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#F0F2F5]">
+                  {auditData.videos.map((vid) => {
+                    const isOutlier = vid.multiplier && vid.multiplier >= 1.5;
+                    return (
+                      <tr key={vid.id} className="hover:bg-[#F9FAFB] transition">
+                        <td className="py-3.5 pr-4 font-semibold text-[#111827] max-w-md truncate">
+                          {vid.title}
+                        </td>
+                        <td className="py-3.5 text-[#4B5563] font-bold">
+                          {vid.viewCount.toLocaleString()}
+                        </td>
+                        <td className="py-3.5">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                              isOutlier
+                                ? "bg-[#DCFCE7] text-[#16A34A]"
+                                : "bg-[#F3F4F6] text-[#6B7280]"
+                            }`}
+                          >
+                            {vid.ratioLabel || "1.0x"}
+                          </span>
+                        </td>
+                        <td className="py-3.5 text-right">
+                          <a
+                            href={vid.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[#3B82F6] hover:underline font-bold inline-flex items-center gap-1"
+                          >
+                            <span>Watch</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

@@ -11,6 +11,9 @@ import {
   Layers,
   ArrowUpRight,
   Info,
+  BarChart3,
+  Zap,
+  Activity,
 } from "lucide-react";
 import { RevenueEstimate, SnapshotPoint, TrackedVideo } from "@/lib/types/revenue";
 
@@ -31,7 +34,6 @@ export const RevenueCharts: React.FC<RevenueChartsProps> = ({
     if (estimate.snapshots && estimate.snapshots.length > 0) {
       return estimate.snapshots;
     }
-    // Fallback if single observation
     return [
       {
         date: estimate.coverageStartDate?.slice(0, 10) || "Start",
@@ -50,7 +52,6 @@ export const RevenueCharts: React.FC<RevenueChartsProps> = ({
 
   const recentVideos = estimate.recentVideos || [];
 
-  // Formatter helpers
   const formatMoney = (val: number) => {
     return `${currencySymbol}${val.toLocaleString("en-US", {
       minimumFractionDigits: 0,
@@ -69,48 +70,76 @@ export const RevenueCharts: React.FC<RevenueChartsProps> = ({
     return val.toLocaleString("en-US");
   };
 
-  // Timeline SVG calculations
-  const chartHeight = 220;
-  const chartWidth = 720;
-  const paddingX = 40;
-  const paddingY = 30;
+  const chartHeight = 240;
+  const chartWidth = 760;
+  const paddingX = 44;
+  const paddingY = 32;
 
   const maxVal = useMemo(() => {
-    const max = Math.max(...snapshots.map((s) => s.estimatedRevenue), 10);
-    return Math.ceil(max * 1.15);
+    const peak = Math.max(...snapshots.map((s) => s.estimatedRevenue), 1);
+    return Math.ceil(peak * 1.15);
   }, [snapshots]);
 
   const points = useMemo(() => {
+    if (snapshots.length === 0) return [];
     if (snapshots.length === 1) {
-      return [{ x: chartWidth / 2, y: chartHeight - paddingY, data: snapshots[0] }];
+      return [
+        {
+          x: chartWidth / 2,
+          y: chartHeight - paddingY - (snapshots[0].estimatedRevenue / maxVal) * (chartHeight - paddingY * 2),
+          data: snapshots[0],
+        },
+      ];
     }
     return snapshots.map((s, idx) => {
       const x = paddingX + (idx / (snapshots.length - 1)) * (chartWidth - paddingX * 2);
-      const y = chartHeight - paddingY - (s.estimatedRevenue / maxVal) * (chartHeight - paddingY * 2);
+      const normalizedY = s.estimatedRevenue / maxVal;
+      const y = chartHeight - paddingY - normalizedY * (chartHeight - paddingY * 2);
       return { x, y, data: s };
     });
   }, [snapshots, maxVal]);
 
-  const polylineStr = useMemo(() => {
+  const curvePath = useMemo(() => {
     if (points.length < 2) return "";
-    return points.map((p) => `${p.x},${p.y}`).join(" ");
+    let d = `M ${points[0].x},${points[0].y}`;
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[i === 0 ? 0 : i - 1];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = points[i + 2] || p2;
+      const cp1x = p1.x + (p2.x - p0.x) / 6;
+      const cp1y = p1.y + (p2.y - p0.y) / 6;
+      const cp2x = p2.x - (p3.x - p1.x) / 6;
+      const cp2y = p2.y - (p3.y - p1.y) / 6;
+      d += ` C ${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`;
+    }
+    return d;
   }, [points]);
 
   const areaPathStr = useMemo(() => {
-    if (points.length < 2) return "";
+    if (!curvePath || points.length < 2) return "";
     const first = points[0];
     const last = points[points.length - 1];
-    return `M ${first.x},${chartHeight - paddingY} L ${points
-      .map((p) => `${p.x},${p.y}`)
-      .join(" L ")} L ${last.x},${chartHeight - paddingY} Z`;
-  }, [points]);
+    let path = `M ${first.x},${chartHeight - paddingY} L ${first.x},${first.y}`;
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[i === 0 ? 0 : i - 1];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = points[i + 2] || p2;
+      const cp1x = p1.x + (p2.x - p0.x) / 6;
+      const cp1y = p1.y + (p2.y - p0.y) / 6;
+      const cp2x = p2.x - (p3.x - p1.x) / 6;
+      const cp2y = p2.y - (p3.y - p1.y) / 6;
+      path += ` C ${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`;
+    }
+    path += ` L ${last.x},${chartHeight - paddingY} Z`;
+    return path;
+  }, [points, curvePath]);
 
-  // Dynamic custom RPM revenue calculation
   const customCalculatedRevenue = useMemo(() => {
     return Math.round((estimate.observedPeriodViews / 1000) * customRpm * 100) / 100;
   }, [estimate.observedPeriodViews, customRpm]);
 
-  // Projected Run-rates
   const dailyAvg = estimate.actualCoverageDays > 0
     ? estimate.observedPeriodViews / estimate.actualCoverageDays
     : estimate.observedPeriodViews / estimate.reportingPeriodDays;
@@ -119,80 +148,75 @@ export const RevenueCharts: React.FC<RevenueChartsProps> = ({
   const projected90d = Math.round(((dailyAvg * 90) / 1000) * estimate.appliedRpm.typical);
   const projectedAnnual = Math.round(((dailyAvg * 365) / 1000) * estimate.appliedRpm.typical);
 
+  const tabItems = [
+    { key: "timeline" as const, label: "Growth Timeline", icon: TrendingUp },
+    { key: "sensitivity" as const, label: "RPM Sensitivity", icon: Sliders },
+    { key: "videos" as const, label: `Uploads (${recentVideos.length})`, icon: PlaySquare },
+  ];
+
   return (
-    <div className="studio-glass rounded-xl p-5 border border-ink-800 space-y-6">
+    <div className="bg-white dark:bg-ink-900 border border-gray-200/90 dark:border-ink-800 rounded-2xl p-6 shadow-2xs space-y-6">
       {/* Header and Chart Switcher */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-ink-800/80">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-gray-100 dark:border-ink-800">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-studio-orange animate-pulse" />
-            <h3 className="text-sm font-bold text-ink-100 flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-studio-orange" />
-              <span>Revenue & Performance Analytics Charts</span>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-brand-50 dark:bg-brand-950/60 border border-brand-200 dark:border-brand-800 flex items-center justify-center">
+              <BarChart3 className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+            </div>
+            <h3 className="text-sm font-bold text-gray-900 dark:text-ink-50">
+              Revenue & Performance Charts
             </h3>
           </div>
-          <p className="text-xs text-ink-400 mt-0.5">
+          <p className="text-xs text-gray-400 dark:text-ink-500 mt-1 ml-[42px]">
             Visual progression, scenario modeling, and format distributions for {estimate.channel.title}
           </p>
         </div>
 
-        {/* Tab Controls */}
-        <div className="flex items-center gap-1 bg-ink-900 p-1 rounded-lg border border-ink-800 text-xs">
-          <button
-            onClick={() => setActiveTab("timeline")}
-            className={`px-3 py-1 rounded-md font-semibold transition cursor-pointer ${
-              activeTab === "timeline"
-                ? "bg-studio-orange text-white shadow-sm"
-                : "text-ink-400 hover:text-ink-200"
-            }`}
-          >
-            Growth Timeline
-          </button>
-          <button
-            onClick={() => setActiveTab("sensitivity")}
-            className={`px-3 py-1 rounded-md font-semibold transition cursor-pointer ${
-              activeTab === "sensitivity"
-                ? "bg-studio-orange text-white shadow-sm"
-                : "text-ink-400 hover:text-ink-200"
-            }`}
-          >
-            RPM Sensitivity
-          </button>
-          <button
-            onClick={() => setActiveTab("videos")}
-            className={`px-3 py-1 rounded-md font-semibold transition cursor-pointer ${
-              activeTab === "videos"
-                ? "bg-studio-orange text-white shadow-sm"
-                : "text-ink-400 hover:text-ink-200"
-            }`}
-          >
-            Recent Uploads ({recentVideos.length})
-          </button>
+        {/* Tab Controls — Clean pill design */}
+        <div className="flex items-center gap-1 bg-gray-100 dark:bg-ink-850 p-1 rounded-full border border-gray-200 dark:border-ink-700">
+          {tabItems.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition ${
+                  isActive
+                    ? "bg-white dark:bg-ink-800 text-gray-900 dark:text-ink-50 shadow-xs"
+                    : "text-gray-500 hover:text-gray-900 dark:text-ink-400 dark:hover:text-ink-100"
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* TAB 1: Growth Timeline */}
       {activeTab === "timeline" && (
-        <div className="space-y-4">
+        <div className="space-y-5">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-ink-400 font-mono text-[11px]">
-              OBSERVED REVENUE GROWTH TIMELINE ({estimate.reportingPeriodDays}D WINDOW)
+            <span className="text-gray-400 dark:text-ink-500 font-mono text-[11px] uppercase">
+              REVENUE GROWTH TIMELINE ({estimate.reportingPeriodDays}D WINDOW)
             </span>
-            <span className="text-ink-400 font-mono text-[11px]">
-              Peak Interval Revenue: {formatMoney(maxVal)}
+            <span className="text-gray-500 dark:text-ink-400 font-mono text-[11px]">
+              Peak: {formatMoney(maxVal)}
             </span>
           </div>
 
           {/* SVG Visual Area Chart */}
-          <div className="relative bg-ink-950/70 rounded-xl p-3 border border-ink-800 overflow-hidden">
+          <div className="relative bg-gray-50/70 dark:bg-ink-950/60 rounded-2xl p-4 border border-gray-100 dark:border-ink-850 overflow-hidden">
             <svg
               viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-              className="w-full h-48 sm:h-56 overflow-visible"
+              className="w-full h-52 sm:h-60 overflow-visible relative z-10"
             >
               <defs>
-                <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#F97316" stopOpacity="0.4" />
-                  <stop offset="100%" stopColor="#F97316" stopOpacity="0.0" />
+                <linearGradient id="limeRevenueGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#84CC16" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#84CC16" stopOpacity="0.0" />
                 </linearGradient>
               </defs>
 
@@ -206,14 +230,15 @@ export const RevenueCharts: React.FC<RevenueChartsProps> = ({
                       y1={y}
                       x2={chartWidth - paddingX}
                       y2={y}
-                      stroke="#272B35"
+                      stroke="currentColor"
+                      className="text-gray-200 dark:text-ink-800"
                       strokeDasharray="4 4"
                       strokeWidth="1"
                     />
                     <text
-                      x={paddingX - 6}
+                      x={paddingX - 8}
                       y={y + 3}
-                      fill="#646A7C"
+                      className="fill-gray-400 dark:fill-ink-500"
                       fontSize="9"
                       fontFamily="monospace"
                       textAnchor="end"
@@ -224,40 +249,41 @@ export const RevenueCharts: React.FC<RevenueChartsProps> = ({
                 );
               })}
 
-              {/* Area & Line */}
+              {/* Area Fill */}
               {areaPathStr && (
-                <path d={areaPathStr} fill="url(#revenueGradient)" />
+                <path d={areaPathStr} fill="url(#limeRevenueGradient)" />
               )}
-              {polylineStr && (
-                <polyline
+
+              {/* Line */}
+              {curvePath && (
+                <path
+                  d={curvePath}
                   fill="none"
-                  stroke="#F97316"
+                  stroke="#84CC16"
                   strokeWidth="2.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  points={polylineStr}
                 />
               )}
 
-              {/* Points & Interactive Nodes */}
+              {/* Points */}
               {points.map((p, idx) => (
                 <g key={idx}>
                   <circle
                     cx={p.x}
                     cy={p.y}
-                    r={hoveredIndex === idx ? "6" : "3.5"}
-                    fill="#F97316"
-                    stroke="#0A0B0D"
+                    r={hoveredIndex === idx ? "5.5" : "3.5"}
+                    fill={hoveredIndex === idx ? "#65A30D" : "#84CC16"}
+                    stroke="#ffffff"
                     strokeWidth="2"
-                    className="transition-all duration-150 cursor-pointer"
+                    className="transition-all duration-200 cursor-pointer"
                     onMouseEnter={() => setHoveredIndex(idx)}
                     onMouseLeave={() => setHoveredIndex(null)}
                   />
-                  {/* Date labels on bottom */}
                   <text
                     x={p.x}
                     y={chartHeight - 8}
-                    fill="#646A7C"
+                    className="fill-gray-400 dark:fill-ink-500"
                     fontSize="9"
                     fontFamily="monospace"
                     textAnchor="middle"
@@ -271,118 +297,117 @@ export const RevenueCharts: React.FC<RevenueChartsProps> = ({
             {/* Hover Tooltip Overlay */}
             {hoveredIndex !== null && points[hoveredIndex] && (
               <div
-                className="absolute top-4 left-4 p-3 bg-ink-900/95 border border-studio-orange/50 rounded-lg shadow-xl text-xs font-mono space-y-1 pointer-events-none z-20 backdrop-blur-md"
+                className="absolute top-5 left-5 p-3.5 bg-white dark:bg-ink-900 border border-gray-200 dark:border-ink-700 rounded-xl shadow-lg text-xs font-mono space-y-1 pointer-events-none z-20"
               >
-                <div className="text-ink-400 text-[10px]">
+                <div className="text-gray-400 dark:text-ink-500 text-[10px]">
                   DATE: {points[hoveredIndex].data.date}
                 </div>
-                <div className="text-studio-orange font-bold text-sm">
-                  Est. Revenue: {formatMoney(points[hoveredIndex].data.estimatedRevenue)}
+                <div className="text-brand-600 dark:text-brand-400 font-bold text-sm">
+                  Revenue: {formatMoney(points[hoveredIndex].data.estimatedRevenue)}
                 </div>
-                <div className="text-ink-300 text-[11px]">
-                  Observed Views: {points[hoveredIndex].data.periodViews.toLocaleString()}
-                </div>
-                <div className="text-ink-500 text-[10px]">
-                  Cumulative: {formatViews(points[hoveredIndex].data.cumulativeViews)}
+                <div className="text-gray-600 dark:text-ink-300 text-[11px]">
+                  Views: {points[hoveredIndex].data.periodViews.toLocaleString()}
                 </div>
               </div>
             )}
           </div>
 
           {/* 3 Run-Rate Projection Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-            <div className="p-3 bg-ink-900/80 border border-ink-800 rounded-lg space-y-1">
-              <span className="text-[10px] font-mono text-ink-500">PROJECTED 30-DAY RUN RATE</span>
-              <div className="text-base font-bold text-ink-100">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-1">
+            <div className="p-4 bg-gray-50 dark:bg-ink-950/60 border border-gray-100 dark:border-ink-850 rounded-2xl">
+              <span className="text-[10px] font-mono text-gray-400 dark:text-ink-500 block uppercase">
+                30-Day Run Rate
+              </span>
+              <div className="text-lg font-bold text-gray-900 dark:text-ink-100 mt-1">
                 {formatMoney(projected30d)}
               </div>
-              <p className="text-[10px] text-ink-500 font-mono">
+              <p className="text-[10px] text-gray-400 dark:text-ink-500 mt-0.5">
                 At {formatViews(Math.round(dailyAvg * 30))} views/mo
               </p>
             </div>
 
-            <div className="p-3 bg-ink-900/80 border border-ink-800 rounded-lg space-y-1">
-              <span className="text-[10px] font-mono text-ink-500">PROJECTED 90-DAY QUARTER</span>
-              <div className="text-base font-bold text-ink-100">
+            <div className="p-4 bg-gray-50 dark:bg-ink-950/60 border border-gray-100 dark:border-ink-850 rounded-2xl">
+              <span className="text-[10px] font-mono text-gray-400 dark:text-ink-500 block uppercase">
+                90-Day Quarter
+              </span>
+              <div className="text-lg font-bold text-brand-600 dark:text-brand-400 mt-1">
                 {formatMoney(projected90d)}
               </div>
-              <p className="text-[10px] text-ink-500 font-mono">
-                At current observed velocity
+              <p className="text-[10px] text-gray-400 dark:text-ink-500 mt-0.5">
+                Observed trajectory
               </p>
             </div>
 
-            <div className="p-3 bg-ink-900/80 border border-ink-800 rounded-lg space-y-1">
-              <span className="text-[10px] font-mono text-studio-orange">ESTIMATED ANNUALIZED (12-MO)</span>
-              <div className="text-base font-bold text-studio-orange">
+            <div className="p-4 bg-brand-50/60 dark:bg-brand-950/40 border border-brand-200/80 dark:border-brand-800/60 rounded-2xl">
+              <span className="text-[10px] font-mono text-brand-700 dark:text-brand-400 block uppercase font-bold">
+                Annualized (12-MO)
+              </span>
+              <div className="text-lg font-bold text-brand-800 dark:text-brand-300 mt-1">
                 {formatMoney(projectedAnnual)}
               </div>
-              <p className="text-[10px] text-ink-500 font-mono">
-                Baseline annualized extrapolation
+              <p className="text-[10px] text-brand-700/80 dark:text-brand-400/80 mt-0.5">
+                Baseline full year
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* TAB 2: RPM Sensitivity & Custom Scenario Modeling */}
+      {/* TAB 2: RPM Sensitivity */}
       {activeTab === "sensitivity" && (
         <div className="space-y-5">
-          <div className="text-xs text-ink-400 leading-relaxed">
-            RPM varies dramatically across niches and seasons. Explore how this channel&apos;s observed views (
-            <span className="font-mono text-ink-200 font-bold">
+          <p className="text-xs text-gray-500 dark:text-ink-400 leading-relaxed">
+            RPM varies across niches and seasons. Explore how this channel&apos;s observed views (
+            <span className="font-mono font-bold text-gray-900 dark:text-ink-100">
               {estimate.observedPeriodViews.toLocaleString()} views
             </span>
-            ) translate across low, typical, high, and custom RPM assumptions:
-          </div>
+            ) translate across scenarios:
+          </p>
 
-          {/* Comparative RPM Scenario Bars */}
           <div className="space-y-3">
             {[
               {
                 label: "Conservative / Low Scenario",
                 rpm: estimate.appliedRpm.low,
                 revenue: estimate.estimatedRevenue.low,
-                color: "bg-ink-800 text-ink-300",
-                barColor: "bg-ink-700",
-                note: "Lower-tier advertiser CPMs, high international or ad-blocked viewership",
+                dotColor: "#9CA3AF",
+                note: "Lower advertiser CPMs or ad-blocked viewers",
               },
               {
                 label: "Baseline / Typical Scenario",
                 rpm: estimate.appliedRpm.typical,
                 revenue: estimate.estimatedRevenue.typical,
-                color: "bg-studio-orange/20 text-studio-orange border border-studio-orange/30",
-                barColor: "bg-studio-orange",
+                dotColor: "#84CC16",
                 note: `Published benchmark for ${estimate.appliedRpm.category} (${estimate.appliedRpm.sourceName})`,
               },
               {
-                label: "High / Q4 Peak Ad Spend Scenario",
+                label: "High / Q4 Peak Scenario",
                 rpm: estimate.appliedRpm.high,
                 revenue: estimate.estimatedRevenue.high,
-                color: "bg-emerald-950/60 text-emerald-400 border border-emerald-800/40",
-                barColor: "bg-emerald-500",
-                note: "Peak holiday advertiser bidding, high commercial intent & premium viewers",
+                dotColor: "#10B981",
+                note: "Peak holiday advertiser bidding and tier-1 audience",
               },
             ].map((s) => (
               <div
                 key={s.label}
-                className="p-3.5 bg-ink-950/80 border border-ink-800 rounded-lg space-y-2"
+                className="p-4 bg-gray-50 dark:bg-ink-950/60 border border-gray-100 dark:border-ink-850 rounded-2xl space-y-2.5"
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1">
-                  <div>
-                    <span className="font-bold text-ink-100">{s.label}</span>
-                    <span className="text-[10px] font-mono text-ink-500 ml-2">
-                      ({currencySymbol}{s.rpm.toFixed(2)}/1k views)
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.dotColor }} />
+                    <span className="font-bold text-gray-900 dark:text-ink-100">{s.label}</span>
+                    <span className="text-[11px] font-mono text-gray-400 dark:text-ink-500">
+                      ({currencySymbol}{s.rpm.toFixed(2)}/1k)
                     </span>
                   </div>
-                  <div className="text-sm font-bold font-mono text-ink-50">
+                  <span className="font-bold font-mono text-gray-900 dark:text-ink-100">
                     {formatMoney(s.revenue)}
-                  </div>
+                  </span>
                 </div>
 
-                {/* Progress bar visually depicting scale */}
-                <div className="w-full bg-ink-900 h-2 rounded-full overflow-hidden">
+                <div className="w-full bg-gray-200 dark:bg-ink-800 h-2 rounded-full overflow-hidden">
                   <div
-                    className={`h-full ${s.barColor} transition-all duration-300`}
+                    className="h-full rounded-full bg-brand-500 transition-all duration-500"
                     style={{
                       width: `${Math.min(
                         100,
@@ -391,21 +416,18 @@ export const RevenueCharts: React.FC<RevenueChartsProps> = ({
                     }}
                   />
                 </div>
-                <div className="text-[10px] text-ink-500">{s.note}</div>
+                <div className="text-[10px] text-gray-400 dark:text-ink-500">{s.note}</div>
               </div>
             ))}
           </div>
 
           {/* Interactive Custom RPM Slider */}
-          <div className="p-4 bg-ink-900/90 border border-ink-700 rounded-xl space-y-3">
+          <div className="p-5 bg-white dark:bg-ink-900 border border-gray-200 dark:border-ink-700 rounded-2xl space-y-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-studio-orange" />
-                <span className="text-xs font-bold text-ink-100">
-                  Custom Interactive RPM Calculator
-                </span>
-              </div>
-              <span className="text-xs font-mono font-bold text-studio-orange bg-ink-850 px-2.5 py-1 rounded border border-ink-700">
+              <span className="text-xs font-bold text-gray-900 dark:text-ink-100">
+                Custom RPM Calculator
+              </span>
+              <span className="text-xs font-mono font-bold text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-950 px-3 py-1 rounded-full border border-brand-200 dark:border-brand-800">
                 {currencySymbol}{customRpm.toFixed(2)} / 1k views
               </span>
             </div>
@@ -418,21 +440,21 @@ export const RevenueCharts: React.FC<RevenueChartsProps> = ({
                 step="0.10"
                 value={customRpm}
                 onChange={(e) => setCustomRpm(parseFloat(e.target.value))}
-                className="w-full accent-studio-orange cursor-pointer"
+                className="w-full h-2 rounded-full appearance-none cursor-pointer bg-gray-200 dark:bg-ink-800 accent-brand-500"
               />
-              <div className="flex justify-between text-[10px] font-mono text-ink-500">
-                <span>{currencySymbol}0.20 (Shorts/Low)</span>
+              <div className="flex justify-between text-[10px] font-mono text-gray-400 dark:text-ink-500">
+                <span>{currencySymbol}0.20 (Shorts)</span>
                 <span>{currencySymbol}5.00 (General)</span>
                 <span>{currencySymbol}15.00 (Tech/Finance)</span>
                 <span>{currencySymbol}30.00 (Enterprise)</span>
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-ink-800 text-xs">
-              <span className="text-ink-400">
+            <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-ink-800 text-xs">
+              <span className="text-gray-500 dark:text-ink-400">
                 Projected Revenue at {currencySymbol}{customRpm.toFixed(2)} RPM:
               </span>
-              <span className="text-base font-bold text-studio-orange font-mono">
+              <span className="text-lg font-bold text-brand-600 dark:text-brand-400 font-mono">
                 {formatMoney(customCalculatedRevenue)}
               </span>
             </div>
@@ -440,25 +462,20 @@ export const RevenueCharts: React.FC<RevenueChartsProps> = ({
         </div>
       )}
 
-      {/* TAB 3: Recent Uploads Contribution */}
+      {/* TAB 3: Recent Uploads */}
       {activeTab === "videos" && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-ink-400 font-mono text-[11px]">
-              RECENT UPLOADS TRACKED FROM PLAYLIST ({recentVideos.length})
-            </span>
-            <span className="text-[11px] text-ink-500">
-              Estimated per-video contribution under {currencySymbol}
-              {estimate.appliedRpm.typical.toFixed(2)} RPM
-            </span>
+          <div className="flex items-center justify-between text-xs text-gray-400 dark:text-ink-500">
+            <span>Recent Uploads ({recentVideos.length})</span>
+            <span>Per-video estimate under {currencySymbol}{estimate.appliedRpm.typical.toFixed(2)} RPM</span>
           </div>
 
           {recentVideos.length === 0 ? (
-            <div className="p-8 text-center text-xs text-ink-500 font-mono bg-ink-950/40 rounded-lg border border-ink-800">
+            <div className="p-10 text-center text-xs text-gray-400 dark:text-ink-500 bg-gray-50 dark:bg-ink-950/60 rounded-2xl border border-gray-100 dark:border-ink-850">
               No individual videos tracked yet. Uploads sync automatically during channel synchronization.
             </div>
           ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
               {recentVideos.map((v: TrackedVideo, idx: number) => {
                 const vidRpm =
                   v.format === "short"
@@ -469,10 +486,10 @@ export const RevenueCharts: React.FC<RevenueChartsProps> = ({
                 return (
                   <div
                     key={v.video_id}
-                    className="p-3 bg-ink-950/80 border border-ink-800 rounded-lg flex items-center justify-between gap-3 hover:bg-ink-900 transition"
+                    className="p-3.5 bg-gray-50 dark:bg-ink-950/60 border border-gray-100 dark:border-ink-850 rounded-xl flex items-center justify-between gap-4 hover:border-brand-500 dark:hover:border-brand-500 transition"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <span className="w-5 h-5 rounded bg-ink-900 border border-ink-800 text-[10px] font-mono flex items-center justify-center text-ink-400 flex-shrink-0">
+                      <span className="w-6 h-6 rounded-lg bg-white dark:bg-ink-900 border border-gray-200 dark:border-ink-800 text-[10px] font-mono flex items-center justify-center text-gray-400 dark:text-ink-500 flex-shrink-0">
                         {idx + 1}
                       </span>
                       <div className="min-w-0">
@@ -480,32 +497,25 @@ export const RevenueCharts: React.FC<RevenueChartsProps> = ({
                           href={`https://www.youtube.com/watch?v=${v.video_id}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs font-semibold text-ink-100 hover:text-studio-orange transition truncate block"
+                          className="text-xs font-semibold text-gray-900 dark:text-ink-100 hover:text-brand-600 dark:hover:text-brand-400 transition truncate block"
                         >
                           {v.title}
                         </a>
-                        <div className="flex items-center gap-2 text-[10px] text-ink-500 font-mono mt-0.5">
-                          <span
-                            className={`px-1.5 py-0.2 rounded text-[9px] uppercase font-bold ${
-                              v.format === "short"
-                                ? "bg-crimson-950/80 text-crimson-400 border border-crimson-800/40"
-                                : "bg-ink-850 text-ink-300 border border-ink-700"
-                            }`}
-                          >
+                        <div className="flex items-center gap-2 text-[10px] text-gray-400 dark:text-ink-500 font-mono mt-0.5">
+                          <span className="px-1.5 py-0.2 rounded text-[9px] uppercase font-bold bg-gray-100 dark:bg-ink-800">
                             {v.format}
                           </span>
                           <span>·</span>
                           <span>{v.published_at ? v.published_at.slice(0, 10) : "Recent"}</span>
-                          {v.duration && <span>· Duration: {v.duration.replace("PT", "")}</span>}
                         </div>
                       </div>
                     </div>
 
                     <div className="text-right flex-shrink-0 font-mono">
-                      <div className="text-xs font-bold text-ink-50">
+                      <div className="text-xs font-bold text-gray-900 dark:text-ink-100">
                         {formatNumber(v.latest_view_count)} views
                       </div>
-                      <div className="text-[10px] text-studio-orange font-bold">
+                      <div className="text-[11px] text-brand-600 dark:text-brand-400 font-bold">
                         ~{formatMoney(estVidRevenue)}
                       </div>
                     </div>

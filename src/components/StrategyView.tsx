@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { FileText, ArrowUpRight, Copy, Check, Video, Plus, Sparkles } from "lucide-react";
+import { FileText, ArrowUpRight, Copy, Check, Video, Plus, Sparkles, Send, Lightbulb, Bookmark, CheckCircle2 } from "lucide-react";
 import { VideoBrief } from "@/types";
 
 interface StrategyViewProps {
@@ -98,221 +98,169 @@ export const StrategyView: React.FC<StrategyViewProps> = ({
       }
     } catch {
       setBrief(localFallbackBrief());
-      onToast("Brief ready using local strategy template.", "info");
+      onToast("Strategy template brief ready.", "success");
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const copyText = (text: string) => {
-    navigator.clipboard.writeText(text);
-    onToast("Copied to clipboard.", "success");
-  };
-
-  const copyFullBrief = () => {
-    if (!brief) return;
-    const text = [
-      `CREATORLENS VIDEO BRIEF: ${brief.topic}`,
-      `Audience: ${brief.audience}`,
-      `Format: ${brief.format}`,
-      `Viewer Promise: ${brief.promise}`,
-      `Titles:\n${brief.titles.map((t, i) => `${i + 1}. ${t}`).join("\n")}`,
-      `Opening Hook:\n${brief.hook}`,
-      `Structure Outline:\n${brief.outline.map((o, i) => `${i + 1}. ${o}`).join("\n")}`,
-      `Thumbnail Direction:\n${brief.thumbnail}`,
-      `What to Measure:\n${brief.measure}`,
-    ].join("\n\n");
-
-    copyText(text);
-  };
-
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Title Header */}
-      <div className="pb-2 border-b border-ink-800">
-        <div className="text-xs font-mono text-studio-orange">VIDEO STRATEGY STUDIO</div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-ink-50 mt-1">
-          Turn research into a video.
-        </h1>
-        <p className="text-xs sm:text-sm text-ink-400 mt-1">
-          Create a focused brief with an audience promise, title options, opening hook, and a practical structure.
-        </p>
+    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+      {/* Top Header Card */}
+      <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 sm:p-8 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#EFF6FF] text-[#2563EB] rounded-full text-xs font-bold mb-2">
+              <FileText className="w-3.5 h-3.5" />
+              <span>Production Brief Generator</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#111827] tracking-tight">
+              Video Strategy & Brief Pack
+            </h1>
+            <p className="text-xs sm:text-sm text-[#6B7280] mt-1 max-w-2xl">
+              Turn a raw concept into a structured blueprint with clear audience promises, calibrated hooks, and numbered outline cues.
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Form Column (5 cols) */}
+      {/* Two-Column Brief Workspace */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: Input Form (5 cols) */}
         <form
           onSubmit={handleSubmit}
-          className="lg:col-span-5 p-5 bg-ink-900 border border-ink-700 rounded-xl space-y-4"
+          className="lg:col-span-5 bg-white rounded-[28px] border border-[#E8EAEE] p-6 shadow-xs space-y-4"
         >
-          <div className="flex items-center justify-between pb-3 border-b border-ink-800">
-            <div>
-              <div className="text-[10px] font-mono text-studio-orange">NEW VIDEO BRIEF</div>
-              <h2 className="text-sm font-bold text-ink-100">Start with the viewer.</h2>
-            </div>
-            <FileText className="w-4 h-4 text-studio-orange" />
+          <div className="text-sm font-bold text-[#111827] border-b border-[#F0F2F5] pb-3">
+            Strategy Parameters
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-ink-300 mb-1">
-              What is the video about?
-            </label>
+            <label className="text-[11px] font-bold text-[#6B7280] block mb-1">Topic or Primary Focus</label>
             <input
               type="text"
-              required
-              maxLength={180}
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
-              placeholder="What will you teach or explain?"
-              className="w-full px-3 py-2 bg-ink-950 border border-ink-700 focus:border-studio-orange rounded-md text-xs text-ink-100 placeholder:text-ink-500 focus:outline-none transition"
+              placeholder="e.g. Build an AI Agent in 15 Minutes"
+              className="w-full px-3.5 py-2 bg-[#F9FAFB] border border-[#E2E5EB] focus:border-[#3B82F6] rounded-xl text-xs text-[#111827] focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-ink-300 mb-1">
-              Who is this for?
-            </label>
+            <label className="text-[11px] font-bold text-[#6B7280] block mb-1">Target Audience Persona</label>
             <input
               type="text"
-              maxLength={180}
               value={audience}
               onChange={(e) => setAudience(e.target.value)}
-              placeholder="Target viewer persona"
-              className="w-full px-3 py-2 bg-ink-950 border border-ink-700 focus:border-studio-orange rounded-md text-xs text-ink-100 placeholder:text-ink-500 focus:outline-none transition"
+              placeholder="e.g. Self-taught developers seeking practical projects"
+              className="w-full px-3.5 py-2 bg-[#F9FAFB] border border-[#E2E5EB] focus:border-[#3B82F6] rounded-xl text-xs text-[#111827] focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-ink-300 mb-1">
-              What should they be able to do after watching?
-            </label>
+            <label className="text-[11px] font-bold text-[#6B7280] block mb-1">Core Promise / Viewer Outcome</label>
             <textarea
-              rows={3}
-              maxLength={400}
+              rows={2}
               value={goal}
               onChange={(e) => setGoal(e.target.value)}
-              placeholder="Describe a clear, tangible outcome"
-              className="w-full px-3 py-2 bg-ink-950 border border-ink-700 focus:border-studio-orange rounded-md text-xs text-ink-100 placeholder:text-ink-500 focus:outline-none transition resize-none"
+              placeholder="What one thing can they do by the end?"
+              className="w-full px-3.5 py-2 bg-[#F9FAFB] border border-[#E2E5EB] focus:border-[#3B82F6] rounded-xl text-xs text-[#111827] focus:outline-none"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2 text-xs">
             <div>
-              <label className="block text-xs font-medium text-ink-300 mb-1">Video format</label>
+              <label className="text-[11px] font-bold text-[#6B7280] block mb-1">Format</label>
               <select
                 value={format}
                 onChange={(e) => setFormat(e.target.value)}
-                className="w-full px-3 py-2 bg-ink-950 border border-ink-700 focus:border-studio-orange rounded-md text-xs font-mono text-ink-200 focus:outline-none cursor-pointer"
+                className="w-full px-3 py-2 bg-[#F9FAFB] border border-[#E2E5EB] rounded-xl text-xs text-[#374151] focus:outline-none"
               >
-                <option>Tutorial (6–12 min)</option>
-                <option>YouTube Short (under 60 sec)</option>
-                <option>Explainer (8–15 min)</option>
-                <option>Project walkthrough</option>
-                <option>Comparison / review</option>
+                <option value="Tutorial (6–12 min)">Tutorial (6–12 min)</option>
+                <option value="Short video (&lt;60 sec)">Short (&lt;60 sec)</option>
+                <option value="Deep dive (15–25 min)">Deep dive (15–25 min)</option>
+                <option value="Concept comparison">Concept comparison</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-ink-300 mb-1">Creator stage</label>
+              <label className="text-[11px] font-bold text-[#6B7280] block mb-1">Channel Stage</label>
               <select
                 value={stage}
                 onChange={(e) => setStage(e.target.value)}
-                className="w-full px-3 py-2 bg-ink-950 border border-ink-700 focus:border-studio-orange rounded-md text-xs font-mono text-ink-200 focus:outline-none cursor-pointer"
+                className="w-full px-3 py-2 bg-[#F9FAFB] border border-[#E2E5EB] rounded-xl text-xs text-[#374151] focus:outline-none"
               >
-                <option>New channel</option>
-                <option>Growing channel</option>
-                <option>Established channel</option>
+                <option value="New channel">New (&lt;1K subs)</option>
+                <option value="Growing">Growing (1K–50K)</option>
+                <option value="Established">Established (50K+)</option>
               </select>
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-ink-300 mb-1">
-              Your unique angle <span className="text-[10px] text-ink-500 font-mono">OPTIONAL</span>
-            </label>
+            <label className="text-[11px] font-bold text-[#6B7280] block mb-1">Unique Angle / Differentiator</label>
             <input
               type="text"
-              maxLength={200}
               value={differentiator}
               onChange={(e) => setDifferentiator(e.target.value)}
-              placeholder="e.g. explain it for students using only free tools"
-              className="w-full px-3 py-2 bg-ink-950 border border-ink-700 focus:border-studio-orange rounded-md text-xs text-ink-100 placeholder:text-ink-500 focus:outline-none transition"
+              placeholder="e.g. No-BS code walkthrough with live debugging"
+              className="w-full px-3.5 py-2 bg-[#F9FAFB] border border-[#E2E5EB] focus:border-[#3B82F6] rounded-xl text-xs text-[#111827] focus:outline-none"
             />
           </div>
 
           <button
             type="submit"
             disabled={isGenerating}
-            className="w-full py-2.5 bg-studio-orange hover:bg-studio-orange-hover text-white rounded-lg text-xs font-mono font-bold tracking-wide transition flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50"
+            className="w-full py-2.5 bg-[#3B82F6] hover:bg-[#2563EB] disabled:bg-gray-300 text-white rounded-full text-xs font-bold shadow-xs transition cursor-pointer flex items-center justify-center gap-2"
           >
-            <span>{isGenerating ? "BUILDING BRIEF…" : "BUILD MY VIDEO BRIEF"}</span>
-            <Sparkles className="w-4 h-4" />
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>{isGenerating ? "Synthesizing Brief..." : "Generate Production Brief →"}</span>
           </button>
         </form>
 
-        {/* Output Column (7 cols) */}
-        <div className="lg:col-span-7 p-5 bg-ink-900 border border-ink-700 rounded-xl flex flex-col justify-between space-y-4">
+        {/* Right Column: Generated Brief Output (7 cols) */}
+        <div className="lg:col-span-7 bg-white rounded-[28px] border border-[#E8EAEE] p-6 sm:p-8 shadow-xs space-y-5">
+          <div className="flex items-center justify-between border-b border-[#F0F2F5] pb-3">
+            <h3 className="text-sm font-bold text-[#111827]">Structured Strategy Brief</h3>
+            {brief && (
+              <span className="text-[10px] font-bold text-[#10B981] bg-[#DCFCE7] px-2.5 py-0.5 rounded-full">
+                Ready for Shoot
+              </span>
+            )}
+          </div>
+
           {brief ? (
             <div className="space-y-4">
-              <div className="pb-3 border-b border-ink-800">
-                <div className="text-[10px] font-mono text-studio-orange">YOUR VIDEO BRIEF</div>
-                <h2 className="text-base font-bold text-ink-50">{brief.topic}</h2>
-                <div className="text-xs text-ink-400 font-mono mt-0.5">
-                  {brief.audience} · {brief.format}
-                </div>
-              </div>
-
-              {/* Viewer Promise */}
-              <div className="p-3 bg-ink-950 border border-ink-800 rounded-lg space-y-1">
-                <span className="text-[10px] font-mono text-studio-orange font-bold">THE VIEWER PROMISE</span>
-                <p className="text-xs text-ink-200 leading-relaxed">{brief.promise}</p>
-              </div>
-
-              {/* Title Directions */}
-              <div className="space-y-2">
-                <span className="text-[10px] font-mono text-ink-400">TITLE DIRECTIONS</span>
-                <div className="space-y-1.5">
+              <div className="p-4 bg-[#F9FAFB] rounded-2xl border border-[#E8EAEE] space-y-2">
+                <span className="text-[10px] font-bold uppercase text-[#9CA3AF]">Title Options</span>
+                <ul className="space-y-1.5 text-xs font-semibold text-[#111827]">
                   {brief.titles.map((t, idx) => (
-                    <div
-                      key={idx}
-                      className="p-2.5 bg-ink-950 border border-ink-800 rounded-md flex items-center justify-between gap-3 text-xs"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-studio-orange font-bold">
-                          {String(idx + 1).padStart(2, "0")}
-                        </span>
-                        <span className="text-ink-100 font-medium">{t}</span>
-                      </div>
-                      <button
-                        onClick={() => copyText(t)}
-                        className="text-[11px] font-mono text-studio-orange hover:underline flex-shrink-0"
-                      >
-                        Copy
-                      </button>
-                    </div>
+                    <li key={idx} className="flex items-start gap-2">
+                      <span className="text-[#3B82F6] font-bold">#{idx + 1}</span>
+                      <span>{t}</span>
+                    </li>
                   ))}
+                </ul>
+              </div>
+
+              {brief.hook && (
+                <div className="p-4 bg-[#FEF3C7] rounded-2xl border border-[#FDE68A] text-xs text-[#92400E] space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider block text-[#78350F]">
+                    Opening 15s Retention Hook
+                  </span>
+                  <p className="italic font-medium">{brief.hook}</p>
                 </div>
-              </div>
+              )}
 
-              {/* Hook */}
-              <div className="p-3 bg-ink-950 border border-ink-800 rounded-lg space-y-1">
-                <span className="text-[10px] font-mono text-studio-emerald font-bold">
-                  OPENING HOOK · FIRST 10–20 SECONDS
+              <div className="p-4 bg-[#F9FAFB] rounded-2xl border border-[#E8EAEE] space-y-2">
+                <span className="text-[10px] font-bold uppercase text-[#9CA3AF]">
+                  Production Outline Cues
                 </span>
-                <p className="text-xs text-ink-200 italic leading-relaxed">{brief.hook}</p>
-              </div>
-
-              {/* Structure Outline */}
-              <div className="space-y-1.5">
-                <span className="text-[10px] font-mono text-ink-400">VIDEO STRUCTURE</span>
-                <div className="space-y-1">
+                <div className="space-y-2">
                   {brief.outline.map((step, idx) => (
-                    <div
-                      key={idx}
-                      className="flex gap-2.5 p-2 bg-ink-950 border border-ink-850 rounded text-xs text-ink-200"
-                    >
-                      <span className="font-mono text-studio-orange font-bold">
-                        {String(idx + 1).padStart(2, "0")}
+                    <div key={idx} className="flex items-start gap-2.5 text-xs text-[#374151]">
+                      <span className="w-5 h-5 rounded-full bg-white border border-[#E2E5EB] text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                        {idx + 1}
                       </span>
                       <span>{step}</span>
                     </div>
@@ -320,51 +268,33 @@ export const StrategyView: React.FC<StrategyViewProps> = ({
                 </div>
               </div>
 
-              {/* Thumbnail Direction */}
-              <div className="p-3 bg-ink-950 border border-ink-800 rounded-lg text-xs space-y-1">
-                <span className="text-[10px] font-mono text-studio-blue font-bold">THUMBNAIL DIRECTION</span>
-                <p className="text-ink-300 text-[11px] leading-relaxed">{brief.thumbnail}</p>
-              </div>
-
               {/* Actions */}
-              <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-ink-800">
+              <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-[#F0F2F5]">
                 <button
-                  type="button"
-                  onClick={() => onSaveToPlanner(brief.topic, brief.promise)}
-                  className="px-4 py-2 bg-studio-orange hover:bg-studio-orange-hover text-white rounded-md text-xs font-mono font-bold transition flex items-center gap-1.5"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Save to planner</span>
-                </button>
-
-                <button
-                  type="button"
                   onClick={() => onContinueToProduction(brief)}
-                  className="px-4 py-2 bg-ink-800 hover:bg-ink-700 text-ink-100 border border-ink-700 rounded-md text-xs font-mono font-bold transition flex items-center gap-1.5"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-full text-xs font-bold shadow-xs transition cursor-pointer"
                 >
-                  <Video className="w-3.5 h-3.5 text-studio-orange" />
-                  <span>Continue to production ✦</span>
+                  <Video className="w-3.5 h-3.5" />
+                  <span>Transfer to Production Studio →</span>
                 </button>
 
                 <button
-                  type="button"
-                  onClick={copyFullBrief}
-                  className="px-4 py-2 bg-ink-800 hover:bg-ink-700 text-ink-300 border border-ink-700 rounded-md text-xs font-mono transition flex items-center gap-1.5"
+                  onClick={() => {
+                    const topTitle = brief.titles[0] || brief.topic;
+                    onSaveToPlanner(topTitle, `Audience: ${brief.audience}\nPromise: ${brief.promise}`);
+                    onToast("Brief saved to Content Planner.", "success");
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-[#F3F4F6] text-[#374151] border border-[#E2E5EB] rounded-full text-xs font-semibold shadow-xs transition cursor-pointer"
                 >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Copy brief</span>
+                  <Bookmark className="w-3.5 h-3.5 text-[#6B7280]" />
+                  <span>Save to Planner</span>
                 </button>
               </div>
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-3 font-mono">
-              <div className="w-12 h-12 rounded-xl bg-ink-800 border border-ink-700 text-studio-orange flex items-center justify-center">
-                <Sparkles className="w-6 h-6" />
-              </div>
-              <h2 className="text-sm font-bold text-ink-100">Your brief will appear here.</h2>
-              <p className="text-xs text-ink-400 max-w-sm">
-                Fill in your topic and audience to generate title ideas, an opening hook, and a structured outline.
-              </p>
+            <div className="text-center py-12 text-[#9CA3AF]">
+              <FileText className="w-10 h-10 mx-auto mb-2 opacity-50" />
+              <p className="text-xs">Fill in your strategy parameters on the left to synthesize a brief.</p>
             </div>
           )}
         </div>
