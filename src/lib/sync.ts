@@ -241,7 +241,7 @@ export async function getTrackedChannels(): Promise<TrackedChannel[]> {
   const db = getDbClient();
 
   const res = await db.execute("SELECT * FROM tracked_channels ORDER BY title ASC;");
-  return res.rows.map((row) => ({
+  return res.rows.map((row: any) => ({
     channel_id: row.channel_id as string,
     title: row.title as string,
     handle: row.handle as string | null,
@@ -274,7 +274,7 @@ export async function getChannelSnapshots(channelId: string): Promise<ChannelVie
     args: [channelId],
   });
 
-  return res.rows.map((row) => ({
+  return res.rows.map((row: any) => ({
     id: Number(row.id),
     channel_id: row.channel_id as string,
     cumulative_views: Number(row.cumulative_views),
@@ -296,7 +296,7 @@ export async function getTrackedVideos(channelId: string): Promise<TrackedVideo[
     args: [channelId],
   });
 
-  return res.rows.map((row) => ({
+  return res.rows.map((row: any) => ({
     video_id: row.video_id as string,
     channel_id: row.channel_id as string,
     title: row.title as string,
