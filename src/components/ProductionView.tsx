@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
-import { Video, Download, Copy, Check, Plus, Film, Sparkles, FileText, CheckSquare, Send, ArrowUpRight, Bookmark } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Video, Download, Copy, Check, Plus, Film, Sparkles, FileText, CheckSquare, Send, ArrowUpRight, Bookmark, Play } from "lucide-react";
 import { ProductionPack } from "@/types";
+import { VideoPlayerModal } from "./VideoPlayerModal";
 
 interface ProductionViewProps {
   initialData?: {
@@ -35,6 +36,19 @@ export const ProductionView: React.FC<ProductionViewProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [pack, setPack] = useState<ProductionPack | null>(initialData?.pack || null);
   const [activeTab, setActiveTab] = useState("script");
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [modelName, setModelName] = useState("openai/gpt-4o-mini");
+  const [source, setSource] = useState<"openrouter" | "template">("template");
+
+  useEffect(() => {
+    fetch("/api/video/status")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.model) setModelName(d.model);
+        if (d.isConfigured) setSource("openrouter");
+      })
+      .catch(() => {});
+  }, []);
 
   const triggerGenerate = async (params: {
     topic: string;
@@ -393,20 +407,31 @@ export const ProductionView: React.FC<ProductionViewProps> = ({
                 </div>
               )}
 
-              {/* Save to Planner Action */}
-              <div className="pt-4 border-t border-[#F0F2F5] flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const note = `Outcome: ${pack.outcome}\nTarget Duration: ${pack.duration}\nScenes: ${pack.scenes?.length || 0} scenes\nHook: ${pack.openingHook}`;
-                    onSaveToPlanner(pack.topic, note, "In progress");
-                    onToast("Transferred to Content Planner (In Progress / Scripting stage).", "success");
-                  }}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-[#10B981] hover:bg-[#059669] text-white rounded-full text-xs font-bold shadow-xs transition cursor-pointer"
-                >
-                  <Bookmark className="w-3.5 h-3.5" />
-                  <span>Send to Content Planner (Scripting Stage) →</span>
-                </button>
+              {/* Save to Planner & Play Actions */}
+              <div className="pt-4 border-t border-[#F0F2F5] flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsVideoModalOpen(true)}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#2563EB] to-[#7C3AED] hover:from-[#1D4ED8] hover:to-[#6D28D9] text-white rounded-full text-xs font-bold shadow-md hover:shadow-lg transition cursor-pointer"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-white" />
+                    <span>Play AI Video Preview</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const note = `Outcome: ${pack.outcome}\nTarget Duration: ${pack.duration}\nScenes: ${pack.scenes?.length || 0} scenes\nHook: ${pack.openingHook}`;
+                      onSaveToPlanner(pack.topic, note, "In progress");
+                      onToast("Transferred to Content Planner (In Progress / Scripting stage).", "success");
+                    }}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-[#10B981] hover:bg-[#059669] text-white rounded-full text-xs font-bold shadow-xs transition cursor-pointer"
+                  >
+                    <Bookmark className="w-3.5 h-3.5" />
+                    <span>Send to Content Planner (Scripting Stage) →</span>
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
@@ -417,6 +442,16 @@ export const ProductionView: React.FC<ProductionViewProps> = ({
           )}
         </div>
       </div>
+
+      {pack && (
+        <VideoPlayerModal
+          isOpen={isVideoModalOpen}
+          onClose={() => setIsVideoModalOpen(false)}
+          pack={pack}
+          modelName={modelName}
+          source={source}
+        />
+      )}
     </div>
   );
 };

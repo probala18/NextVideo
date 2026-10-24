@@ -13,9 +13,11 @@ import {
   Clock,
   Layers,
   ChevronRight,
-  Sparkle
+  Sparkle,
+  Play
 } from "lucide-react";
 import { VideoBrief, ProductionPack, ProductionScene } from "@/types";
+import { VideoPlayerModal } from "./VideoPlayerModal";
 
 interface StrategyViewProps {
   initialTopic?: string;
@@ -40,6 +42,23 @@ export const StrategyView: React.FC<StrategyViewProps> = ({
   const [brief, setBrief] = useState<VideoBrief | null>(null);
   const [activeTab, setActiveTab] = useState<"blueprint" | "script" | "scenes" | "metadata">("blueprint");
   const [copied, setCopied] = useState(false);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [aiSource, setAiSource] = useState<"openrouter" | "template">("template");
+  const [aiModel, setAiModel] = useState("openai/gpt-4o-mini");
+  const [isOpenRouterActive, setIsOpenRouterActive] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/video/status")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.model) setAiModel(d.model);
+        if (d.isConfigured) {
+          setIsOpenRouterActive(true);
+          setAiSource("openrouter");
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (initialTopic) {
@@ -258,9 +277,17 @@ export const StrategyView: React.FC<StrategyViewProps> = ({
 
       if (!res.ok) throw new Error("API request failed");
       const data = await res.json();
+      if (data.source) setAiSource(data.source);
+      if (data.model) setAiModel(data.model);
+
       if (data.brief) {
         setBrief(data.brief);
-        onToast("Video strategy blueprint and production scenes generated!", "success");
+        onToast(
+          data.source === "openrouter"
+            ? `AI Video generated via OpenRouter (${data.model})!`
+            : "Video strategy & production scenes generated!",
+          "success"
+        );
       } else {
         setBrief(localFallbackBrief());
         onToast("Video strategy generated from local production model.", "success");
@@ -339,20 +366,40 @@ Pinned Comment: ${p?.pinnedComment || "N/A"}
       <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 sm:p-8 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#EFF6FF] text-[#2563EB] rounded-full text-xs font-bold mb-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#EFF6FF] text-[#2563EB] rounded-full text-xs font-bold mb-2">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Video Strategy & Generation Engine</span>
+              <span>Video Strategy & Production Studio</span>
+              <span className="text-gray-300">·</span>
+              <span className="text-[10px] font-semibold text-[#4B5563] flex items-center gap-1.5">
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    isOpenRouterActive
+                      ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse"
+                      : "bg-amber-400"
+                  }`}
+                />
+                <span>OpenRouter Model: <strong className="text-[#111827]">{aiModel}</strong></span>
+              </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-[#111827] tracking-tight">
               Video Strategy & Production Blueprint
             </h1>
             <p className="text-xs sm:text-sm text-[#6B7280] mt-1 max-w-2xl">
-              Turn any topic into high-converting titles, a psychology-calibrated 15s hook, a scene-by-scene shooting storyboard, and teleprompter copy.
+              Turn any topic into high-converting titles, a psychology-calibrated 15s hook, a scene-by-scene shooting storyboard, and complete animated video.
             </p>
           </div>
 
           {brief && (
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsVideoModalOpen(true)}
+                className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-[#2563EB] to-[#7C3AED] hover:from-[#1D4ED8] hover:to-[#6D28D9] text-white rounded-full text-xs font-bold shadow-md transition cursor-pointer"
+              >
+                <Play className="w-3.5 h-3.5 fill-white" />
+                <span>Play AI Video</span>
+              </button>
+
               <button
                 onClick={copyFullScript}
                 className="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-[#F9FAFB] text-[#374151] border border-[#E2E5EB] rounded-full text-xs font-semibold shadow-xs transition cursor-pointer"
@@ -718,6 +765,15 @@ Pinned Comment: ${p?.pinnedComment || "N/A"}
                 <div className="flex flex-wrap items-center gap-2.5">
                   <button
                     type="button"
+                    onClick={() => setIsVideoModalOpen(true)}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#2563EB] to-[#7C3AED] hover:from-[#1D4ED8] hover:to-[#6D28D9] text-white rounded-full text-xs font-bold shadow-md hover:shadow-lg transition cursor-pointer"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-white" />
+                    <span>Play AI Video Preview</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => onContinueToProduction(brief)}
                     className="flex items-center gap-2 px-5 py-2.5 bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-full text-xs font-bold shadow-xs transition cursor-pointer"
                   >
@@ -764,6 +820,16 @@ Pinned Comment: ${p?.pinnedComment || "N/A"}
           )}
         </div>
       </div>
+
+      {brief?.pack && (
+        <VideoPlayerModal
+          isOpen={isVideoModalOpen}
+          onClose={() => setIsVideoModalOpen(false)}
+          pack={brief.pack}
+          modelName={aiModel}
+          source={aiSource}
+        />
+      )}
     </div>
   );
 };
