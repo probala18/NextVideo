@@ -280,7 +280,7 @@ export const RevenueAnalyticsView: React.FC<RevenueAnalyticsViewProps> = ({
             <div className="flex items-center gap-2.5 flex-shrink-0">
               <button
                 onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-1.5 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-full text-xs font-semibold shadow-xs transition cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-full text-xs font-semibold shadow-xs transition cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 <span>Track Channel</span>
@@ -693,7 +693,7 @@ export const RevenueAnalyticsView: React.FC<RevenueAnalyticsViewProps> = ({
                 <button
                   type="submit"
                   disabled={isAdding || !addIdentifier.trim()}
-                  className="px-5 py-2 rounded-full text-xs font-semibold bg-brand-500 hover:bg-brand-600 text-white shadow-xs transition disabled:opacity-40"
+                  className="px-5 py-2 rounded-full text-xs font-semibold bg-[#3B82F6] hover:bg-[#2563EB] text-white shadow-xs transition disabled:opacity-40"
                 >
                   {isAdding ? "Fetching..." : "Start Tracking"}
                 </button>
