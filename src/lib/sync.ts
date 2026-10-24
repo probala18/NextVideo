@@ -70,7 +70,7 @@ export async function trackOrRefreshChannel(
       profile.hiddenSubscriberCount ? 1 : 0,
       profile.totalViews,
       profile.videoCount,
-      isNew ? nowIso : (existingRes.rows[0].first_tracked_at as string),
+      isNew ? nowIso : (existingRes.rows[0]?.first_tracked_at ? String(existingRes.rows[0].first_tracked_at) : nowIso),
       nowIso,
       niche,
     ],
@@ -166,24 +166,42 @@ export async function trackOrRefreshChannel(
   });
 
   const row = updatedChannelRes.rows[0];
-  const channel: TrackedChannel = {
-    channel_id: row.channel_id as string,
-    title: row.title as string,
-    handle: row.handle as string | null,
-    custom_url: row.custom_url as string | null,
-    description: row.description as string | null,
-    published_at: row.published_at as string | null,
-    thumbnail_url: row.thumbnail_url as string | null,
-    uploads_playlist_id: row.uploads_playlist_id as string | null,
-    subscriber_count: row.subscriber_count !== null ? Number(row.subscriber_count) : null,
+  const channel: TrackedChannel = row ? {
+    channel_id: (row.channel_id as string) || profile.id,
+    title: (row.title as string) || profile.title,
+    handle: (row.handle as string | null) || profile.customUrl,
+    custom_url: (row.custom_url as string | null) || profile.customUrl,
+    description: (row.description as string | null) || profile.description,
+    published_at: (row.published_at as string | null) || profile.publishedAt,
+    thumbnail_url: (row.thumbnail_url as string | null) || profile.thumbnailUrl,
+    uploads_playlist_id: (row.uploads_playlist_id as string | null) || profile.uploadsPlaylistId,
+    subscriber_count: row.subscriber_count !== null && row.subscriber_count !== undefined ? Number(row.subscriber_count) : profile.subscriberCount,
     hidden_subscriber_count: Boolean(row.hidden_subscriber_count),
-    latest_total_views: Number(row.latest_total_views),
-    video_count: Number(row.video_count),
-    first_tracked_at: row.first_tracked_at as string,
-    last_synced_at: row.last_synced_at as string | null,
+    latest_total_views: Number(row.latest_total_views || profile.totalViews || 0),
+    video_count: Number(row.video_count || profile.videoCount || 0),
+    first_tracked_at: (row.first_tracked_at as string) || nowIso,
+    last_synced_at: (row.last_synced_at as string | null) || nowIso,
     sync_status: (row.sync_status as any) || "active",
-    last_sync_error: row.last_sync_error as string | null,
-    niche: (row.niche as string) || "general",
+    last_sync_error: (row.last_sync_error as string | null) || null,
+    niche: (row.niche as string) || niche || "general",
+  } : {
+    channel_id: profile.id,
+    title: profile.title,
+    handle: profile.customUrl,
+    custom_url: profile.customUrl,
+    description: profile.description,
+    published_at: profile.publishedAt,
+    thumbnail_url: profile.thumbnailUrl,
+    uploads_playlist_id: profile.uploadsPlaylistId,
+    subscriber_count: profile.subscriberCount,
+    hidden_subscriber_count: Boolean(profile.hiddenSubscriberCount),
+    latest_total_views: Number(profile.totalViews || 0),
+    video_count: Number(profile.videoCount || 0),
+    first_tracked_at: nowIso,
+    last_synced_at: nowIso,
+    sync_status: "active",
+    last_sync_error: null,
+    niche: niche || "general",
   };
 
   return { channel, isNew, snapshotRecorded };
@@ -241,25 +259,27 @@ export async function getTrackedChannels(): Promise<TrackedChannel[]> {
   const db = getDbClient();
 
   const res = await db.execute("SELECT * FROM tracked_channels ORDER BY title ASC;");
-  return res.rows.map((row: any) => ({
-    channel_id: row.channel_id as string,
-    title: row.title as string,
-    handle: row.handle as string | null,
-    custom_url: row.custom_url as string | null,
-    description: row.description as string | null,
-    published_at: row.published_at as string | null,
-    thumbnail_url: row.thumbnail_url as string | null,
-    uploads_playlist_id: row.uploads_playlist_id as string | null,
-    subscriber_count: row.subscriber_count !== null ? Number(row.subscriber_count) : null,
-    hidden_subscriber_count: Boolean(row.hidden_subscriber_count),
-    latest_total_views: Number(row.latest_total_views),
-    video_count: Number(row.video_count),
-    first_tracked_at: row.first_tracked_at as string,
-    last_synced_at: row.last_synced_at as string | null,
-    sync_status: (row.sync_status as any) || "active",
-    last_sync_error: row.last_sync_error as string | null,
-    niche: (row.niche as string) || "general",
-  }));
+  return (res?.rows || [])
+    .filter((row: any) => row && typeof row === "object" && row.channel_id)
+    .map((row: any) => ({
+      channel_id: String(row.channel_id),
+      title: String(row.title || ""),
+      handle: row.handle ? String(row.handle) : null,
+      custom_url: row.custom_url ? String(row.custom_url) : null,
+      description: row.description ? String(row.description) : null,
+      published_at: row.published_at ? String(row.published_at) : null,
+      thumbnail_url: row.thumbnail_url ? String(row.thumbnail_url) : null,
+      uploads_playlist_id: row.uploads_playlist_id ? String(row.uploads_playlist_id) : null,
+      subscriber_count: row.subscriber_count !== null && row.subscriber_count !== undefined ? Number(row.subscriber_count) : null,
+      hidden_subscriber_count: Boolean(row.hidden_subscriber_count),
+      latest_total_views: Number(row.latest_total_views || 0),
+      video_count: Number(row.video_count || 0),
+      first_tracked_at: String(row.first_tracked_at || new Date().toISOString()),
+      last_synced_at: row.last_synced_at ? String(row.last_synced_at) : null,
+      sync_status: (row.sync_status as any) || "active",
+      last_sync_error: row.last_sync_error ? String(row.last_sync_error) : null,
+      niche: String(row.niche || "general"),
+    }));
 }
 
 /**
@@ -274,14 +294,16 @@ export async function getChannelSnapshots(channelId: string): Promise<ChannelVie
     args: [channelId],
   });
 
-  return res.rows.map((row: any) => ({
-    id: Number(row.id),
-    channel_id: row.channel_id as string,
-    cumulative_views: Number(row.cumulative_views),
-    observed_at: row.observed_at as string,
-    source: (row.source as string) || "youtube_api",
-    metadata: row.metadata as string | null,
-  }));
+  return (res?.rows || [])
+    .filter((row: any) => row && typeof row === "object" && row.channel_id)
+    .map((row: any) => ({
+      id: Number(row.id || 0),
+      channel_id: String(row.channel_id),
+      cumulative_views: Number(row.cumulative_views || 0),
+      observed_at: String(row.observed_at || new Date().toISOString()),
+      source: String(row.source || "youtube_api"),
+      metadata: row.metadata ? String(row.metadata) : null,
+    }));
 }
 
 /**
@@ -296,20 +318,22 @@ export async function getTrackedVideos(channelId: string): Promise<TrackedVideo[
     args: [channelId],
   });
 
-  return res.rows.map((row: any) => ({
-    video_id: row.video_id as string,
-    channel_id: row.channel_id as string,
-    title: row.title as string,
-    published_at: row.published_at as string | null,
-    duration: row.duration as string | null,
-    duration_seconds: Number(row.duration_seconds || 0),
-    format: (row.format as any) || "long-form",
-    format_source: (row.format_source as any) || "inferred",
-    latest_view_count: Number(row.latest_view_count),
-    tracking_status: (row.tracking_status as any) || "active",
-    first_tracked_at: row.first_tracked_at as string,
-    last_synced_at: row.last_synced_at as string | null,
-  }));
+  return (res?.rows || [])
+    .filter((row: any) => row && typeof row === "object" && row.video_id)
+    .map((row: any) => ({
+      video_id: String(row.video_id),
+      channel_id: String(row.channel_id),
+      title: String(row.title || ""),
+      published_at: row.published_at ? String(row.published_at) : null,
+      duration: row.duration ? String(row.duration) : null,
+      duration_seconds: Number(row.duration_seconds || 0),
+      format: (row.format as any) || "long-form",
+      format_source: (row.format_source as any) || "inferred",
+      latest_view_count: Number(row.latest_view_count || 0),
+      tracking_status: (row.tracking_status as any) || "active",
+      first_tracked_at: String(row.first_tracked_at || new Date().toISOString()),
+      last_synced_at: row.last_synced_at ? String(row.last_synced_at) : null,
+    }));
 }
 
 /**

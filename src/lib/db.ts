@@ -52,49 +52,162 @@ function createFallbackClient(): Client {
       }
 
       if (trimmed.startsWith("SELECT")) {
-        let tableName = "rpm_assumptions";
-        if (trimmed.includes("TRACKED_CHANNELS")) tableName = "tracked_channels";
-        else if (trimmed.includes("CHANNEL_VIEW_SNAPSHOTS")) tableName = "channel_view_snapshots";
-        else if (trimmed.includes("TRACKED_VIDEOS")) tableName = "tracked_videos";
-        else if (trimmed.includes("VIDEO_VIEW_SNAPSHOTS")) tableName = "video_view_snapshots";
-
-        let rows = [...((store as any)[tableName] || [])];
-        if (args.length > 0 && typeof args[0] === "string") {
-          const filterVal = args[0];
-          rows = rows.filter((r) => Object.values(r).includes(filterVal));
+        if (trimmed.includes("TRACKED_CHANNELS")) {
+          let rows = [...store.tracked_channels];
+          if (trimmed.includes("CHANNEL_ID = ?") && args.length > 0) {
+            rows = rows.filter((c) => c.channel_id === args[0]);
+          }
+          return { columns: [], columnTypes: [], rows, rowsAffected: 0, lastInsertRowid: undefined };
         }
-        return { columns: [], columnTypes: [], rows, rowsAffected: 0, lastInsertRowid: undefined };
+
+        if (trimmed.includes("CHANNEL_VIEW_SNAPSHOTS")) {
+          let rows = [...store.channel_view_snapshots];
+          if (args.length > 0) {
+            rows = rows.filter((s) => s.channel_id === args[0]);
+            if (args.length > 1 && args[1]) {
+              rows = rows.filter((s) => String(s.observed_at).startsWith(String(args[1])));
+            }
+          }
+          return { columns: [], columnTypes: [], rows, rowsAffected: 0, lastInsertRowid: undefined };
+        }
+
+        if (trimmed.includes("TRACKED_VIDEOS")) {
+          let rows = [...store.tracked_videos];
+          if (args.length > 0) {
+            rows = rows.filter((v) => v.channel_id === args[0]);
+          }
+          return { columns: [], columnTypes: [], rows, rowsAffected: 0, lastInsertRowid: undefined };
+        }
+
+        if (trimmed.includes("VIDEO_VIEW_SNAPSHOTS")) {
+          let rows = [...store.video_view_snapshots];
+          if (args.length > 0) {
+            rows = rows.filter((s) => s.video_id === args[0]);
+          }
+          return { columns: [], columnTypes: [], rows, rowsAffected: 0, lastInsertRowid: undefined };
+        }
+
+        if (trimmed.includes("RPM_ASSUMPTIONS")) {
+          let rows = [...store.rpm_assumptions];
+          if (args.length > 0) {
+            rows = rows.filter((r) => Object.values(r).includes(args[0]));
+          }
+          return { columns: [], columnTypes: [], rows, rowsAffected: 0, lastInsertRowid: undefined };
+        }
+
+        return { columns: [], columnTypes: [], rows: [], rowsAffected: 0, lastInsertRowid: undefined };
       }
 
       if (trimmed.startsWith("INSERT")) {
-        let tableName = "rpm_assumptions";
-        if (trimmed.includes("TRACKED_CHANNELS")) tableName = "tracked_channels";
-        else if (trimmed.includes("CHANNEL_VIEW_SNAPSHOTS")) tableName = "channel_view_snapshots";
-        else if (trimmed.includes("TRACKED_VIDEOS")) tableName = "tracked_videos";
-        else if (trimmed.includes("VIDEO_VIEW_SNAPSHOTS")) tableName = "video_view_snapshots";
-
-        if (Array.isArray(args) && args.length > 0) {
-          if (tableName === "rpm_assumptions") {
-            store.rpm_assumptions.push({
-              id: store.rpm_assumptions.length + 1,
-              category: args[0],
-              region: args[1],
-              format: args[2],
-              currency: args[3],
-              rpm_low: args[4],
-              rpm_typical: args[5],
-              rpm_high: args[6],
-              source_name: args[7],
-              source_url: args[8],
-              effective_date: args[9],
-              confidence: args[10],
-              notes: args[11],
-            });
+        if (trimmed.includes("TRACKED_CHANNELS") && Array.isArray(args) && args.length >= 2) {
+          const channelObj = {
+            channel_id: String(args[0]),
+            title: String(args[1] || ""),
+            handle: args[2] || null,
+            custom_url: args[3] || null,
+            description: args[4] || null,
+            published_at: args[5] || null,
+            thumbnail_url: args[6] || null,
+            uploads_playlist_id: args[7] || null,
+            subscriber_count: args[8] !== null && args[8] !== undefined ? Number(args[8]) : null,
+            hidden_subscriber_count: Boolean(args[9]),
+            latest_total_views: Number(args[10] || 0),
+            video_count: Number(args[11] || 0),
+            first_tracked_at: String(args[12] || new Date().toISOString()),
+            last_synced_at: String(args[13] || new Date().toISOString()),
+            sync_status: "active",
+            last_sync_error: null,
+            niche: String(args[14] || "general"),
+          };
+          const existingIdx = store.tracked_channels.findIndex((c) => c.channel_id === channelObj.channel_id);
+          if (existingIdx >= 0) {
+            store.tracked_channels[existingIdx] = { ...store.tracked_channels[existingIdx], ...channelObj };
           } else {
-            (store as any)[tableName].push({ id: Date.now(), args });
+            store.tracked_channels.push(channelObj);
+          }
+          return { columns: [], columnTypes: [], rows: [], rowsAffected: 1, lastInsertRowid: BigInt(Date.now()) };
+        }
+
+        if (trimmed.includes("CHANNEL_VIEW_SNAPSHOTS") && Array.isArray(args) && args.length >= 2) {
+          const snapObj = {
+            id: store.channel_view_snapshots.length + 1,
+            channel_id: String(args[0]),
+            cumulative_views: Number(args[1] || 0),
+            observed_at: String(args[2] || new Date().toISOString()),
+            source: String(args[3] || "youtube_api"),
+            metadata: args[4] ? String(args[4]) : null,
+          };
+          store.channel_view_snapshots.push(snapObj);
+          return { columns: [], columnTypes: [], rows: [], rowsAffected: 1, lastInsertRowid: BigInt(snapObj.id) };
+        }
+
+        if (trimmed.includes("TRACKED_VIDEOS") && Array.isArray(args) && args.length >= 2) {
+          const vidObj = {
+            video_id: String(args[0]),
+            channel_id: String(args[1]),
+            title: String(args[2] || ""),
+            published_at: args[3] || null,
+            duration: args[4] || null,
+            duration_seconds: Number(args[5] || 0),
+            format: String(args[6] || "long-form"),
+            format_source: "inferred",
+            latest_view_count: Number(args[7] || 0),
+            tracking_status: "active",
+            first_tracked_at: String(args[8] || new Date().toISOString()),
+            last_synced_at: String(args[9] || new Date().toISOString()),
+          };
+          const vidIdx = store.tracked_videos.findIndex((v) => v.video_id === vidObj.video_id);
+          if (vidIdx >= 0) {
+            store.tracked_videos[vidIdx] = { ...store.tracked_videos[vidIdx], ...vidObj };
+          } else {
+            store.tracked_videos.push(vidObj);
+          }
+          return { columns: [], columnTypes: [], rows: [], rowsAffected: 1, lastInsertRowid: BigInt(Date.now()) };
+        }
+
+        if (trimmed.includes("VIDEO_VIEW_SNAPSHOTS") && Array.isArray(args) && args.length >= 2) {
+          const vSnap = {
+            id: store.video_view_snapshots.length + 1,
+            video_id: String(args[0]),
+            channel_id: String(args[1]),
+            cumulative_views: Number(args[2] || 0),
+            observed_at: String(args[3] || new Date().toISOString()),
+          };
+          store.video_view_snapshots.push(vSnap);
+          return { columns: [], columnTypes: [], rows: [], rowsAffected: 1, lastInsertRowid: BigInt(vSnap.id) };
+        }
+
+        if (trimmed.includes("RPM_ASSUMPTIONS") && Array.isArray(args) && args.length >= 7) {
+          store.rpm_assumptions.push({
+            id: store.rpm_assumptions.length + 1,
+            category: args[0],
+            region: args[1],
+            format: args[2],
+            currency: args[3],
+            rpm_low: args[4],
+            rpm_typical: args[5],
+            rpm_high: args[6],
+            source_name: args[7] || "Benchmark",
+            source_url: args[8] || "",
+            effective_date: args[9] || new Date().toISOString().slice(0, 10),
+            confidence: args[10] || "medium",
+            notes: args[11] || null,
+          });
+          return { columns: [], columnTypes: [], rows: [], rowsAffected: 1, lastInsertRowid: BigInt(store.rpm_assumptions.length) };
+        }
+
+        return { columns: [], columnTypes: [], rows: [], rowsAffected: 1, lastInsertRowid: BigInt(Date.now()) };
+      }
+
+      if (trimmed.startsWith("UPDATE")) {
+        if (trimmed.includes("CHANNEL_VIEW_SNAPSHOTS") && args.length >= 3) {
+          const snap = store.channel_view_snapshots.find((s) => s.id === Number(args[2]));
+          if (snap) {
+            snap.cumulative_views = Number(args[0] || 0);
+            snap.observed_at = String(args[1]);
           }
         }
-        return { columns: [], columnTypes: [], rows: [], rowsAffected: 1, lastInsertRowid: BigInt(Date.now()) };
+        return { columns: [], columnTypes: [], rows: [], rowsAffected: 1, lastInsertRowid: undefined };
       }
 
       return { columns: [], columnTypes: [], rows: [], rowsAffected: 0, lastInsertRowid: undefined };
