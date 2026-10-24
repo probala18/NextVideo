@@ -413,7 +413,7 @@ export const ProductionView: React.FC<ProductionViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setIsVideoModalOpen(true)}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#2563EB] to-[#7C3AED] hover:from-[#1D4ED8] hover:to-[#6D28D9] text-white rounded-full text-xs font-bold shadow-md hover:shadow-lg transition cursor-pointer"
+                    className="flex items-center gap-2 px-5 py-2.5 bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-full text-xs font-bold shadow-xs transition cursor-pointer"
                   >
                     <Play className="w-3.5 h-3.5 fill-white" />
                     <span>Play AI Video Preview</span>
