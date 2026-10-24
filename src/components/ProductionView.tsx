@@ -10,6 +10,8 @@ interface ProductionViewProps {
     audience?: string;
     outcome?: string;
     format?: string;
+    autoGenerate?: boolean;
+    pack?: ProductionPack;
   };
   onSaveToPlanner: (title: string, note: string, status?: string) => void;
   onToast: (msg: string, type?: "success" | "error" | "info") => void;
@@ -31,26 +33,25 @@ export const ProductionView: React.FC<ProductionViewProps> = ({
   const [cta, setCta] = useState("");
 
   const [isLoading, setIsLoading] = useState(false);
-  const [pack, setPack] = useState<ProductionPack | null>(null);
+  const [pack, setPack] = useState<ProductionPack | null>(initialData?.pack || null);
   const [activeTab, setActiveTab] = useState("script");
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!topic.trim() || !audience.trim() || !outcome.trim()) {
-      onToast("Complete the topic, audience, and outcome first.", "info");
-      return;
-    }
-
+  const triggerGenerate = async (params: {
+    topic: string;
+    audience: string;
+    outcome: string;
+    format: string;
+  }) => {
     setIsLoading(true);
     try {
       const res = await fetch("/api/production", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          topic: topic.trim(),
-          audience: audience.trim(),
-          outcome: outcome.trim(),
-          format,
+          topic: params.topic.trim(),
+          audience: params.audience.trim(),
+          outcome: params.outcome.trim(),
+          format: params.format,
           duration,
           tone,
           language,
@@ -62,17 +63,43 @@ export const ProductionView: React.FC<ProductionViewProps> = ({
       if (!res.ok) throw new Error("Production request failed");
       const data: ProductionPack = await res.json();
       setPack(data);
-      onToast(
-        data.source === "ai"
-          ? "AI production draft ready. Review details before recording."
-          : "Production pack ready using template workflow.",
-        "success"
-      );
+      onToast("Production pack generated successfully.", "success");
     } catch {
       onToast("Could not generate pack. Please check connection.", "error");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  React.useEffect(() => {
+    if (initialData) {
+      if (initialData.topic) setTopic(initialData.topic);
+      if (initialData.audience) setAudience(initialData.audience);
+      if (initialData.outcome) setOutcome(initialData.outcome);
+      if (initialData.format) {
+        setFormat(initialData.format.toLowerCase().includes("short") ? "Short" : "Long-form");
+      }
+      if (initialData.pack) {
+        setPack(initialData.pack);
+      } else if (initialData.autoGenerate && initialData.topic) {
+        triggerGenerate({
+          topic: initialData.topic,
+          audience: initialData.audience || audience,
+          outcome: initialData.outcome || outcome,
+          format: initialData.format?.toLowerCase().includes("short") ? "Short" : "Long-form",
+        });
+      }
+    }
+  }, [initialData]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!topic.trim() || !audience.trim() || !outcome.trim()) {
+      onToast("Complete the topic, audience, and outcome first.", "info");
+      return;
+    }
+
+    await triggerGenerate({ topic, audience, outcome, format });
   };
 
   const copyText = (text: string) => {
@@ -356,9 +383,9 @@ export const ProductionView: React.FC<ProductionViewProps> = ({
                   <div className="p-4 bg-[#F9FAFB] rounded-2xl border border-[#E8EAEE] space-y-2">
                     <span className="text-xs font-bold text-[#111827] block">Tags & Keywords</span>
                     <div className="flex flex-wrap gap-1.5">
-                      {pack.tags.map((tg) => (
+                      {(pack.tags || pack.hashtags || []).map((tg) => (
                         <span key={tg} className="text-xs bg-white border border-[#E5E7EB] px-2.5 py-1 rounded-full text-[#4B5563]">
-                          #{tg}
+                          #{tg.replace(/^#/, "")}
                         </span>
                       ))}
                     </div>
@@ -369,9 +396,11 @@ export const ProductionView: React.FC<ProductionViewProps> = ({
               {/* Save to Planner Action */}
               <div className="pt-4 border-t border-[#F0F2F5] flex items-center justify-between">
                 <button
+                  type="button"
                   onClick={() => {
-                    onSaveToPlanner(pack.topic, `Target: ${pack.duration}\nOutcome: ${pack.outcome}`, "Scripting");
-                    onToast("Transferred to Content Planner in 'Scripting' stage.", "success");
+                    const note = `Outcome: ${pack.outcome}\nTarget Duration: ${pack.duration}\nScenes: ${pack.scenes?.length || 0} scenes\nHook: ${pack.openingHook}`;
+                    onSaveToPlanner(pack.topic, note, "In progress");
+                    onToast("Transferred to Content Planner (In Progress / Scripting stage).", "success");
                   }}
                   className="flex items-center gap-2 px-5 py-2.5 bg-[#10B981] hover:bg-[#059669] text-white rounded-full text-xs font-bold shadow-xs transition cursor-pointer"
                 >

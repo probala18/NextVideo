@@ -16,7 +16,7 @@ import { PlannerView } from "@/components/PlannerView";
 import { PrinciplesModal } from "@/components/PrinciplesModal";
 import { ManualIdeaModal } from "@/components/ManualIdeaModal";
 import { Toast, ToastMessage } from "@/components/Toast";
-import { ChannelItem, VideoItem, IdeaItem, PlanItem, WatchlistChannel, VideoBrief } from "@/types";
+import { ChannelItem, VideoItem, IdeaItem, PlanItem, WatchlistChannel, VideoBrief, ProductionPack } from "@/types";
 
 const initialDemoChannels: ChannelItem[] = [
   {
@@ -220,6 +220,8 @@ export default function Home() {
     audience?: string;
     outcome?: string;
     format?: string;
+    pack?: ProductionPack;
+    autoGenerate?: boolean;
   } | undefined>(undefined);
 
   const [toast, setToast] = useState<ToastMessage | null>(null);
@@ -384,22 +386,43 @@ export default function Home() {
     showToast("Channel shortlist exported as CSV.", "success");
   };
 
-  const handleSaveIdeaToPlanner = (title: string, note: string, status: PlanItem["status"] = "Idea") => {
-    if (plans.some((p) => p.title.toLowerCase() === title.toLowerCase())) {
-      showToast("That idea is already in your planner.", "info");
+  const handleSaveIdeaToPlanner = (
+    title: string,
+    note: string,
+    status: PlanItem["status"] | string = "Idea"
+  ) => {
+    const normalizedStatus: PlanItem["status"] =
+      status === "Scripting" ? "In progress" : (status as PlanItem["status"]) || "Idea";
+
+    const cleanTitle = title.trim();
+    const existingIndex = plans.findIndex(
+      (p) => p.title.toLowerCase() === cleanTitle.toLowerCase()
+    );
+
+    if (existingIndex >= 0) {
+      const existing = plans[existingIndex];
+      const updatedItem: PlanItem = {
+        ...existing,
+        status: normalizedStatus,
+        note: note || existing.note,
+      };
+      const remaining = plans.filter((_, idx) => idx !== existingIndex);
+      const updatedList = [updatedItem, ...remaining];
+      savePlansToStorage(updatedList);
+      showToast(`Updated "${cleanTitle}" in Content Planner (${normalizedStatus}).`, "success");
       return;
     }
 
     const newPlan: PlanItem = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      title,
+      title: cleanTitle,
       note,
-      status,
+      status: normalizedStatus,
       created: new Date().toISOString().slice(0, 10),
     };
 
     savePlansToStorage([newPlan, ...plans]);
-    showToast("Idea saved to content planner.", "success");
+    showToast(`Saved "${cleanTitle}" to Content Planner (${normalizedStatus}).`, "success");
   };
 
   const handleUpdatePlanStatus = (id: string, newStatus: PlanItem["status"]) => {
@@ -458,6 +481,7 @@ export default function Home() {
   };
 
   const handleSelectIdeaForBrief = (idea: IdeaItem) => {
+    setTopic(idea.title);
     setCurrentView("strategy");
     showToast(`Brief started for: "${idea.title}"`, "info");
   };
@@ -468,9 +492,11 @@ export default function Home() {
       audience: brief.audience,
       outcome: brief.promise,
       format: brief.format,
+      pack: brief.pack,
+      autoGenerate: !brief.pack,
     });
     setCurrentView("production");
-    showToast("Brief transferred to Production Studio. Configure and generate.", "info");
+    showToast("Transferred to Production Studio.", "success");
   };
 
   return (
@@ -525,6 +551,7 @@ export default function Home() {
                   videos={videos}
                   ideasCount={ideas.length}
                   planCount={plans.length}
+                  plans={plans}
                   watchlist={watchlist}
                   onSaveChannel={handleSaveChannel}
                   onNavigate={setCurrentView}
@@ -590,9 +617,10 @@ export default function Home() {
               {currentView === "production" && (
                 <ProductionView
                   initialData={productionTransferData}
-                  onSaveToPlanner={(t, n, s) =>
-                    handleSaveIdeaToPlanner(t, n, s as PlanItem["status"])
-                  }
+                  onSaveToPlanner={(t, n, s) => {
+                    handleSaveIdeaToPlanner(t, n, s as PlanItem["status"]);
+                    setCurrentView("planner");
+                  }}
                   onToast={showToast}
                 />
               )}

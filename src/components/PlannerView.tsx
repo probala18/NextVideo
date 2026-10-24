@@ -147,9 +147,9 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
                 {plan.title}
               </h3>
 
-              {plan.notes && (
+              {plan.note && (
                 <p className="text-xs text-[#6B7280] line-clamp-3 leading-relaxed mb-4 whitespace-pre-wrap">
-                  {plan.notes}
+                  {plan.note}
                 </p>
               )}
             </div>

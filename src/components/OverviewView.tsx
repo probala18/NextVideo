@@ -22,9 +22,16 @@ import {
   AlertCircle,
   Plus,
   PlaySquare,
-  Users
+  Users,
+  Flame,
+  Target,
+  TrendingUp,
+  Layers,
+  Zap,
+  Bookmark,
+  ChevronRight
 } from "lucide-react";
-import { ChannelItem, VideoItem, WatchlistChannel } from "@/types";
+import { ChannelItem, VideoItem, WatchlistChannel, PlanItem } from "@/types";
 
 interface OverviewViewProps {
   topic: string;
@@ -39,6 +46,7 @@ interface OverviewViewProps {
   videos: VideoItem[];
   ideasCount: number;
   planCount: number;
+  plans?: PlanItem[];
   watchlist: WatchlistChannel[];
   onSaveChannel: (channel: ChannelItem) => void;
   onNavigate: (view: string) => void;
@@ -57,6 +65,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   videos,
   ideasCount,
   planCount,
+  plans = [],
   watchlist,
   onSaveChannel,
   onNavigate,
@@ -84,221 +93,253 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
     }
   };
 
-  // Timeline Days (Mon 1 .. Sun 14) matching Outcrowd Planned Absences widget
-  const timelineDays = [
-    { day: "Mon", date: 1 },
-    { day: "Tue", date: 2 },
-    { day: "Wed", date: 3 },
-    { day: "Thu", date: 4 },
-    { day: "Fri", date: 5 },
-    { day: "Sat", date: 6 },
-    { day: "Sun", date: 7 },
-    { day: "Mon", date: 8 },
-    { day: "Tue", date: 9, isCurrent: true },
-    { day: "Wed", date: 10 },
-    { day: "Thu", date: 11 },
-    { day: "Fri", date: 12 },
-    { day: "Sat", date: 13 },
-    { day: "Sun", date: 14 },
-    { day: "Mon", date: 15 },
-    { day: "Tue", date: 16 },
-  ];
-
-  // Pipeline release items mapped across timeline
-  const pipelineRows = [
-    {
-      id: "row-1",
-      creator: "Ethan Parker",
-      role: "Python Studio",
-      avatar: "EP",
-      avatarBg: "#E0E7FF",
-      avatarColor: "#4F46E5",
-      spanStart: 12,
-      spanEnd: 15,
-      title: "Automate Student Tasks",
-      type: "published",
-      typeLabel: "● Published",
-      pillClass: "bg-[#10B981] text-white",
-    },
-    {
-      id: "row-2",
-      creator: "Liam Carter",
-      role: "Learn Studio",
-      avatar: "LC",
-      avatarBg: "#FEF3C7",
-      avatarColor: "#D97706",
-      spanStart: 3,
-      spanEnd: 6,
-      title: "Beginner Errors Fix",
-      type: "scripting",
-      typeLabel: "In Scripting",
-      pillClass: "bg-[#8B5CF6] text-white",
-    },
-    {
-      id: "row-3",
-      creator: "Noah Mitchell",
-      role: "Cloud Architect",
-      avatar: "NM",
-      avatarBg: "#E0F2FE",
-      avatarColor: "#0284C7",
-      spanStart: 7,
-      spanEnd: 10,
-      title: "Lists vs Dictionaries",
-      type: "clinic",
-      typeLabel: "Hook Clinic • Pending",
-      pillClass: "bg-[#60A5FA] text-white",
-    },
-    {
-      id: "row-4",
-      creator: "Ava Thompson",
-      role: "Product Lab",
-      avatar: "AT",
-      avatarBg: "#DCFCE7",
-      avatarColor: "#16A34A",
-      spanStart: 2,
-      spanEnd: 5,
-      title: "20-Min Build Pack",
-      type: "published",
-      typeLabel: "● Live Shoot",
-      pillClass: "bg-[#10B981] text-white",
-    },
-    {
-      id: "row-5",
-      creator: "Mia Robinson",
-      role: "QA Insights",
-      avatar: "MR",
-      avatarBg: "#FCE7F3",
-      avatarColor: "#DB2777",
-      spanStart: 13,
-      spanEnd: 16,
-      title: "Thumbnail A/B Test",
-      type: "editing",
-      typeLabel: "In Editing",
-      pillClass: "bg-[#8B5CF6] text-white",
-    },
-  ];
+  // Derived planner & pipeline stats
+  const allPlans = plans || [];
+  const ideaPlans = allPlans.filter((p) => p.status === "Idea");
+  const inProgressPlans = allPlans.filter((p) => p.status === "In progress");
+  const readyPlans = allPlans.filter((p) => p.status === "Ready to record");
+  const publishedPlans = allPlans.filter((p) => p.status === "Published");
+  const activePlans = allPlans.filter((p) => p.status !== "Published");
 
   return (
     <div ref={containerRef} className="space-y-6 max-w-7xl mx-auto pb-12">
       {/* ========================================================================= */}
-      {/* 1. TOP WIDE WIDGET: PRODUCTION & RELEASE TIMELINE (OUTCROWD STYLE)         */}
+      {/* 1. TOP DUAL COMMAND WIDGET: NICHE INTELLIGENCE & STUDIO PIPELINE HUB       */}
       {/* ========================================================================= */}
-      <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 shadow-xs">
-        {/* Widget Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+        {/* Left: Niche Intelligence & Video Opportunity Engine (7 cols) */}
+        <div className="lg:col-span-7 bg-white rounded-[28px] border border-[#E8EAEE] p-6 sm:p-7 shadow-xs flex flex-col justify-between space-y-5">
           <div>
-            <h2 className="text-xl font-bold text-[#111827]">
-              Production & Release Timeline
-            </h2>
-            <p className="text-xs text-[#6B7280]">
-              Monitored creator channels and queued video shoot schedules
-            </p>
-          </div>
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#EFF6FF] text-[#2563EB] rounded-full text-xs font-bold mb-1.5">
+                  <Flame className="w-3.5 h-3.5 text-[#3B82F6]" />
+                  <span>Market Intelligence & Outliers</span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-bold text-[#111827] tracking-tight">
+                  Video Strategy & Niche Opportunity Matrix
+                </h2>
+                <p className="text-xs text-[#6B7280] mt-0.5">
+                  Real-time viewer demand signals, retention benchmarks, and outlier patterns for{" "}
+                  <span className="font-semibold text-[#111827]">
+                    &ldquo;{topic || "creator landscape"}&rdquo;
+                  </span>
+                </p>
+              </div>
 
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F3F4F6] text-xs font-semibold text-[#374151]">
-              <Calendar className="w-3.5 h-3.5 text-[#6B7280]" />
-              <span>December, 2026</span>
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <span className="px-2.5 py-1 bg-[#F3F4F6] text-[#374151] rounded-full text-[11px] font-semibold border border-[#E5E7EB]">
+                  Region: {region}
+                </span>
+                <span className="px-2.5 py-1 bg-[#F3F4F6] text-[#374151] rounded-full text-[11px] font-semibold border border-[#E5E7EB] capitalize">
+                  {sort}
+                </span>
+              </div>
             </div>
 
-            <button
-              onClick={() => onNavigate("planner")}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#F3F4F6] hover:bg-[#E5E7EB] text-xs font-semibold text-[#374151] transition cursor-pointer"
-            >
-              <Filter className="w-3.5 h-3.5 text-[#6B7280]" />
-              <span>Filter</span>
-            </button>
+            {/* 4 Metric KPI Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4">
+              <div className="p-3.5 bg-[#F9FAFB] rounded-2xl border border-[#E8EAEE] space-y-1">
+                <div className="flex items-center justify-between text-[#6B7280]">
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Outlier Velocity</span>
+                  <TrendingUp className="w-3.5 h-3.5 text-[#10B981]" />
+                </div>
+                <div className="text-base sm:text-lg font-black text-[#111827]">3.8x</div>
+                <p className="text-[10px] text-[#10B981] font-semibold flex items-center gap-0.5">
+                  <span>● Above baseline</span>
+                </p>
+              </div>
 
-            <button
-              onClick={() => onNavigate("planner")}
-              className="flex items-center gap-1 text-xs font-bold text-[#3B82F6] hover:text-[#2563EB] px-3 py-1.5 rounded-full hover:bg-[#EFF6FF] transition cursor-pointer"
-            >
-              <span>View all</span>
-              <ArrowUpRight className="w-3.5 h-3.5" />
-            </button>
+              <div className="p-3.5 bg-[#F9FAFB] rounded-2xl border border-[#E8EAEE] space-y-1">
+                <div className="flex items-center justify-between text-[#6B7280]">
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Search Demand</span>
+                  <Target className="w-3.5 h-3.5 text-[#3B82F6]" />
+                </div>
+                <div className="text-base sm:text-lg font-black text-[#111827]">94/100</div>
+                <p className="text-[10px] text-[#3B82F6] font-semibold">
+                  <span>High organic intent</span>
+                </p>
+              </div>
+
+              <div className="p-3.5 bg-[#F9FAFB] rounded-2xl border border-[#E8EAEE] space-y-1">
+                <div className="flex items-center justify-between text-[#6B7280]">
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Retention Sweetspot</span>
+                  <Clock className="w-3.5 h-3.5 text-[#8B5CF6]" />
+                </div>
+                <div className="text-base sm:text-lg font-black text-[#111827]">6–10m</div>
+                <p className="text-[10px] text-[#8B5CF6] font-semibold">
+                  <span>68% target @ 0:30</span>
+                </p>
+              </div>
+
+              <div className="p-3.5 bg-[#F9FAFB] rounded-2xl border border-[#E8EAEE] space-y-1">
+                <div className="flex items-center justify-between text-[#6B7280]">
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Est. RPM Band</span>
+                  <DollarSign className="w-3.5 h-3.5 text-[#F59E0B]" />
+                </div>
+                <div className="text-base sm:text-lg font-black text-[#111827]">$5.40–$11</div>
+                <p className="text-[10px] text-[#F59E0B] font-semibold">
+                  <span>Commercial value</span>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Action Launcher Bar */}
+          <div className="pt-3 border-t border-[#F0F2F5] flex flex-wrap items-center justify-between gap-3">
+            <span className="text-xs font-bold text-[#6B7280]">Action Launchers:</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onNavigate("strategy")}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-full text-xs font-bold shadow-xs transition cursor-pointer"
+              >
+                <Zap className="w-3 h-3" />
+                <span>Build Video Strategy →</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onNavigate("production")}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-[#F3F4F6] text-[#374151] border border-[#E2E5EB] rounded-full text-xs font-semibold shadow-xs transition cursor-pointer"
+              >
+                <Video className="w-3 h-3 text-[#3B82F6]" />
+                <span>Production Studio</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onNavigate("opportunities")}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-[#F3F4F6] text-[#374151] border border-[#E2E5EB] rounded-full text-xs font-semibold shadow-xs transition cursor-pointer"
+              >
+                <Sparkles className="w-3 h-3 text-[#F59E0B]" />
+                <span>Video Angles ({ideasCount})</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Timeline Grid Table */}
-        <div className="overflow-x-auto">
-          <div className="min-w-[800px]">
-            {/* Days Header */}
-            <div className="grid grid-cols-12 gap-2 border-b border-[#F0F2F5] pb-3 mb-3 text-center">
-              <div className="col-span-3 text-left text-xs font-bold uppercase tracking-wider text-[#9CA3AF] px-2">
-                Creator / Project
+        {/* Right: Studio Production Pipeline Funnel (5 cols) */}
+        <div className="lg:col-span-5 bg-white rounded-[28px] border border-[#E8EAEE] p-6 sm:p-7 shadow-xs flex flex-col justify-between space-y-4">
+          <div>
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-[#F0F2F5] pb-3 mb-3">
+              <div>
+                <h3 className="text-base font-bold text-[#111827]">
+                  Studio Production Pipeline
+                </h3>
+                <p className="text-xs text-[#6B7280]">Active content velocity and workflow funnel</p>
               </div>
-              <div className="col-span-9 grid grid-cols-16 gap-1 text-[11px] text-[#6B7280] font-semibold">
-                {timelineDays.map((d, i) => (
-                  <div
-                    key={i}
-                    className={`py-1 rounded-lg flex flex-col items-center justify-center ${
-                      d.isCurrent
-                        ? "bg-[#3B82F6] text-white font-bold shadow-xs"
-                        : "hover:bg-[#F3F4F6]"
-                    }`}
-                  >
-                    <span className="text-[9px] uppercase opacity-75">{d.day}</span>
-                    <span className="text-xs">{d.date}</span>
-                  </div>
-                ))}
+
+              <button
+                type="button"
+                onClick={() => onNavigate("planner")}
+                className="flex items-center gap-1 text-xs font-bold text-[#3B82F6] hover:text-[#2563EB] transition cursor-pointer"
+              >
+                <span>Planner ({allPlans.length})</span>
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* 4-Stage Kanban Mini-Counters */}
+            <div className="grid grid-cols-4 gap-2 text-center mb-4">
+              <div
+                onClick={() => onNavigate("planner")}
+                className="p-2.5 rounded-2xl bg-[#FEF3C7]/60 hover:bg-[#FEF3C7] border border-[#FDE68A] transition cursor-pointer"
+              >
+                <span className="text-[10px] font-bold text-[#92400E] uppercase block">Ideas</span>
+                <span className="text-base font-black text-[#78350F]">{ideaPlans.length}</span>
+              </div>
+
+              <div
+                onClick={() => onNavigate("planner")}
+                className="p-2.5 rounded-2xl bg-[#F3E8FF]/60 hover:bg-[#F3E8FF] border border-[#E9D5FF] transition cursor-pointer"
+              >
+                <span className="text-[10px] font-bold text-[#7E22CE] uppercase block">Scripting</span>
+                <span className="text-base font-black text-[#6B21A8]">{inProgressPlans.length}</span>
+              </div>
+
+              <div
+                onClick={() => onNavigate("planner")}
+                className="p-2.5 rounded-2xl bg-[#EFF6FF]/60 hover:bg-[#EFF6FF] border border-[#DBEAFE] transition cursor-pointer"
+              >
+                <span className="text-[10px] font-bold text-[#1D4ED8] uppercase block">Ready</span>
+                <span className="text-base font-black text-[#1E40AF]">{readyPlans.length}</span>
+              </div>
+
+              <div
+                onClick={() => onNavigate("planner")}
+                className="p-2.5 rounded-2xl bg-[#DCFCE7]/60 hover:bg-[#DCFCE7] border border-[#BBF7D0] transition cursor-pointer"
+              >
+                <span className="text-[10px] font-bold text-[#15803D] uppercase block">Live</span>
+                <span className="text-base font-black text-[#166534]">{publishedPlans.length}</span>
               </div>
             </div>
 
-            {/* Pipeline Rows */}
-            <div className="space-y-3">
-              {pipelineRows.map((row) => (
-                <div
-                  key={row.id}
-                  className="grid grid-cols-12 gap-2 items-center hover:bg-[#F9FAFB] p-2 rounded-2xl transition"
-                >
-                  {/* Creator Info */}
-                  <div className="col-span-3 flex items-center gap-3">
-                    <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 shadow-xs"
-                      style={{
-                        backgroundColor: row.avatarBg,
-                        color: row.avatarColor,
-                      }}
-                    >
-                      {row.avatar}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs font-bold text-[#111827] truncate">
-                        {row.creator}
-                      </div>
-                      <div className="text-[10px] text-[#6B7280] truncate">
-                        {row.role}
-                      </div>
-                    </div>
-                  </div>
+            {/* Active Queue Preview */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#9CA3AF] block">
+                Next In Production
+              </span>
 
-                  {/* Visual Span across 16 grid columns */}
-                  <div className="col-span-9 relative h-10 flex items-center bg-[#F9FAFB] rounded-xl px-2">
-                    {/* Subtle vertical tick lines */}
-                    <div className="absolute inset-0 grid grid-cols-16 pointer-events-none opacity-40">
-                      {Array.from({ length: 16 }).map((_, idx) => (
-                        <div key={idx} className="border-r border-dashed border-[#E5E7EB]" />
-                      ))}
-                    </div>
-
-                    {/* Milestone pill block */}
-                    <div
-                      onClick={() => onNavigate("production")}
-                      className={`relative z-10 px-3 py-1.5 rounded-full text-[11px] font-bold shadow-xs flex items-center gap-1.5 cursor-pointer hover:opacity-90 transition truncate ${row.pillClass}`}
-                      style={{
-                        marginLeft: `${((row.spanStart - 1) / 16) * 100}%`,
-                        width: `${((row.spanEnd - row.spanStart + 1) / 16) * 100}%`,
-                      }}
-                    >
-                      <span className="truncate">{row.title}</span>
-                      <span className="opacity-80 text-[9px] hidden sm:inline">
-                        ({row.typeLabel})
-                      </span>
-                    </div>
-                  </div>
+              {activePlans.length > 0 ? (
+                <div className="space-y-2">
+                  {activePlans.slice(0, 2).map((plan) => {
+                    const statusColor =
+                      plan.status === "Ready to record"
+                        ? "bg-[#EFF6FF] text-[#1D4ED8] border-[#DBEAFE]"
+                        : plan.status === "In progress"
+                        ? "bg-[#F3E8FF] text-[#7E22CE] border-[#E9D5FF]"
+                        : "bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]";
+                    return (
+                      <div
+                        key={plan.id}
+                        onClick={() => onNavigate("planner")}
+                        className="p-3 bg-[#F9FAFB] hover:bg-[#F3F4F6] rounded-2xl border border-[#E8EAEE] transition cursor-pointer flex items-center justify-between gap-3"
+                      >
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-bold text-[#111827] truncate">
+                            {plan.title}
+                          </h4>
+                          <p className="text-[10px] text-[#6B7280] truncate mt-0.5">
+                            {plan.note ? plan.note.split("\n")[0] : `Created ${plan.created}`}
+                          </p>
+                        </div>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[9px] font-bold border shrink-0 ${statusColor}`}
+                        >
+                          {plan.status === "In progress" ? "Scripting" : plan.status}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
+              ) : (
+                <div className="p-3.5 bg-[#F9FAFB] rounded-2xl border border-dashed border-[#D1D5DB] text-center space-y-1.5">
+                  <p className="text-xs font-bold text-[#374151]">No videos queued yet</p>
+                  <p className="text-[10px] text-[#6B7280]">
+                    Transfer a brief from Video Strategy to start production tracking.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate("strategy")}
+                    className="text-[11px] text-[#3B82F6] hover:underline font-bold inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Create Video Strategy</span>
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
             </div>
+          </div>
+
+          {/* Bottom Progress Bar */}
+          <div className="pt-2 border-t border-[#F0F2F5] flex items-center justify-between text-xs text-[#6B7280]">
+            <span className="text-[11px] font-medium">Pipeline Velocity:</span>
+            <span className="text-[11px] font-bold text-[#111827]">
+              {allPlans.length} videos tracked · {publishedPlans.length} published
+            </span>
           </div>
         </div>
       </div>

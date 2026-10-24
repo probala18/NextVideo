@@ -174,7 +174,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({
         {filteredChannels.map((channel, idx) => {
           const bgColors = ["#E0E7FF", "#FEF3C7", "#DCFCE7", "#FCE7F3", "#E0F2FE"];
           const textColors = ["#4F46E5", "#D97706", "#16A34A", "#DB2777", "#0284C7"];
-          const isSaved = watchlist.some((w) => w.channelId === channel.id);
+          const isSaved = watchlist.some((w) => w.id === channel.id);
 
           return (
             <div

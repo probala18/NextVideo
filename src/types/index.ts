@@ -87,6 +87,7 @@ export interface VideoBrief {
   thumbnail: string;
   measure: string;
   note?: string;
+  pack?: ProductionPack;
 }
 
 export interface ProductionScene {
@@ -110,6 +111,7 @@ export interface ProductionPack {
   titleOptions: string[];
   description: string;
   hashtags: string[];
+  tags?: string[];
   openingHook: string;
   voiceoverScript: string;
   scenes: ProductionScene[];
@@ -148,6 +150,8 @@ export interface AuditData {
     thumbnail: string | null;
     url: string;
     position: number;
+    multiplier?: number;
+    ratioLabel?: string;
   }[];
   insights: {
     title: string;
