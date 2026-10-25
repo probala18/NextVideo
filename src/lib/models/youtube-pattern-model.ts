@@ -366,7 +366,7 @@ TIMESTAMPS:
 0:00 - Introduction to ${subject}
 1:15 - Core Concepts & Setup
 3:45 - Step-by-Step Walkthrough
-${Math.max(5, Math.floor(vision.durationSeconds / 60))}:00 - Final Results & Summary
+${Math.max(5, Math.floor((vision.durationSeconds || 600) / 60))}:00 - Final Results & Summary
 
 #${subject.replace(/[^a-zA-Z0-9]/g, "").slice(0, 15)} #tutorial #workflow`;
 
