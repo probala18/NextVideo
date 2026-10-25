@@ -20,6 +20,7 @@ interface HeaderProps {
   isDark: boolean;
   onToggleTheme: () => void;
   onOpenPrinciples: () => void;
+  onOpenSettings?: () => void;
   onToggleSidebar: () => void;
   isSidebarOpen: boolean;
   onToast?: (msg: string, type?: "success" | "error" | "info") => void;
@@ -31,6 +32,7 @@ export const Header: React.FC<HeaderProps> = ({
   isDark,
   onToggleTheme,
   onOpenPrinciples,
+  onOpenSettings,
   onToggleSidebar,
   isSidebarOpen,
   onToast,
@@ -145,7 +147,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* AI Model & Video Settings Button */}
         <button
           type="button"
-          onClick={() => setIsSettingsModalOpen(true)}
+          onClick={() => (onOpenSettings ? onOpenSettings() : setIsSettingsModalOpen(true))}
           aria-label="AI Video Model Settings"
           title={`Configure Video AI Model (Active: ${activeModel})`}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-[#F2F4F8] border border-[#E2E5EB] text-xs font-semibold text-[#1F2937] shadow-xs transition cursor-pointer"
@@ -160,20 +162,22 @@ export const Header: React.FC<HeaderProps> = ({
         {/* User Circular Avatar */}
         <div
           title={`Creator Studio Workspace · AI: ${activeModel}`}
-          onClick={() => setIsSettingsModalOpen(true)}
+          onClick={() => (onOpenSettings ? onOpenSettings() : setIsSettingsModalOpen(true))}
           className="w-8 h-8 rounded-full bg-[#3B82F6] hover:bg-[#2563EB] border-2 border-white flex items-center justify-center font-bold text-xs text-white shadow-xs select-none cursor-pointer transition"
         >
           CL
         </div>
       </div>
 
-      {/* Model & Generation Settings Modal */}
-      <ModelSettingsModal
-        isOpen={isSettingsModalOpen}
-        onClose={() => setIsSettingsModalOpen(false)}
-        onModelSaved={(model) => setActiveModel(model)}
-        onToast={onToast}
-      />
+      {/* Model & Generation Settings Modal fallback */}
+      {!onOpenSettings && (
+        <ModelSettingsModal
+          isOpen={isSettingsModalOpen}
+          onClose={() => setIsSettingsModalOpen(false)}
+          onModelSaved={(model) => setActiveModel(model)}
+          onToast={onToast}
+        />
+      )}
     </header>
   );
 };

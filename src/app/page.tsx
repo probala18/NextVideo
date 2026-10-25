@@ -15,6 +15,7 @@ import { ProductionView } from "@/components/ProductionView";
 import { PlannerView } from "@/components/PlannerView";
 import { PrinciplesModal } from "@/components/PrinciplesModal";
 import { ManualIdeaModal } from "@/components/ManualIdeaModal";
+import { ModelSettingsModal } from "@/components/ModelSettingsModal";
 import { Toast, ToastMessage } from "@/components/Toast";
 import { ChannelItem, VideoItem, IdeaItem, PlanItem, WatchlistChannel, VideoBrief, ProductionPack } from "@/types";
 
@@ -200,6 +201,7 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isPrinciplesOpen, setIsPrinciplesOpen] = useState(false);
   const [isManualIdeaOpen, setIsManualIdeaOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
 
   const [topic, setTopic] = useState("beginner Python tutorials");
@@ -524,6 +526,7 @@ export default function Home() {
             isDark={isDark}
             onToggleTheme={toggleTheme}
             onOpenPrinciples={() => setIsPrinciplesOpen(true)}
+            onOpenSettings={() => setIsSettingsOpen(true)}
             onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
             isSidebarOpen={sidebarOpen}
             onToast={showToast}
@@ -651,6 +654,12 @@ export default function Home() {
         isOpen={isManualIdeaOpen}
         onClose={() => setIsManualIdeaOpen(false)}
         onSave={(t, n) => handleSaveIdeaToPlanner(t, n)}
+      />
+
+      <ModelSettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onToast={showToast}
       />
 
       <Toast toast={toast} onClose={() => setToast(null)} />
