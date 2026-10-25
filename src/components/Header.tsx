@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   DollarSign,
   Video,
+  Film,
   FileEdit,
   Settings,
 } from "lucide-react";
@@ -65,6 +66,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: "overview", label: "Dashboard", icon: LayoutDashboard },
     { id: "discover", label: "Channel Intel", icon: Compass },
     { id: "revenue", label: "Revenue", icon: DollarSign },
+    { id: "autonomous-video", label: "Autonomous Video", icon: Film },
     { id: "production", label: "Studio", icon: Video },
     { id: "planner", label: "Pipeline", icon: FileEdit },
   ];

@@ -12,6 +12,7 @@ import { ClinicView } from "@/components/ClinicView";
 import { OpportunitiesView } from "@/components/OpportunitiesView";
 import { StrategyView } from "@/components/StrategyView";
 import { ProductionView } from "@/components/ProductionView";
+import { AutonomousVideoStudio } from "@/components/AutonomousVideoStudio";
 import { PlannerView } from "@/components/PlannerView";
 import { PrinciplesModal } from "@/components/PrinciplesModal";
 import { ManualIdeaModal } from "@/components/ManualIdeaModal";
@@ -616,6 +617,39 @@ export default function Home() {
                   onSaveToPlanner={(t, n) => handleSaveIdeaToPlanner(t, n)}
                   onToast={showToast}
                 />
+              )}
+
+              {currentView === "autonomous-video" && (
+                <div className="space-y-6">
+                  <div className="bg-gradient-to-r from-[#2563EB]/10 via-[#3B82F6]/5 to-transparent border border-[#BFDBFE] p-6 rounded-[28px]">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#2563EB] text-white uppercase tracking-wider">
+                            Autonomous AI Agent
+                          </span>
+                          <span className="text-xs font-semibold text-[#2563EB]">
+                            11 YouTube Agent Skills Pipeline
+                          </span>
+                        </div>
+                        <h1 className="text-2xl font-bold text-[#111827] mt-1.5">
+                          Autonomous Video Analysis & Production
+                        </h1>
+                        <p className="text-xs text-[#6B7280] mt-1 max-w-2xl">
+                          Upload raw video footage for instant media inspection, speech transcription, CMX 3600 EDL cuts, viral outlier research, Short extraction, validated chapters, and optional direct YouTube OAuth publishing.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <AutonomousVideoStudio
+                    onSaveToPlanner={(t, n, s) => {
+                      handleSaveIdeaToPlanner(t, n, s as PlanItem["status"]);
+                      setCurrentView("planner");
+                    }}
+                    onToast={showToast}
+                  />
+                </div>
               )}
 
               {currentView === "production" && (

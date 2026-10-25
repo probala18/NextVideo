@@ -8,6 +8,7 @@ import {
   Sparkles,
   DollarSign,
   Video,
+  Film,
   FileEdit,
   Activity,
   FileText,
@@ -41,6 +42,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: "audit", label: "Channel Audit", icon: ScanEye, badge: undefined },
     { id: "opportunities", label: "Opportunities", icon: Sparkles, badge: undefined },
     { id: "revenue", label: "Revenue Engine", icon: DollarSign, badge: "PRO" },
+    { id: "autonomous-video", label: "Autonomous Video", icon: Film, badge: "AGENT" },
     { id: "production", label: "Production Studio", icon: Video, badge: "AI" },
     { id: "planner", label: "Content Planner", icon: FileEdit, badge: planCount > 0 ? `${planCount}` : undefined },
     { id: "diagnosis", label: "Performance Clinic", icon: Activity, badge: undefined },
@@ -148,6 +150,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           ? "bg-[#FEF3C7] text-[#D97706]"
                           : item.badge === "AI"
                           ? "bg-[#E0E7FF] text-[#4F46E5]"
+                          : item.badge === "AGENT"
+                          ? "bg-[#DBEAFE] text-[#1D4ED8]"
                           : "bg-[#E2E8F0] text-[#475569]"
                       }`}
                     >
