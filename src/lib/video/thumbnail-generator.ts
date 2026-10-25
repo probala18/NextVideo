@@ -73,8 +73,10 @@ function createHighResThumbnailGraphic(params: {
   accentColor: string;
   textColor: string;
   subtext?: string;
+  frameImagePath?: string;
+  frameDataUrl?: string;
 }): string {
-  const { width, height, headline, badge, bgGradient, accentColor, textColor, subtext } = params;
+  const { width, height, headline, badge, bgGradient, accentColor, textColor, subtext, frameImagePath, frameDataUrl } = params;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
   <defs>
@@ -95,11 +97,19 @@ function createHighResThumbnailGraphic(params: {
     </filter>
   </defs>
 
-  <!-- Background -->
+  <!-- Background Layer -->
   <rect width="${width}" height="${height}" fill="url(#bgGrad)" />
 
+  ${
+    frameDataUrl || frameImagePath
+      ? `<!-- Grounded Video Frame Backdrop -->
+  <image href="${frameDataUrl || frameImagePath}" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice" opacity="0.75" />
+  <rect width="${width}" height="${height}" fill="url(#bgGrad)" opacity="0.45" />`
+      : ""
+  }
+
   <!-- Diagonal high-contrast accent slice -->
-  <polygon points="0,${height} ${width * 0.45},0 ${width * 0.55},0 ${width * 0.1},${height}" fill="${accentColor}" opacity="0.15" />
+  <polygon points="0,${height} ${width * 0.45},0 ${width * 0.55},0 ${width * 0.1},${height}" fill="${accentColor}" opacity="0.18" />
 
   <!-- Grid overlay for technical/modern aesthetic -->
   <g stroke="#FFFFFF" stroke-opacity="0.04" stroke-width="1">
@@ -229,6 +239,8 @@ export async function generateYouTubeThumbnails(params: {
     const localPath = path.join(targetDir, filename);
     const publicUrl = `/api/video/assets/${assetId}/thumbnails/${filename}`;
 
+    const matchingFrame = candidateFrames[i % Math.max(1, candidateFrames.length)];
+
     // Render 1280x720 SVG
     const svgContent = createHighResThumbnailGraphic({
       width: 1280,
@@ -239,6 +251,7 @@ export async function generateYouTubeThumbnails(params: {
       bgGradient: cfg.bgGradient,
       accentColor: cfg.accentColor,
       textColor: cfg.textColor,
+      frameImagePath: matchingFrame?.framePath,
     });
 
     // Write file to disk

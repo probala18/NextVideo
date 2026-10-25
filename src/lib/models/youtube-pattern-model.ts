@@ -37,14 +37,23 @@ export interface TrainedFeatureWeights {
 }
 
 export interface VideoVisualUnderstanding {
-  detectedSubject: string; // The primary subject/action seen in the video
-  visualSceneDescription: string;
-  detectedOnScreenText: string[];
-  focalPoint: string;
-  primaryAction: string;
+  detectedSubject?: string; // The primary subject/action seen in the video
+  visualSceneDescription?: string;
+  detectedOnScreenText?: string[];
+  focalPoint?: string;
+  primaryAction?: string;
   frameDataUrl?: string; // Real visual frame capture from video
   transcriptSnippet?: string;
-  durationSeconds: number;
+  durationSeconds?: number;
+  sampledFrames?: Array<{
+    timestampSeconds: number;
+    properties: {
+      detectedOnScreenText: string[];
+      focalPoint: string;
+      thumbnailSuitabilityScore: number;
+    };
+    framePath?: string;
+  }>;
 }
 
 export interface ModelGeneratedAssets {
@@ -232,38 +241,94 @@ export class YouTubePatternModel {
     subject: string;
     specificDetail?: string;
   } {
-    // 1. Prioritize detected on-screen text (e.g. IDE tab, slide title, terminal command)
+    // 1. Prioritize detected on-screen text from direct vision summary
     if (vision.detectedOnScreenText && vision.detectedOnScreenText.length > 0) {
       const validText = vision.detectedOnScreenText
         .map((t) => t.trim())
-        .filter((t) => t.length >= 3 && !["AND", "THE", "FOR", "WITH"].includes(t.toUpperCase()));
+        .filter((t) => t.length >= 3 && !["AND", "THE", "FOR", "WITH", "THIS", "VIDEO"].includes(t.toUpperCase()));
 
       if (validText.length > 0) {
-        const primary = validText[0];
-        const secondary = validText[1];
         return {
-          subject: primary,
-          specificDetail: secondary,
+          subject: validText[0],
+          specificDetail: validText[1],
         };
       }
     }
 
-    // 2. If vision detected a specific subject from video frames
+    // 2. Check detected text across sampled video frames inspected by Computer Vision
+    if (vision.sampledFrames && vision.sampledFrames.length > 0) {
+      for (const frame of vision.sampledFrames) {
+        const frameTexts = frame.properties?.detectedOnScreenText || [];
+        const valid = frameTexts
+          .map((t) => t.trim())
+          .filter((t) => t.length >= 3 && !["AND", "THE", "FOR", "WITH", "THIS", "VIDEO"].includes(t.toUpperCase()));
+        if (valid.length > 0) {
+          return {
+            subject: valid[0],
+            specificDetail: valid[1],
+          };
+        }
+      }
+    }
+
+    // 3. If vision detected a specific subject from video frames
     if (vision.detectedSubject && vision.detectedSubject.trim().length > 3) {
       return {
         subject: vision.detectedSubject.trim(),
       };
     }
 
-    // 3. Fallback to primary visual action
+    // 4. Fallback to primary visual action seen in the video
     if (vision.primaryAction && vision.primaryAction.trim().length > 3) {
       return {
         subject: vision.primaryAction.trim(),
       };
     }
 
+    // 5. Fallback to extracting concrete technical noun from transcript snippet seen in video
+    if (vision.transcriptSnippet && vision.transcriptSnippet.trim().length > 5) {
+      const words = vision.transcriptSnippet
+        .replace(/[^a-zA-Z0-9\s]/g, "")
+        .split(/\s+/)
+        .filter((w) => w.length >= 4 && !["THIS", "THAT", "WHAT", "ABOUT", "GOING", "TODAY", "WELCOME"].includes(w.toUpperCase()));
+      if (words.length > 0) {
+        return {
+          subject: words[0],
+          specificDetail: words[1],
+        };
+      }
+    }
+
     return {
-      subject: "This Workflow",
+      subject: "This Feature",
+    };
+  }
+
+  /**
+   * Feed more YouTube video performance records to continuously train the model.
+   */
+  public feedYouTubeData(videos: YouTubeTrainingVideo[]): {
+    trainedTotal: number;
+    updatedFormulasCount: number;
+  } {
+    this.train(videos);
+    return {
+      trainedTotal: this.trainedVideosCount,
+      updatedFormulasCount: this.weights.topPerformingFormulas.length,
+    };
+  }
+
+  /**
+   * Return model performance metrics and weights learned from YouTube data.
+   */
+  public getModelStats() {
+    return {
+      trainedVideosCount: this.trainedVideosCount,
+      weights: this.weights,
+      topFormulas: this.weights.topPerformingFormulas.map((f) => ({
+        name: f.name,
+        multiplier: f.multiplier,
+      })),
     };
   }
 

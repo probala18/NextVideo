@@ -31,8 +31,19 @@ export async function GET(
     else if (ext === ".mov") contentType = "video/quicktime";
     else if (ext === ".webm") contentType = "video/webm";
     else if (ext === ".jpg" || ext === ".jpeg") contentType = "image/jpeg";
-    else if (ext === ".png") contentType = "image/png";
     else if (ext === ".svg") contentType = "image/svg+xml";
+    else if (ext === ".png") {
+      // Check if file is actually an SVG card to prevent browser decoding failure
+      const headerChunk = Buffer.alloc(32);
+      const fd = await fs.promises.open(fullPath, "r");
+      await fd.read(headerChunk, 0, 32, 0);
+      await fd.close();
+      if (headerChunk.toString().trim().startsWith("<svg")) {
+        contentType = "image/svg+xml";
+      } else {
+        contentType = "image/png";
+      }
+    }
     else if (ext === ".json") contentType = "application/json";
     else if (ext === ".edl" || ext === ".txt" || ext === ".srt" || ext === ".vtt") {
       contentType = "text/plain; charset=utf-8";

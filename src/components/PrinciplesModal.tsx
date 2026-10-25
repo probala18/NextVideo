@@ -31,7 +31,7 @@ export const PrinciplesModal: React.FC<PrinciplesModalProps> = ({ isOpen, onClos
           >
             <div className="flex items-start justify-between pb-4 border-b border-gray-100 dark:border-ink-800">
               <div>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800 rounded-full text-xs font-semibold mb-1">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#3B82F6] text-white rounded-full text-xs font-semibold mb-1">
                   <BookOpen className="w-3.5 h-3.5" />
                   <span>Creator Operating System</span>
                 </div>

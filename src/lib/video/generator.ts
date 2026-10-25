@@ -15,6 +15,7 @@ import {
 } from "../types/visionWorkflow";
 import { MediaMetadata } from "../types/videoWorkflow";
 import { getLLMConfig, LLM_PROVIDERS } from "../openrouter";
+import { youtubePatternModel } from "../models/youtube-pattern-model";
 
 export interface GeneratePublishingInput {
   media: MediaMetadata;
@@ -24,7 +25,8 @@ export interface GeneratePublishingInput {
 }
 
 /**
- * Generate complete publishing package grounded in video evidence using configured AI model.
+ * Generate complete publishing package grounded in video evidence using configured AI model
+ * and the trained YouTube Pattern Model.
  */
 export async function generatePublishingPackageWithAI(
   input: GeneratePublishingInput
@@ -35,46 +37,26 @@ export async function generatePublishingPackageWithAI(
     LLM_PROVIDERS.find((p: any) => p.id === baseConfig.provider) || LLM_PROVIDERS[0];
   const model = baseConfig.model;
 
+  // Use the trained YouTube Pattern Model grounded in Computer Vision findings from the video
+  const patternAssets = youtubePatternModel.generateGroundedAssets({
+    detectedSubject: evidence.actualTopic,
+    detectedOnScreenText: vision.onScreenTextCues?.map((c) => c.text) || [],
+    sampledFrames: vision.sampledFrames,
+    durationSeconds: media.durationSeconds,
+    focalPoint: vision.sampledFrames?.[0]?.properties?.focalPoint,
+  });
+
   const cleanTopic = evidence.actualTopic.slice(0, 45);
 
-  // Default evidence-grounded titles
-  const titles = [
-    {
-      title: `How to Master ${cleanTopic} (Step-by-Step)`,
-      formula: "Curiosity & Guide",
-      characterCount: `How to Master ${cleanTopic} (Step-by-Step)`.length,
-      isTruncated: false,
-    },
-    {
-      title: `The Only ${cleanTopic} Guide You Need in 2026`,
-      formula: "Definitive Authority",
-      characterCount: `The Only ${cleanTopic} Guide You Need in 2026`.length,
-      isTruncated: false,
-    },
-    {
-      title: `Why 90% of Creators Struggle with ${cleanTopic}`,
-      formula: "High-Stakes Warning",
-      characterCount: `Why 90% of Creators Struggle with ${cleanTopic}`.length,
-      isTruncated: false,
-    },
-    {
-      title: `I Tested ${cleanTopic} for 30 Days (Real Results)`,
-      formula: "Concrete Proof & Outcome",
-      characterCount: `I Tested ${cleanTopic} for 30 Days (Real Results)`.length,
-      isTruncated: false,
-    },
-    {
-      title: `Stop Doing ${cleanTopic} the Hard Way`,
-      formula: "Negative Framing & Relief",
-      characterCount: `Stop Doing ${cleanTopic} the Hard Way`.length,
-      isTruncated: false,
-    },
-  ];
+  const titles = patternAssets.titles.map((t) => ({
+    title: t.title,
+    formula: t.formula,
+    characterCount: t.characterCount,
+    isTruncated: !t.isMobileSafe,
+  }));
 
-  const recommendedTitle = titles[0].title;
-  const recommendedTitleReason = `Directly reflects the verified video demonstration at ${Math.round(
-    media.durationSeconds * 0.5
-  )}s with highest clarity and zero misleading clickbait. Under 60 characters to prevent mobile truncation.`;
+  const recommendedTitle = patternAssets.recommendedTitle;
+  const recommendedTitleReason = patternAssets.recommendedTitleReason;
 
   // Grounded chapters
   const chapters = [
