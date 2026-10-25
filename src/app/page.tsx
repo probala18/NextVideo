@@ -245,6 +245,48 @@ export default function Home() {
     }
   }, []);
 
+  // View state preservation across reloads or redirects
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const urlParams = new URLSearchParams(window.location.search);
+        const viewParam = urlParams.get("view") || urlParams.get("tab");
+        const authParam = urlParams.get("youtube_auth");
+
+        if (viewParam === "autonomous" || viewParam === "autonomous-video" || authParam) {
+          setCurrentView("autonomous-video");
+          localStorage.setItem("nextvideo_current_view", "autonomous-video");
+        } else if (viewParam) {
+          setCurrentView(viewParam);
+          localStorage.setItem("nextvideo_current_view", viewParam);
+        } else {
+          const savedView = localStorage.getItem("nextvideo_current_view");
+          if (savedView) {
+            setCurrentView(savedView);
+          }
+        }
+
+        if (authParam === "success") {
+          setToast({ id: "yt-success", type: "success", text: "YouTube Channel connected successfully!" });
+          window.history.replaceState({}, "", window.location.pathname);
+        } else if (authParam === "error" || authParam === "failed") {
+          const msg = urlParams.get("msg");
+          setToast({ id: "yt-err", type: "error", text: msg ? `YouTube auth error: ${msg}` : "YouTube connection was cancelled or failed." });
+          window.history.replaceState({}, "", window.location.pathname);
+        }
+      }
+    } catch {}
+  }, []);
+
+  const navigateView = (view: string) => {
+    setCurrentView(view);
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("nextvideo_current_view", view);
+      }
+    } catch {}
+  };
+
   const toggleTheme = () => {
     setIsDark((prev) => {
       const next = !prev;
