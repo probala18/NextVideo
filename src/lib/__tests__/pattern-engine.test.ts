@@ -1,0 +1,153 @@
+import { describe, expect, it } from "bun:test";
+import { collectNicheResearch } from "../research/collector";
+import { extractPatterns } from "../patterns/engine";
+import { computeOptimizationScores } from "../scoring/optimizer";
+import { saveOptimizationRecord, recordPerformanceSnapshot, getChannelHistory } from "../feedback/tracker";
+
+describe("YouTube Pattern Recognition & Optimization Engine", () => {
+  describe("Research Collector", () => {
+    it("collects research dataset with transparent source and calculated metrics", async () => {
+      const result = await collectNicheResearch({
+        nicheOrTopic: "AI Agents Next.js",
+        maxVideos: 5,
+      });
+
+      expect(result.videos.length).toBeGreaterThan(0);
+      expect(result.source).toBe("curated_benchmark_dataset");
+      expect(result.channelMedians).toBeDefined();
+
+      const sample = result.videos[0];
+      expect(sample.title).toBeDefined();
+      expect(sample.viewsPerDay).toBeGreaterThan(0);
+      expect(sample.multipleOfChannelMedian).toBeDefined();
+      expect(sample.likeToViewRatio).toBeDefined();
+    });
+
+    it("correctly identifies outlier videos performing above channel median", async () => {
+      const result = await collectNicheResearch({
+        nicheOrTopic: "coding tutorials",
+        maxVideos: 10,
+      });
+
+      const highPerformers = result.videos.filter((v) => (v.multipleOfChannelMedian || 1) >= 1.5);
+      expect(highPerformers.length).toBeGreaterThanOrEqual(1);
+      expect(highPerformers[0].multipleOfChannelMedian!).toBeGreaterThanOrEqual(1.5);
+    });
+  });
+
+  describe("Pattern Recognition Engine", () => {
+    it("extracts topic clusters and classifies title formulas with performance multiples", async () => {
+      const research = await collectNicheResearch({ nicheOrTopic: "AI Agents" });
+      const patterns = extractPatterns(research);
+
+      expect(patterns.topicClusters.length).toBeGreaterThan(0);
+      expect(patterns.winningTitlePatterns.length).toBeGreaterThan(0);
+      expect(patterns.thumbnailInsights).toBeDefined();
+      expect(patterns.contentGaps.length).toBeGreaterThan(0);
+      expect(patterns.findings.length).toBeGreaterThan(0);
+
+      // Verify each evidence finding provides citations and limitations
+      const finding = patterns.findings[0];
+      expect(finding.finding).toBeDefined();
+      expect(finding.whyItMatters).toBeDefined();
+      expect(finding.proposedAction).toBeDefined();
+      expect(finding.confidence).toBeDefined();
+      expect(finding.limitations).toBeDefined();
+      expect(finding.evidence).toBeDefined();
+    });
+  });
+
+  describe("Scoring & Optimization Engine", () => {
+    it("computes transparent multi-component recommendation score bounded between 0 and 100", async () => {
+      const research = await collectNicheResearch({ nicheOrTopic: "Web Dev" });
+      const patterns = extractPatterns(research);
+
+      const scorecard = computeOptimizationScores({
+        title: "I Built an Autonomous AI Agent in Next.js in 10 Minutes",
+        description: "In this video we build an autonomous AI agent in Next.js. \n0:00 Intro\n1:20 Architecture\n#ai #nextjs",
+        first15sSpeech: "In the next ten minutes, you will build an autonomous AI agent that runs right inside your Next.js app.",
+        videoDurationSecs: 620,
+        deadAirReductionPercent: 8,
+        edlCutsCount: 12,
+        research,
+        patterns,
+      });
+
+      expect(scorecard.overallScore).toBeGreaterThanOrEqual(0);
+      expect(scorecard.overallScore).toBeLessThanOrEqual(100);
+      expect(scorecard.confidence.level).toBe("Medium");
+      
+      // Check weights sum
+      const sumWeights =
+        scorecard.components.topicDemand.weight +
+        scorecard.components.titlePackaging.weight +
+        scorecard.components.hookAndPacing.weight +
+        scorecard.components.metadataCompleteness.weight;
+      expect(Math.round(sumWeights * 100) / 100).toBe(1.0);
+
+      // Check indicators are inspectable
+      expect(scorecard.components.topicDemand.indicators.length).toBeGreaterThan(0);
+      expect(scorecard.components.titlePackaging.indicators.length).toBeGreaterThan(0);
+      expect(scorecard.components.hookAndPacing.indicators.length).toBeGreaterThan(0);
+    });
+
+    it("flags weak opening hooks honestly and identifies room for improvement", async () => {
+      const research = await collectNicheResearch({ nicheOrTopic: "Web Dev" });
+      const patterns = extractPatterns(research);
+
+      const scorecard = computeOptimizationScores({
+        title: "Hey guys welcome back today video",
+        description: "A short description.",
+        first15sSpeech: "Hey guys, welcome back to my channel! Today basically in this video we are gonna kind of look at stuff.",
+        videoDurationSecs: 300,
+        deadAirReductionPercent: 0,
+        edlCutsCount: 0,
+        research,
+        patterns,
+      });
+
+      expect(scorecard.components.hookAndPacing.score).toBeLessThan(75);
+      expect(scorecard.components.hookAndPacing.label).toBe("Needs Improvement");
+    });
+  });
+
+  describe("Learning & Feedback Tracker", () => {
+    it("persists optimization records and logs subsequent performance snapshots", async () => {
+      const channelId = "test_channel_regression_123";
+      const record = saveOptimizationRecord({
+        channelId,
+        videoTitle: "Autonomous Coding Agents in Next.js",
+        targetNiche: "AI Agents",
+        approvedTitle: "How I Built an Autonomous AI Agent in Next.js",
+        approvedDescription: "Step by step walkthrough with timestamps.\n0:00 Intro",
+        cutsApplied: 7,
+        deadAirSecondsSaved: 24.5,
+        modelUsed: "openrouter:deepseek/deepseek-chat",
+      });
+
+      expect(record.recordId).toBeDefined();
+      expect(record.approvedTitle).toBe("How I Built an Autonomous AI Agent in Next.js");
+
+      // Record subsequent performance snapshot
+      const updated = recordPerformanceSnapshot({
+        recordId: record.recordId,
+        publishedVideoId: "yt_mock_vid_999",
+        views: 1250,
+        impressions: 15400,
+        ctrPercent: 7.8,
+        watchTimeMinutes: 4800,
+        retentionPercentAt30s: 68.5,
+      });
+
+      expect(updated).not.toBeNull();
+      expect(updated?.publishedVideoId).toBe("yt_mock_vid_999");
+      expect(updated?.subsequentPerformance?.views).toBe(1250);
+      expect(updated?.subsequentPerformance?.ctrPercent).toBe(7.8);
+
+      // Retrieve channel history
+      const history = getChannelHistory(channelId);
+      expect(history.length).toBeGreaterThanOrEqual(1);
+      expect(history.some((h) => h.recordId === record.recordId)).toBe(true);
+    });
+  });
+});
