@@ -65,4 +65,26 @@ describe("YouTube OAuth & Publishing Workflow", () => {
 
     expect(isAlreadyPublished(mockJobId, mockTitle)).toBe(true);
   });
+
+  test("returns interactive HTML with postMessage protocol to prevent parent window reload", async () => {
+    const { GET } = await import("../../app/api/youtube/callback/route");
+    const { NextRequest } = await import("next/server");
+
+    // Test with missing code
+    const reqMissing = new NextRequest("http://localhost:3000/api/youtube/callback");
+    const resMissing = await GET(reqMissing);
+    expect(resMissing.status).toBe(200);
+    const htmlMissing = await resMissing.text();
+    expect(htmlMissing).toContain("YOUTUBE_OAUTH_ERROR");
+    expect(htmlMissing).toContain("window.opener.postMessage");
+    expect(htmlMissing).toContain("window.close()");
+
+    // Test with error from Google
+    const reqError = new NextRequest("http://localhost:3000/api/youtube/callback?error=access_denied");
+    const resError = await GET(reqError);
+    expect(resError.status).toBe(200);
+    const htmlError = await resError.text();
+    expect(htmlError).toContain("YOUTUBE_OAUTH_ERROR");
+    expect(htmlError).toContain("access_denied");
+  });
 });
