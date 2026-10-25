@@ -7,10 +7,10 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
-    const file = formData.get("file") as File | null;
-    const transcriptFile = formData.get("transcript") as File | null;
+    const file = (formData.get("video") || formData.get("file")) as File | null;
+    const transcriptFile = (formData.get("transcript") || formData.get("subtitles")) as File | null;
     const retentionFile = formData.get("retention") as File | null;
-    const channelId = formData.get("channelId") as string | null;
+    const channelId = (formData.get("channelId") || formData.get("channel")) as string | null;
 
     if (!file) {
       return NextResponse.json({ error: "No video file provided" }, { status: 400 });

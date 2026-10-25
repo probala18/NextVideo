@@ -123,6 +123,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
     try {
       const formData = new FormData();
       formData.append("video", videoFile);
+      formData.append("file", videoFile);
       if (transcriptFile) formData.append("transcript", transcriptFile);
       if (retentionFile) formData.append("retention", retentionFile);
       if (topicHint.trim()) formData.append("topic", topicHint.trim());
