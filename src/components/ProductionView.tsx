@@ -146,7 +146,7 @@ export const ProductionView: React.FC<ProductionViewProps> = ({
       .join("\n\n----------------------------------------\n\n");
 
     return (
-      `CREATORLENS PRODUCTION PACK\n` +
+      `NEXTVIDEO PRODUCTION PACK\n` +
       `${p.topic}\n\n` +
       `AUDIENCE: ${p.audience}\n` +
       `OUTCOME: ${p.outcome}\n\n` +

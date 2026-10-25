@@ -15,9 +15,9 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CreatorLens — YouTube Creator Intelligence & Production Studio",
+  title: "NextVideo — YouTube Creator Intelligence & Production Studio",
   description:
-    "CreatorLens helps YouTube creators discover their niche, study competitor channels, validate ideas, and build production packs with clarity.",
+    "NextVideo helps YouTube creators discover their niche, study competitor channels, validate ideas, and build production packs with clarity.",
 };
 
 export default function RootLayout({

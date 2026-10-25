@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ChevronLeft, LayoutDashboard, DollarSign } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Revenue Analytics & Channel Earnings Estimator — CreatorLens",
+  title: "Revenue Analytics & Channel Earnings Estimator — NextVideo",
   description:
     "Estimate YouTube creator AdSense earnings based on observed public view counts, persistent daily snapshots, and published industry RPM benchmarks.",
 };
@@ -50,7 +50,7 @@ export default function RevenueAnalyticsPage() {
       {/* Footer */}
       <footer className="px-8 py-4 border-t border-white/[0.04] text-xs font-mono text-[#495063] flex flex-col sm:flex-row items-center justify-between gap-2">
         <div className="flex items-center gap-2.5">
-          <span className="text-[#9FA7BD] font-bold">creatorlens</span>
+          <span className="text-[#9FA7BD] font-bold">nextvideo</span>
           <span className="px-2 py-0.5 bg-gradient-to-r from-[#8B5CF6]/10 to-[#6366F1]/10 border border-[#8B5CF6]/20 text-[#A78BFA] text-[10px] rounded-lg">
             REVENUE INTELLIGENCE
           </span>

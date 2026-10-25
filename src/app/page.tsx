@@ -231,7 +231,7 @@ export default function Home() {
   // Theme synchronization
   useEffect(() => {
     try {
-      const savedTheme = localStorage.getItem("creatorlens-theme");
+      const savedTheme = localStorage.getItem("nextvideo-theme") || localStorage.getItem("creatorlens-theme");
       if (savedTheme === "dark") {
         setIsDark(true);
         document.documentElement.classList.add("dark");
@@ -249,10 +249,10 @@ export default function Home() {
       const next = !prev;
       if (next) {
         document.documentElement.classList.add("dark");
-        localStorage.setItem("creatorlens-theme", "dark");
+        localStorage.setItem("nextvideo-theme", "dark");
       } else {
         document.documentElement.classList.remove("dark");
-        localStorage.setItem("creatorlens-theme", "light");
+        localStorage.setItem("nextvideo-theme", "light");
       }
       return next;
     });
@@ -261,11 +261,11 @@ export default function Home() {
   // Load persisted plans & watchlist from localStorage
   useEffect(() => {
     try {
-      const storedPlans = localStorage.getItem("creatorlens-plans-v1");
+      const storedPlans = localStorage.getItem("nextvideo-plans-v1") || localStorage.getItem("creatorlens-plans-v1");
       if (storedPlans) {
         setPlans(JSON.parse(storedPlans));
       }
-      const storedWatchlist = localStorage.getItem("creatorlens-watchlist-v1");
+      const storedWatchlist = localStorage.getItem("nextvideo-watchlist-v1") || localStorage.getItem("creatorlens-watchlist-v1");
       if (storedWatchlist) {
         setWatchlist(JSON.parse(storedWatchlist));
       }
@@ -281,7 +281,7 @@ export default function Home() {
   const saveWatchlistToStorage = (items: WatchlistChannel[]) => {
     setWatchlist(items);
     try {
-      localStorage.setItem("creatorlens-watchlist-v1", JSON.stringify(items));
+      localStorage.setItem("nextvideo-watchlist-v1", JSON.stringify(items));
     } catch {
       showToast("Browser storage unavailable.", "error");
     }
@@ -290,7 +290,7 @@ export default function Home() {
   const savePlansToStorage = (items: PlanItem[]) => {
     setPlans(items);
     try {
-      localStorage.setItem("creatorlens-plans-v1", JSON.stringify(items));
+      localStorage.setItem("nextvideo-plans-v1", JSON.stringify(items));
     } catch {
       showToast("Browser storage unavailable.", "error");
     }
@@ -382,7 +382,7 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "creatorlens-channel-shortlist.csv";
+    a.download = "nextvideo-channel-shortlist.csv";
     a.click();
     URL.revokeObjectURL(url);
     showToast("Channel shortlist exported as CSV.", "success");
@@ -455,7 +455,7 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "creatorlens-content-plan.csv";
+    a.download = "nextvideo-content-plan.csv";
     a.click();
     URL.revokeObjectURL(url);
     showToast("Content plan exported as CSV.", "success");

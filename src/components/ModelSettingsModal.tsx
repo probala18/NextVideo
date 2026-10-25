@@ -216,9 +216,9 @@ export const ModelSettingsModal: React.FC<ModelSettingsModalProps> = ({
 
       // Persist in localStorage for quick client access
       try {
-        localStorage.setItem("creatorlens_active_model", finalModel);
+        localStorage.setItem("nextvideo_active_model", finalModel);
         if (apiKeyInput.trim()) {
-          localStorage.setItem("creatorlens_active_key", apiKeyInput.trim());
+          localStorage.setItem("nextvideo_active_key", apiKeyInput.trim());
         }
       } catch {}
 

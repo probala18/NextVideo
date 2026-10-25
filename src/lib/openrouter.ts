@@ -333,7 +333,7 @@ Produce 5 to 7 detailed scene breakdowns with exact teleprompter voiceover narra
       voiceoverScript: scenes.map((s) => `[${s.purpose}]: ${s.voiceover}`).join("\n\n"),
       scenes,
       description: parsed.description || `In this video, we explore ${input.topic}.`,
-      hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags : ["#creatorlens", "#youtube"],
+      hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags : ["#nextvideo", "#youtube"],
       tags: Array.isArray(parsed.tags) ? parsed.tags : [input.topic],
       pinnedComment: parsed.pinnedComment || "What part of this was most helpful to you? Let me know below!",
       productionChecklist: Array.isArray(parsed.productionChecklist) ? parsed.productionChecklist : [

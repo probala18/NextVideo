@@ -198,7 +198,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
       ctx.font = "13px Inter, sans-serif";
       ctx.textAlign = "right";
       ctx.fillText(
-        `AI Model: ${modelName} · CreatorLens`,
+        `AI Model: ${modelName} · NextVideo`,
         width - 40,
         height - 24
       );

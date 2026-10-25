@@ -161,11 +161,11 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* User Circular Avatar */}
         <div
-          title={`Creator Studio Workspace · AI: ${activeModel}`}
+          title={`NextVideo Studio Workspace · AI: ${activeModel}`}
           onClick={() => (onOpenSettings ? onOpenSettings() : setIsSettingsModalOpen(true))}
           className="w-8 h-8 rounded-full bg-[#3B82F6] hover:bg-[#2563EB] border-2 border-white flex items-center justify-center font-bold text-xs text-white shadow-xs select-none cursor-pointer transition"
         >
-          CL
+          NV
         </div>
       </div>
 

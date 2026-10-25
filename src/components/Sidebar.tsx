@@ -79,7 +79,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
               <div>
                 <span className="font-bold text-base tracking-tight text-[#111827]">
-                  Creator<span className="text-[#3B82F6]">Lens</span>
+                  Next<span className="text-[#3B82F6]">Video</span>
                 </span>
                 <span className="text-[10px] text-[#8C95A6] block -mt-1 font-medium">
                   Studio Workspace
