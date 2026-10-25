@@ -94,8 +94,8 @@ describe("Video Processing Pipeline & Media Infrastructure", () => {
       const testAssetId = `test_${Date.now()}`;
       const renderResult = await renderEditedVideo(testAssetId, "dummy.mp4", edl);
 
-      expect(renderResult.renderStatus).toBeDefined();
-      expect(renderResult.renderedDownloadUrl).toBeDefined();
+      expect(renderResult.renderStatus).toBe("edl_ready");
+      expect(renderResult.edlDownloadUrl).toBeDefined();
 
       await deleteAsset(testAssetId);
     });

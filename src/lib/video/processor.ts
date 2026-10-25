@@ -158,6 +158,7 @@ export async function renderEditedVideo(
 ): Promise<{
   renderedVideoPath?: string;
   renderedDownloadUrl?: string;
+  edlDownloadUrl?: string;
   renderStatus: "rendered" | "edl_ready" | "failed" | "unsupported_in_environment";
   renderNotes: string;
 }> {
@@ -186,8 +187,9 @@ export async function renderEditedVideo(
 
   if (!ffmpegOk || !fs.existsSync(sourceFilePath) || edl.cuts.length === 0) {
     return {
-      renderedVideoPath: edlPath,
-      renderedDownloadUrl: edlUrl,
+      renderedVideoPath: undefined,
+      renderedDownloadUrl: undefined,
+      edlDownloadUrl: edlUrl,
       renderStatus: "edl_ready",
       renderNotes:
         "Edit Decision List (CMX 3600 EDL) exported successfully. Direct MP4 transcoding awaits FFmpeg worker configuration.",
@@ -240,8 +242,9 @@ export async function renderEditedVideo(
   }
 
   return {
-    renderedVideoPath: edlPath,
-    renderedDownloadUrl: edlUrl,
+    renderedVideoPath: undefined,
+    renderedDownloadUrl: undefined,
+    edlDownloadUrl: edlUrl,
     renderStatus: "edl_ready",
     renderNotes: "Validated Edit Decision List ready for NLE import.",
   };

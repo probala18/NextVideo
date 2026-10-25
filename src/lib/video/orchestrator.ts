@@ -195,6 +195,7 @@ export async function runAutonomousVideoWorkflow(params: {
       edl,
       renderedEditedVideoPath: editRender.renderedVideoPath,
       renderedDownloadUrl: editRender.renderedDownloadUrl,
+      edlDownloadUrl: editRender.edlDownloadUrl,
       renderStatus: editRender.renderStatus,
       renderNotes: editRender.renderNotes,
     },

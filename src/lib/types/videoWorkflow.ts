@@ -91,6 +91,7 @@ export interface ConsolidatedAnalysisReport {
     edl: EdlResult;
     renderedEditedVideoPath?: string;
     renderedDownloadUrl?: string;
+    edlDownloadUrl?: string;
     renderStatus: "rendered" | "edl_ready" | "failed" | "unsupported_in_environment";
     renderNotes: string;
   };
