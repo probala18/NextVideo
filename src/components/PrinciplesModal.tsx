@@ -97,7 +97,7 @@ export const PrinciplesModal: React.FC<PrinciplesModalProps> = ({ isOpen, onClos
             <div className="pt-3 border-t border-gray-100 dark:border-ink-800 flex justify-end">
               <button
                 onClick={onClose}
-                className="px-5 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-full text-xs font-semibold shadow-xs transition"
+                className="px-5 py-2 bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-full text-xs font-semibold shadow-xs transition"
               >
                 Understood
               </button>
