@@ -1,8 +1,8 @@
-# CreatorLens 🎬
+# NextVideo 🎬
 
 > **The Intelligent YouTube Research, Strategy & Production Studio**
 
-CreatorLens is an all-in-one workspace designed for YouTube creators, content strategists, and video teams. It bridges the gap between audience research, content ideation, and production planning—helping creators make data-backed videos that respect viewer time and drive genuine engagement.
+NextVideo is an all-in-one workspace designed for YouTube creators, content strategists, and video teams. It bridges the gap between audience research, content ideation, and production planning—helping creators make data-backed videos that respect viewer time and drive genuine engagement.
 
 Built with **Next.js 14 (App Router)**, **TypeScript**, **Tailwind CSS**, and **Framer Motion**.
 
@@ -109,7 +109,7 @@ npm install
 
 ### 3. Configure YouTube API (Optional but Recommended)
 
-CreatorLens operates with built-in realistic sample data out-of-the-box. To enable live YouTube searches and real-time channel audits:
+NextVideo operates with built-in realistic sample data out-of-the-box. To enable live YouTube searches and real-time channel audits:
 
 1. Visit the [Google Cloud Console](https://console.cloud.google.com/).
 2. Create a new project and enable the **YouTube Data API v3**.
@@ -129,7 +129,7 @@ YOUTUBE_API_KEY=your_actual_youtube_api_key_here
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser to start using CreatorLens.
+Open [http://localhost:3000](http://localhost:3000) in your browser to start using NextVideo.
 
 ---
 
@@ -162,7 +162,7 @@ You can verify the backend endpoints directly:
 
 ## 🚢 Deployment
 
-The easiest way to deploy CreatorLens is using the [Vercel Platform](https://vercel.com/new):
+The easiest way to deploy NextVideo is using the [Vercel Platform](https://vercel.com/new):
 
 1. Push your repository to GitHub / GitLab.
 2. Import the project in Vercel.
@@ -175,9 +175,9 @@ The easiest way to deploy CreatorLens is using the [Vercel Platform](https://ver
 
 ## 📜 Ethical Data & YouTube Disclaimer
 
-- CreatorLens uses only **public data** exposed through the official YouTube Data API v3.
+- NextVideo uses only **public data** exposed through the official YouTube Data API v3.
 - It does **not** scrape private analytics (impressions, private revenue, or audience demographics of third parties).
-- CreatorLens does not claim to decode or manipulate YouTube's proprietary recommendation algorithm; it is built on foundational audience retention, clarity, and pacing principles.
+- NextVideo does not claim to decode or manipulate YouTube's proprietary recommendation algorithm; it is built on foundational audience retention, clarity, and pacing principles.
 
 ---
 
