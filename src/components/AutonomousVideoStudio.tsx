@@ -1054,18 +1054,30 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
                     Verify every field before publishing. Approved changes train the learning feedback loop.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleApproveAndStage}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer self-start sm:self-center ${
-                    isApproved
-                      ? "bg-[#ECFDF5] text-[#059669]"
-                      : "bg-[#3B82F6] hover:bg-[#2563EB] text-white shadow-xs"
-                  }`}
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>{isApproved ? "Approved ✓" : "Approve & Record in Learning Loop"}</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+                  <button
+                    type="button"
+                    onClick={handleRegeneratePackagingWithAI}
+                    disabled={isRegeneratingPackaging}
+                    className="px-3 py-1.5 bg-[#EFF6FF] hover:bg-[#DBEAFE] text-[#2563EB] rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border border-[#BFDBFE]"
+                  >
+                    <Sparkles className={`w-3.5 h-3.5 ${isRegeneratingPackaging ? "animate-spin" : ""}`} />
+                    <span>{isRegeneratingPackaging ? "Regenerating..." : "✨ Regenerate with Model"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleApproveAndStage}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                      isApproved
+                        ? "bg-[#ECFDF5] text-[#059669]"
+                        : "bg-[#3B82F6] hover:bg-[#2563EB] text-white shadow-xs"
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>{isApproved ? "Approved ✓" : "Approve & Record in Learning Loop"}</span>
+                  </button>
+                </div>
               </div>
 
               <div>
@@ -1117,6 +1129,33 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
                   className="w-full px-3 py-2 bg-white border border-[#E2E5EB] rounded-xl text-xs text-[#111827] focus:outline-none"
                 />
               </div>
+
+              {/* AI Thumbnail Visual Direction */}
+              {(aiThumbnailConcepts.length > 0 || (currentJob?.report?.packaging?.thumbnailConcepts && currentJob.report.packaging.thumbnailConcepts.length > 0)) && (
+                <div className="pt-2 border-t border-[#E5E7EB] space-y-2">
+                  <label className="text-[11px] font-bold text-[#6B7280] block">
+                    AI-Generated Visual Thumbnail Concepts & Text Overlays
+                  </label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                    {(aiThumbnailConcepts.length > 0 ? aiThumbnailConcepts : currentJob?.report?.packaging?.thumbnailConcepts || []).slice(0, 3).map((th: any, idx: number) => (
+                      <div key={idx} className="p-3 bg-white rounded-xl border border-[#E2E5EB] space-y-1.5 text-[11px]">
+                        <div className="flex items-center justify-between">
+                          <span className="px-2 py-0.5 bg-[#111827] text-white rounded font-black text-[10px] tracking-wider">
+                            {th.headline}
+                          </span>
+                          <span className="text-[10px] text-[#6B7280]">Option #{idx + 1}</span>
+                        </div>
+                        <p className="text-[#374151] font-medium leading-tight">
+                          {th.visualDescription}
+                        </p>
+                        <div className="text-[10px] text-[#6B7280]">
+                          Palette: <span className="font-semibold text-[#1F2937]">{th.colorPalette}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
