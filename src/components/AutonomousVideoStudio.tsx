@@ -286,6 +286,41 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
     setTimeout(() => setCopiedSection(null), 2500);
   };
 
+  // Open non-reloading popup window for YouTube OAuth
+  const openOAuthPopup = (authUrl: string) => {
+    const width = 600;
+    const height = 700;
+    const left = typeof window !== "undefined" ? Math.max(0, (window.screen.width - width) / 2) : 100;
+    const top = typeof window !== "undefined" ? Math.max(0, (window.screen.height - height) / 2) : 100;
+
+    const popup = window.open(
+      authUrl,
+      "youtube_oauth_popup",
+      `width=${width},height=${height},top=${top},left=${left},status=no,menubar=no,toolbar=no`
+    );
+
+    // Fallback polling: check every 1.5s if YouTube connected in case postMessage blocked
+    const pollTimer = setInterval(async () => {
+      try {
+        const r = await fetch("/api/youtube/auth");
+        const d = await r.json();
+        if (d.isConnected) {
+          setIsYoutubeConnected(true);
+          if (d.channelTitle) setChannelTitle(d.channelTitle);
+          setIsOAuthModalOpen(false);
+          clearInterval(pollTimer);
+          onToast(`Connected YouTube Channel: ${d.channelTitle || "Success"}!`, "success");
+        }
+      } catch {}
+
+      if (popup && popup.closed) {
+        clearInterval(pollTimer);
+      }
+    }, 1500);
+
+    setTimeout(() => clearInterval(pollTimer), 120000);
+  };
+
   // Connect YouTube Account
   const handleConnectYouTube = async () => {
     try {
@@ -293,13 +328,31 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       const data = await res.json();
       const authUrl = data.authUrl || data.oauthUrl;
       if (authUrl) {
-        window.location.href = authUrl;
+        openOAuthPopup(authUrl);
       } else {
         setIsOAuthModalOpen(true);
       }
     } catch {
       setIsOAuthModalOpen(true);
     }
+  };
+
+  // Clear current active job and reset upload form
+  const handleClearCurrentJob = () => {
+    setCurrentJob(null);
+    setVideoFile(null);
+    setTranscriptFile(null);
+    setRetentionFile(null);
+    setTopicHint("");
+    setChannelIdHint("");
+    setEditableTitle("");
+    setEditableDesc("");
+    setEditableTags("");
+    setIsApproved(false);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("nextvideo_active_job_id");
+    }
+    onToast("Cleared active video. Ready for new upload.", "info");
   };
 
   // Approve and record in learning feedback loop
