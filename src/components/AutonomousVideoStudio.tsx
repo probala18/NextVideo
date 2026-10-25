@@ -32,6 +32,7 @@ import {
   ShortCandidate,
 } from "@/lib/types/videoWorkflow";
 import { YouTubeOAuthModal } from "./YouTubeOAuthModal";
+import { EditedVideoPlayer } from "./EditedVideoPlayer";
 
 interface AutonomousVideoStudioProps {
   onSaveToPlanner: (title: string, note: string, status?: string) => void;
@@ -653,54 +654,18 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
                   Pacing Optimization & Dead Air / Filler Cuts ({report.editing.edl.cuts.length} cuts identified)
                 </h3>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {currentJob && (
-                  <a
-                    href={`/api/video/assets/${currentJob.assetId}/cuts/edit_decision_list_${currentJob.assetId}.edl`}
-                    download
-                    className="px-3.5 py-1.5 bg-[#F3F4F6] hover:bg-[#E5E7EB] text-[#111827] rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-                    title="Export CMX 3600 EDL for Premiere Pro, DaVinci Resolve, or Final Cut Pro"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download CMX 3600 EDL (.edl)</span>
-                  </a>
-                )}
-
-                {/* Rendered MP4 Video if FFmpeg is configured */}
-                {report.editing.renderStatus === "rendered" && report.editing.renderedDownloadUrl && (
-                  <a
-                    href={report.editing.renderedDownloadUrl}
-                    download
-                    className="px-3.5 py-1.5 bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download Edited Video (.mp4)</span>
-                  </a>
-                )}
-
-                {/* Playable Source Video Download */}
-                {currentJob?.fileUrl && (
-                  <a
-                    href={currentJob.fileUrl}
-                    download
-                    className="px-3.5 py-1.5 bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE] rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-                    title="Download the uploaded source video file (.mp4)"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download Source Video (.mp4)</span>
-                  </a>
-                )}
-              </div>
             </div>
 
-            {/* Note on EDL vs Transcoding */}
-            {report.editing.renderStatus === "edl_ready" && (
-              <div className="p-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl flex items-center gap-2 text-xs text-[#475569]">
-                <FileText className="w-4 h-4 text-[#3B82F6] shrink-0" />
-                <span>
-                  <strong>NLE Edit Plan Ready:</strong> A validated CMX 3600 Edit Decision List (.edl) was exported. Import this file into DaVinci Resolve, Premiere Pro, or Final Cut Pro to instantly apply all cuts to your timeline. Direct server video transcoding requires FFmpeg.
-                </span>
-              </div>
+            {/* In-Browser Cut-Skipping Player & Native Video Exporter */}
+            {currentJob?.fileUrl && (
+              <EditedVideoPlayer
+                videoUrl={currentJob.fileUrl}
+                cuts={report.editing.edl.cuts}
+                duration={report.editing.edl.duration}
+                filename={currentJob.filename}
+                assetId={currentJob.assetId}
+                onToast={onToast}
+              />
             )}
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs">

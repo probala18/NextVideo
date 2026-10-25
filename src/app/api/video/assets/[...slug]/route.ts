@@ -37,6 +37,11 @@ export async function GET(
       contentType = "text/plain; charset=utf-8";
     }
 
+    const isDownload = req.nextUrl.searchParams.get("download") === "1" || req.nextUrl.searchParams.get("download") === "true";
+    const disposition = isDownload || ext === ".edl" || ext === ".json"
+      ? `attachment; filename="${path.basename(fullPath)}"`
+      : "inline";
+
     // Support HTTP range requests for smooth video playback and scrubbing
     const range = req.headers.get("range");
     if (range && contentType.startsWith("video/")) {
@@ -61,6 +66,8 @@ export async function GET(
           "Accept-Ranges": "bytes",
           "Content-Length": chunkSize.toString(),
           "Content-Type": contentType,
+          "Content-Disposition": disposition,
+          "Access-Control-Allow-Origin": "*",
         },
       });
     }
@@ -72,7 +79,8 @@ export async function GET(
       headers: {
         "Content-Type": contentType,
         "Content-Length": stat.size.toString(),
-        "Content-Disposition": ext === ".edl" || ext === ".json" ? `attachment; filename="${path.basename(fullPath)}"` : "inline",
+        "Content-Disposition": disposition,
+        "Access-Control-Allow-Origin": "*",
       },
     });
   } catch (err: any) {
