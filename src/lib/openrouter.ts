@@ -611,8 +611,12 @@ export async function generatePackagingWithAI(input: {
 
   const isConfigured = provider === "custom" ? true : Boolean(apiKey && apiKey.length > 4);
 
-  // Fallback defaults
-  const cleanTopic = (input.topic || input.currentTitle || input.transcriptOrSummary || "YouTube Video").trim();
+  // Fallback defaults: derive concise topic <= 35 chars
+  let rawTopic = (input.topic || input.currentTitle || input.transcriptOrSummary || "YouTube Video").trim();
+  if (rawTopic.length > 35) {
+    rawTopic = rawTopic.slice(0, 35).replace(/\s+\S*$/, "").trim();
+  }
+  const cleanTopic = rawTopic || "YouTube Video";
   const fallbackResult: PackagingAIResult = {
     titles: [
       `How I Mastered ${cleanTopic} (Step-by-Step)`,
@@ -778,7 +782,15 @@ Transcript Excerpt: "${(input.transcriptText || "").slice(0, 1500)}"`;
 
     const titles: string[] = Array.isArray(parsed.titles) && parsed.titles.length > 0 ? parsed.titles : fallbackResult.titles;
     const thumbnailConcepts = Array.isArray(parsed.thumbnailConcepts) && parsed.thumbnailConcepts.length > 0
-      ? parsed.thumbnailConcepts
+      ? parsed.thumbnailConcepts.map((c: any) => ({
+          headline: c.headline || c.textOverlay || "WATCH THIS",
+          textOverlay: c.textOverlay || c.headline || "WATCH THIS",
+          visualDescription: c.visualDescription || c.visualLayout || "",
+          visualLayout: c.visualLayout || c.visualDescription || "",
+          focalPoint: c.focalPoint || "",
+          colorPalette: c.colorPalette || "High contrast",
+          reason: c.reason || "",
+        }))
       : fallbackResult.thumbnailConcepts;
 
     return {

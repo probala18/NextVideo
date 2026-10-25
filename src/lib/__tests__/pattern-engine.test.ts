@@ -187,7 +187,7 @@ describe("YouTube Pattern Recognition & Optimization Engine", () => {
 
       // Tags
       expect(packaging.tags.length).toBeGreaterThan(0);
-      expect(packaging.modelUsed).toBeDefined();
+      expect(packaging.model).toBeDefined();
     });
   });
 });
