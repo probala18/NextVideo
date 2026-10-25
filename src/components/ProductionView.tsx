@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Video, Download, Copy, Check, Plus, Film, Sparkles, FileText, CheckSquare, Send, ArrowUpRight, Bookmark, Play } from "lucide-react";
 import { ProductionPack } from "@/types";
 import { VideoPlayerModal } from "./VideoPlayerModal";
+import { AutonomousVideoStudio } from "./AutonomousVideoStudio";
 
 interface ProductionViewProps {
   initialData?: {
@@ -36,6 +37,7 @@ export const ProductionView: React.FC<ProductionViewProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [pack, setPack] = useState<ProductionPack | null>(initialData?.pack || null);
   const [activeTab, setActiveTab] = useState("script");
+  const [studioMode, setStudioMode] = useState<"script" | "analysis">("script");
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [modelName, setModelName] = useState("openai/gpt-4o-mini");
   const [source, setSource] = useState<"openrouter" | "template">("template");
@@ -174,20 +176,53 @@ export const ProductionView: React.FC<ProductionViewProps> = ({
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#EFF6FF] text-[#2563EB] rounded-full text-xs font-bold mb-2">
               <Film className="w-3.5 h-3.5" />
-              <span>Production Studio & Shoot Pack</span>
+              <span>Production Studio & YouTube Agent Skill</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-[#111827] tracking-tight">
-              A-Roll Script & Storyboard Pack
+              {studioMode === "analysis" ? "Autonomous Video Analysis & Production" : "A-Roll Script & Storyboard Pack"}
             </h1>
             <p className="text-xs sm:text-sm text-[#6B7280] mt-1 max-w-2xl">
-              Transform ideas into production packs with scene-by-scene teleprompter copy, B-roll cues, on-screen text, and YouTube metadata.
+              {studioMode === "analysis"
+                ? "Upload existing video media to run all 11 YouTube agent skills autonomously — analyzing hooks, dead air, filler cuts, Shorts, chapters, and packaging."
+                : "Transform ideas into production packs with scene-by-scene teleprompter copy, B-roll cues, on-screen text, and YouTube metadata."}
             </p>
+          </div>
+
+          <div className="flex items-center bg-[#F3F4F6] p-1 rounded-full text-xs font-semibold shrink-0">
+            <button
+              type="button"
+              onClick={() => setStudioMode("script")}
+              className={`px-3.5 py-1.5 rounded-full transition cursor-pointer flex items-center gap-1.5 ${
+                studioMode === "script"
+                  ? "bg-white text-[#111827] shadow-xs font-bold"
+                  : "text-[#6B7280] hover:text-[#111827]"
+              }`}
+            >
+              <Film className="w-3.5 h-3.5" />
+              <span>Script Pack</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setStudioMode("analysis")}
+              className={`px-3.5 py-1.5 rounded-full transition cursor-pointer flex items-center gap-1.5 ${
+                studioMode === "analysis"
+                  ? "bg-white text-[#2563EB] shadow-xs font-bold"
+                  : "text-[#6B7280] hover:text-[#111827]"
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Video Analysis & Skills</span>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Two-Column Studio Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      {studioMode === "analysis" ? (
+        <AutonomousVideoStudio onSaveToPlanner={onSaveToPlanner} onToast={onToast} />
+      ) : (
+        <>
+          {/* Two-Column Studio Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Shoot Parameters Form (5 cols) */}
         <form
           onSubmit={handleSubmit}
@@ -454,6 +489,8 @@ export const ProductionView: React.FC<ProductionViewProps> = ({
           )}
         </div>
       </div>
+      </>
+      )}
 
       {pack && (
         <VideoPlayerModal

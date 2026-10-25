@@ -45,8 +45,8 @@ describe("YouTube OAuth & Publishing Workflow", () => {
   });
 
   test("prevents duplicate uploads for identical jobs", () => {
-    const mockJobId = "job_test_duplicate_check";
-    const mockTitle = "How to Code with AI";
+    const mockJobId = `job_test_duplicate_check_${Date.now()}`;
+    const mockTitle = `How to Code with AI ${Date.now()}`;
 
     expect(isAlreadyPublished(mockJobId, mockTitle)).toBe(false);
 
