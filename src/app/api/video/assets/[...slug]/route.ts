@@ -32,6 +32,7 @@ export async function GET(
     else if (ext === ".webm") contentType = "video/webm";
     else if (ext === ".jpg" || ext === ".jpeg") contentType = "image/jpeg";
     else if (ext === ".png") contentType = "image/png";
+    else if (ext === ".svg") contentType = "image/svg+xml";
     else if (ext === ".json") contentType = "application/json";
     else if (ext === ".edl" || ext === ".txt" || ext === ".srt" || ext === ".vtt") {
       contentType = "text/plain; charset=utf-8";

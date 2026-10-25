@@ -29,7 +29,15 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { jobId, targetType = "original", privacyStatus, customTitle, customDescription } = body;
+    const {
+      jobId,
+      targetType = "original",
+      privacyStatus,
+      customTitle,
+      customDescription,
+      customTags,
+      selectedThumbnailId,
+    } = body;
 
     if (!jobId) {
       return NextResponse.json({ error: "Missing jobId in request body" }, { status: 400 });
@@ -57,11 +65,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Resolve thumbnail path if thumbnail chosen
+    let thumbnailPath: string | undefined = undefined;
+    const thumbnails = job.report?.publishingPackage?.thumbnails || [];
+    const matchedThumb = thumbnails.find((t) => t.id === selectedThumbnailId) || thumbnails[0];
+    if (matchedThumb?.imagePath && fs.existsSync(matchedThumb.imagePath)) {
+      thumbnailPath = matchedThumb.imagePath;
+    }
+
     const finalTitle = customTitle || job.report?.packaging.alternativeTitles[0] || job.filename;
     const finalDesc =
       customDescription ||
       job.report?.seo.description ||
       `Uploaded with NextVideo Studio — Analyzed with YouTube Agent Skills`;
+
+    const finalTags = customTags
+      ? (Array.isArray(customTags) ? customTags : customTags.split(",").map((t: string) => t.trim()))
+      : job.report?.seo.tags || ["nextvideo"];
 
     const record = await publishVideoToYouTube({
       jobId: job.id,
@@ -69,8 +89,9 @@ export async function POST(req: NextRequest) {
       filePath: targetFilePath,
       title: finalTitle,
       description: finalDesc,
-      tags: job.report?.seo.tags || ["nextvideo"],
+      tags: finalTags,
       privacyStatus: privacyStatus || auth.privacyDefault || "private",
+      thumbnailPath,
     });
 
     return NextResponse.json({

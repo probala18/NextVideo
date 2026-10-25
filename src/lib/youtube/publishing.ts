@@ -33,6 +33,7 @@ export interface PublishPackageInput {
   privacyStatus?: "private" | "unlisted" | "public";
   publishAt?: string; // ISO 8601 for scheduled publishing
   isShort?: boolean;
+  thumbnailPath?: string;
 }
 
 export interface PublishedVideoRecord {
@@ -331,6 +332,26 @@ export async function publishVideoToYouTube(
   const uploadData = await uploadRes.json();
   const youtubeVideoId = uploadData.id;
   const youtubeUrl = `https://youtu.be/${youtubeVideoId}`;
+
+  // Step 3: Upload Custom Thumbnail if provided
+  if (input.thumbnailPath && fs.existsSync(input.thumbnailPath) && youtubeVideoId) {
+    try {
+      const thumbBuffer = await fs.promises.readFile(input.thumbnailPath);
+      await fetch(
+        `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${youtubeVideoId}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "image/png",
+          },
+          body: thumbBuffer,
+        }
+      );
+    } catch (thumbErr) {
+      console.warn("Custom thumbnail upload failed gracefully:", thumbErr);
+    }
+  }
 
   const record: PublishedVideoRecord = {
     id: `pub_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,

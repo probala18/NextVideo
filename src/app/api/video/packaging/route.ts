@@ -21,9 +21,19 @@ export async function POST(req: NextRequest) {
       durationSeconds: Number(durationSeconds) || 600,
     });
 
+    // Generate real 1280x720 thumbnail image variations
+    const { generateYouTubeThumbnails } = await import("@/lib/video/thumbnail-generator");
+    const thumbnails = await generateYouTubeThumbnails({
+      assetId: "preview",
+      topic: cleanTopic,
+      candidateFrames: [],
+      concepts: result.thumbnailConcepts,
+    });
+
     return NextResponse.json({
       success: true,
       ...result,
+      thumbnails,
     });
   } catch (error) {
     console.error("[Packaging API Error]", error);

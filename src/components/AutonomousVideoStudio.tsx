@@ -27,6 +27,10 @@ import {
   Search,
   Award,
   TrendingUp,
+  Eye,
+  Image as ImageIcon,
+  Palette,
+  ShieldCheck,
 } from "lucide-react";
 import {
   VideoProcessingJob,
@@ -88,6 +92,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
   const [isApproved, setIsApproved] = useState(false);
   const [isRegeneratingPackaging, setIsRegeneratingPackaging] = useState(false);
   const [aiThumbnailConcepts, setAiThumbnailConcepts] = useState<any[]>([]);
+  const [selectedThumbnailId, setSelectedThumbnailId] = useState<string>("thumb_v1_curiosity");
 
   const handleRegeneratePackagingWithAI = async () => {
     setIsRegeneratingPackaging(true);
@@ -298,6 +303,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
           title: finalTitle,
           description: finalDesc,
           tags: finalTags,
+          selectedThumbnailId,
         }),
       });
 
@@ -739,6 +745,143 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
             </div>
           </div>
 
+          {/* Section 2.5: Computer Vision Analysis & Grounded Video Understanding */}
+          {report.vision && (
+            <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 shadow-xs space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#F0F2F5] pb-3">
+                <div>
+                  <div className="text-xs font-bold text-[#3B82F6] uppercase flex items-center gap-1.5">
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Computer Vision & Multimodal Understanding</span>
+                  </div>
+                  <h3 className="text-base font-bold text-[#111827]">
+                    Representative Visual Frames & Scene Progression ({report.vision.sampledFrames.length} Keyframes)
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 bg-[#EFF6FF] text-[#2563EB] rounded-full text-[11px] font-bold border border-[#BFDBFE] flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3 text-[#059669]" />
+                    <span>{report.vision.supportsVision ? "Vision Model Active" : "Deterministic CV Engine"}</span>
+                  </span>
+                  <span className="px-2.5 py-1 bg-[#ECFDF5] text-[#059669] rounded-full text-[11px] font-bold">
+                    {report.vision.confidenceScore}% Evidence Confidence
+                  </span>
+                </div>
+              </div>
+
+              {/* Grounded Understanding Synthesis */}
+              {report.understanding && (
+                <div className="p-4 bg-[#F9FAFB] rounded-2xl border border-[#E5E7EB] grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                  <div>
+                    <span className="text-[10px] font-bold text-[#6B7280] uppercase block mb-1">Grounded Video Topic</span>
+                    <p className="font-bold text-[#111827]">{report.understanding.actualTopic}</p>
+                    <span className="text-[10px] text-[#059669] font-medium block mt-1">✓ Grounded in video + audio evidence</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-[#6B7280] uppercase block mb-1">Primary Value Proposition</span>
+                    <p className="text-[#374151] leading-tight">{report.understanding.primaryValueProposition}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-[#6B7280] uppercase block mb-1">Intended Audience & Climax</span>
+                    <p className="text-[#374151] font-medium">{report.understanding.targetAudience}</p>
+                    <div className="mt-1 flex items-center gap-2 text-[10px]">
+                      <span className="font-bold text-[#3B82F6]">Climax Payoff: {report.understanding.narrativeClimaxSeconds}s</span>
+                      <span className="text-[#6B7280]">•</span>
+                      <span className="text-[#6B7280]">{report.vision.visualPacing.toUpperCase()} pacing</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sampled Representative Keyframes Gallery */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-[#111827]">
+                  <span>Sampled Keyframes & Visual Composition</span>
+                  <span className="text-[11px] text-[#6B7280] font-normal">
+                    Sampled at 5%, 20%, 50%, 75%, 90% timestamps • Deduplicated
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+                  {report.vision.sampledFrames.map((frame, idx) => (
+                    <div
+                      key={frame.index}
+                      className="p-3 bg-[#F9FAFB] rounded-2xl border border-[#E5E7EB] space-y-2 text-xs flex flex-col justify-between"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="px-2 py-0.5 bg-[#111827] text-white rounded-md text-[10px] font-bold font-mono">
+                            {Math.floor(frame.timestampSeconds / 60)}:{(frame.timestampSeconds % 60).toFixed(0).padStart(2, "0")}
+                          </span>
+                          <span className="text-[10px] font-bold text-[#3B82F6]">
+                            {frame.relativePercent}%
+                          </span>
+                        </div>
+                        <p className="font-bold text-[#111827] text-[11px] leading-tight line-clamp-1">
+                          {frame.label}
+                        </p>
+                      </div>
+
+                      <div className="space-y-1 text-[10px] text-[#6B7280]">
+                        <div className="flex items-center justify-between">
+                          <span>Scene Type:</span>
+                          <span className="font-bold text-[#111827] capitalize">
+                            {frame.sceneType.replace("_", " ")}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Contrast:</span>
+                          <span className="font-bold text-[#059669]">
+                            {frame.properties.contrastScore}%
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 pt-1">
+                          <span className="text-[9px]">Palette:</span>
+                          <div className="flex items-center gap-1">
+                            {frame.properties.dominantColors.map((hex, ci) => (
+                              <span
+                                key={ci}
+                                className="w-3 h-3 rounded-full border border-black/10 inline-block shadow-2xs"
+                                style={{ backgroundColor: hex }}
+                                title={hex}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                        {frame.properties.detectedOnScreenText.length > 0 && (
+                          <div className="text-[9px] text-[#2563EB] font-bold truncate">
+                            Text: {frame.properties.detectedOnScreenText.join(", ")}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="pt-1.5 border-t border-[#E5E7EB] flex items-center justify-between text-[10px]">
+                        <span className="text-[#6B7280]">Thumb Suitability:</span>
+                        <span className="font-bold text-[#2563EB]">
+                          {frame.properties.thumbnailSuitabilityScore}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Prompt Injection & Capability Defense Notice */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-[#F0FDF4] border border-[#DCFCE7] rounded-xl text-[11px] text-[#166534]">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-[#16A34A] shrink-0" />
+                  <span>
+                    <strong>Prompt Injection Defense:</strong> All audio transcripts, slide text, and OCR data are isolated as untrusted data boundaries.
+                  </span>
+                </div>
+                {report.vision.limitations.length > 0 && (
+                  <span className="text-[10px] text-[#854D0E] bg-[#FEF9C3] px-2 py-0.5 rounded-full font-medium">
+                    {report.vision.limitations[0]}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Section 3: Hook Diagnostics (yt-script) */}
           <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#F0F2F5] pb-3">
@@ -1130,8 +1273,112 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
                 />
               </div>
 
-              {/* AI Thumbnail Visual Direction */}
-              {(aiThumbnailConcepts.length > 0 || (currentJob?.report?.packaging?.thumbnailConcepts && currentJob.report.packaging.thumbnailConcepts.length > 0)) && (
+              {/* Real Generated 1280x720 YouTube Thumbnails Gallery */}
+              {((currentJob?.report?.publishingPackage?.thumbnails && currentJob.report.publishingPackage.thumbnails.length > 0) ||
+                (currentJob?.derivedAssets?.generatedThumbnails && currentJob.derivedAssets.generatedThumbnails.length > 0)) && (
+                <div className="pt-3 border-t border-[#E5E7EB] space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <div>
+                      <label className="text-[11px] font-bold text-[#111827] block flex items-center gap-1.5">
+                        <ImageIcon className="w-3.5 h-3.5 text-[#3B82F6]" />
+                        <span>Generated YouTube Thumbnails (1280×720 • 16:9 Broadcast Quality)</span>
+                      </label>
+                      <p className="text-[10px] text-[#6B7280]">
+                        Click to select the active thumbnail for publishing. Validated under YouTube 2MB & 16:9 rules.
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-bold text-[#059669] bg-[#ECFDF5] px-2.5 py-0.5 rounded-full border border-[#A7F3D0] w-fit">
+                      YouTube Specs Verified ✓
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                    {(currentJob?.report?.publishingPackage?.thumbnails || currentJob?.derivedAssets?.generatedThumbnails || []).map((thumb: any) => {
+                      const isSelected = selectedThumbnailId === thumb.id;
+                      return (
+                        <div
+                          key={thumb.id}
+                          onClick={() => setSelectedThumbnailId(thumb.id)}
+                          className={`p-3 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between space-y-2.5 ${
+                            isSelected
+                              ? "bg-[#EFF6FF] border-[#3B82F6] ring-2 ring-[#3B82F6]/30 shadow-xs"
+                              : "bg-[#F9FAFB] border-[#E5E7EB] hover:border-[#CBD5E1]"
+                          }`}
+                        >
+                          <div className="space-y-1.5">
+                            {/* 16:9 Visual Preview Box */}
+                            <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-black/90 border border-black/10 group">
+                              <img
+                                src={thumb.imageUrl}
+                                alt={thumb.headline}
+                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                onError={(e: any) => {
+                                  // Fallback display if direct URL image rendering fails
+                                  e.target.style.display = "none";
+                                }}
+                              />
+                              {/* Overlay Badge */}
+                              <div className="absolute top-2 left-2 px-2 py-0.5 bg-[#111827]/90 text-white rounded font-mono font-bold text-[9px] backdrop-blur-xs">
+                                {thumb.width}×{thumb.height} • {thumb.format.toUpperCase()}
+                              </div>
+                              <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-[#059669] text-white rounded font-bold text-[9px] shadow-xs">
+                                {(thumb.sizeBytes / 1024).toFixed(0)} KB (&lt; 2MB)
+                              </div>
+                            </div>
+
+                            {/* Title & Headline */}
+                            <div className="flex items-center justify-between pt-1">
+                              <span className="text-xs font-bold text-[#111827] line-clamp-1">
+                                {thumb.variationName}
+                              </span>
+                              <span className="px-2 py-0.5 bg-[#111827] text-white rounded font-black text-[10px] tracking-wider shrink-0">
+                                {thumb.headline}
+                              </span>
+                            </div>
+
+                            <p className="text-[11px] text-[#4B5563] leading-tight line-clamp-2">
+                              {thumb.rationale}
+                            </p>
+                          </div>
+
+                          {/* Footer Action & Download */}
+                          <div className="pt-2 border-t border-[#E5E7EB] flex items-center justify-between text-xs">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedThumbnailId(thumb.id);
+                              }}
+                              className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition flex items-center gap-1 ${
+                                isSelected
+                                  ? "bg-[#3B82F6] text-white"
+                                  : "bg-white text-[#4B5563] border border-[#D1D5DB] hover:bg-[#F3F4F6]"
+                              }`}
+                            >
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>{isSelected ? "Active ✓" : "Select"}</span>
+                            </button>
+
+                            <a
+                              href={`${thumb.imageUrl}?download=1`}
+                              download={`youtube_thumbnail_${thumb.id}.png`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-[#2563EB] hover:underline"
+                            >
+                              <Download className="w-3 h-3" />
+                              <span>Download 720p</span>
+                            </a>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* AI Thumbnail Visual Direction Fallback */}
+              {(!currentJob?.report?.publishingPackage?.thumbnails || currentJob.report.publishingPackage.thumbnails.length === 0) &&
+                (aiThumbnailConcepts.length > 0 || (currentJob?.report?.packaging?.thumbnailConcepts && currentJob.report.packaging.thumbnailConcepts.length > 0)) && (
                 <div className="pt-2 border-t border-[#E5E7EB] space-y-2">
                   <label className="text-[11px] font-bold text-[#6B7280] block">
                     AI-Generated Visual Thumbnail Concepts & Text Overlays

@@ -195,6 +195,7 @@ export async function executeJobWorkflow(jobId: string): Promise<VideoProcessing
         shortsUrls: report.shorts.candidates
           .map((c) => c.renderedDownloadUrl)
           .filter(Boolean) as string[],
+        generatedThumbnails: report.publishingPackage?.thumbnails || [],
       },
     });
 

@@ -1,6 +1,8 @@
 import { VideoBrief, ProductionPack, ProductionScene } from "@/types";
 import { fallbackPack } from "./productionPack";
 import { LLM_PROVIDERS, LLMProviderId } from "./llmProviders";
+export { LLM_PROVIDERS };
+export type { LLMProviderId };
 
 export interface LLMConfig {
   provider: LLMProviderId;

@@ -13,6 +13,10 @@ import { parseRetentionCsv, analyzeRetention } from "../skills/retention";
 import { rankOutliers } from "../skills/swipe";
 import { identifyShortCandidates, renderEditedVideo, extractKeyFrames } from "./processor";
 import { generateVideoWithAI, generatePackagingWithAI } from "../openrouter";
+import { analyzeVideoWithComputerVision } from "./vision";
+import { assembleVideoUnderstanding } from "./understanding";
+import { generateYouTubeThumbnails } from "./thumbnail-generator";
+import { generatePublishingPackageWithAI } from "./generator";
 import fs from "fs";
 
 export async function runAutonomousVideoWorkflow(params: {
@@ -39,7 +43,24 @@ export async function runAutonomousVideoWorkflow(params: {
     userThumbnailText,
   } = params;
 
-  // 1. Hook Analysis (yt-script)
+  // 0. Computer Vision Analysis (Frame sampling, deduplication, deterministic properties)
+  const vision = await analyzeVideoWithComputerVision({
+    assetId,
+    sourceFilePath,
+    media,
+    transcriptCues: transcript.cues,
+    hintTopic: userHintTopic || userTitle,
+  });
+
+  // 1. Video Understanding & Evidence Assembly (Grounded topic, multimodal fusion & injection defense)
+  const understanding = assembleVideoUnderstanding({
+    media,
+    vision,
+    transcript,
+    creatorHintTopic: userHintTopic || userTitle,
+  });
+
+  // 2. Hook Analysis (yt-script)
   const openingCues = transcript.cues.filter((c) => c.start <= 15.0);
   const first15Speech =
     openingCues.map((c) => c.text).join(" ").trim() ||
@@ -47,7 +68,7 @@ export async function runAutonomousVideoWorkflow(params: {
 
   const hookScore = scoreHook(first15Speech);
 
-  const topic = userHintTopic || userTitle || "Python & Coding Tutorial";
+  const topic = understanding.actualTopic || userHintTopic || userTitle || "Python & Coding Tutorial";
 
   // Proposed alternative hook formulas based on yt-script rules
   const proposedHooks = [
@@ -56,7 +77,7 @@ export async function runAutonomousVideoWorkflow(params: {
     `This single shift in how you approach ${topic} cuts your learning curve in half.`,
   ];
 
-  // 2. Title & Thumbnail Packaging (yt-package)
+  // 3. Title & Thumbnail Packaging (yt-package)
   const currentTitle = userTitle || `How to Master ${topic} Without Getting Overwhelmed`;
   const currentThumb = userThumbnailText || "MASTER FAST";
 
@@ -94,6 +115,22 @@ export async function runAutonomousVideoWorkflow(params: {
           reason: "Strong emotional stakes with concrete metric anchor",
         },
       ];
+
+  // 4. Generate Real Visual Thumbnails (1280x720 16:9 compliant files)
+  const generatedThumbnails = await generateYouTubeThumbnails({
+    assetId,
+    topic: understanding.actualTopic,
+    candidateFrames: vision.sampledFrames,
+    concepts: thumbnailConcepts,
+  });
+
+  // 5. Generate Full Publishing Package with Evidence Grounding
+  const publishingPackage = await generatePublishingPackageWithAI({
+    media,
+    evidence: understanding,
+    vision,
+    thumbnails: generatedThumbnails,
+  });
 
   // 3. Edit Decision List (yt-edit)
   const edl = generateEdl(transcript.cues, 0.45);
@@ -221,5 +258,8 @@ export async function runAutonomousVideoWorkflow(params: {
     nicheResearch,
     highestPriorityRecommendation: highestPriority,
     followUpContentPlan,
+    vision,
+    understanding,
+    publishingPackage,
   };
 }

@@ -9,6 +9,12 @@ import { EdlResult, TranscriptCue } from "../skills/deadair";
 import { ChaptersResult } from "../skills/chapters";
 import { RetentionAnalysisResult } from "../skills/retention";
 import { SwipeAnalysisResult } from "../skills/swipe";
+import {
+  VisionAnalysisReport,
+  VideoUnderstandingEvidence,
+  FullPublishingPackage,
+  GeneratedThumbnail,
+} from "./visionWorkflow";
 
 export type VideoJobStatus =
   | "uploaded"
@@ -124,6 +130,9 @@ export interface ConsolidatedAnalysisReport {
     angle: string;
     format: "Shorts" | "Long-form";
   }[];
+  vision?: VisionAnalysisReport;
+  understanding?: VideoUnderstandingEvidence;
+  publishingPackage?: FullPublishingPackage;
 }
 
 export interface VideoProcessingJob {
@@ -149,6 +158,7 @@ export interface VideoProcessingJob {
     shortsUrls?: string[];
     framesUrls?: string[];
     edlDownloadUrl?: string;
+    generatedThumbnails?: GeneratedThumbnail[];
   };
 }
 
