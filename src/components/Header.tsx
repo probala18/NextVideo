@@ -48,7 +48,7 @@ export const Header: React.FC<HeaderProps> = ({
       .then((d) => {
         if (d.model) setActiveModel(d.model);
       })
-      .catch(() => {});
+      .catch(() => { });
 
     // Listen for custom event when model is updated anywhere
     const handleConfigUpdated = (e: any) => {
@@ -66,7 +66,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: "overview", label: "Dashboard", icon: LayoutDashboard },
     { id: "discover", label: "Channel Intel", icon: Compass },
     { id: "revenue", label: "Revenue", icon: DollarSign },
-    { id: "autonomous-video", label: "Autonomous Video", icon: Film },
+    { id: "autonomous-video", label: "video agent", icon: Film },
     { id: "production", label: "Studio", icon: Video },
     { id: "planner", label: "Pipeline", icon: FileEdit },
   ];
@@ -96,11 +96,10 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 key={tab.id}
                 onClick={() => onSelectView(tab.id)}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                  isActive
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${isActive
                     ? "bg-white text-[#111827] shadow-xs font-bold"
                     : "text-[#64748B] hover:text-[#111827]"
-                }`}
+                  }`}
               >
                 <Icon className="w-3.5 h-3.5 opacity-80" />
                 <span>{tab.label}</span>

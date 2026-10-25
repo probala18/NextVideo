@@ -469,14 +469,14 @@ export default function Home() {
         idx === 0
           ? `A beginner-friendly ${topic} project`
           : idx === 1
-          ? `Common ${topic} mistakes—and how to fix them`
-          : idx === 2
-          ? `Learn ${topic} by solving one real problem`
-          : idx === 3
-          ? `The difference between key concepts in ${topic}`
-          : idx === 4
-          ? `A realistic 7-day ${topic} learning plan`
-          : `Three ways to approach a ${topic} challenge`,
+            ? `Common ${topic} mistakes—and how to fix them`
+            : idx === 2
+              ? `Learn ${topic} by solving one real problem`
+              : idx === 3
+                ? `The difference between key concepts in ${topic}`
+                : idx === 4
+                  ? `A realistic 7-day ${topic} learning plan`
+                  : `Three ways to approach a ${topic} challenge`,
       score: Math.max(55, Math.min(94, item.score + Math.floor(Math.random() * 9) - 4)),
     }));
     setIdeas(fresh);
@@ -534,147 +534,147 @@ export default function Home() {
           />
 
           <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentView}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.16 }}
-            >
-              {currentView === "overview" && (
-                <OverviewView
-                  topic={topic}
-                  region={region}
-                  sort={sort}
-                  onTopicChange={setTopic}
-                  onRegionChange={setRegion}
-                  onSortChange={setSort}
-                  onSearch={handleSearch}
-                  isSearching={isSearching}
-                  channels={channels}
-                  videos={videos}
-                  ideasCount={ideas.length}
-                  planCount={plans.length}
-                  plans={plans}
-                  watchlist={watchlist}
-                  onSaveChannel={handleSaveChannel}
-                  onNavigate={setCurrentView}
-                />
-              )}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentView}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.16 }}
+              >
+                {currentView === "overview" && (
+                  <OverviewView
+                    topic={topic}
+                    region={region}
+                    sort={sort}
+                    onTopicChange={setTopic}
+                    onRegionChange={setRegion}
+                    onSortChange={setSort}
+                    onSearch={handleSearch}
+                    isSearching={isSearching}
+                    channels={channels}
+                    videos={videos}
+                    ideasCount={ideas.length}
+                    planCount={plans.length}
+                    plans={plans}
+                    watchlist={watchlist}
+                    onSaveChannel={handleSaveChannel}
+                    onNavigate={setCurrentView}
+                  />
+                )}
 
-              {currentView === "discover" && (
-                <DiscoverView
-                  topic={topic}
-                  region={region}
-                  sort={sort}
-                  onSearch={handleSearch}
-                  isSearching={isSearching}
-                  channels={channels}
-                  videos={videos}
-                  watchlist={watchlist}
-                  onSaveChannel={handleSaveChannel}
-                  onRemoveWatchlist={handleRemoveWatchlist}
-                  onExportWatchlist={handleExportWatchlist}
-                />
-              )}
+                {currentView === "discover" && (
+                  <DiscoverView
+                    topic={topic}
+                    region={region}
+                    sort={sort}
+                    onSearch={handleSearch}
+                    isSearching={isSearching}
+                    channels={channels}
+                    videos={videos}
+                    watchlist={watchlist}
+                    onSaveChannel={handleSaveChannel}
+                    onRemoveWatchlist={handleRemoveWatchlist}
+                    onExportWatchlist={handleExportWatchlist}
+                  />
+                )}
 
-              {currentView === "audit" && (
-                <AuditView
-                  onPlanFollowup={(title, desc) => {
-                    handleSaveIdeaToPlanner(title, desc);
-                    setCurrentView("strategy");
-                  }}
-                  onToast={showToast}
-                />
-              )}
+                {currentView === "audit" && (
+                  <AuditView
+                    onPlanFollowup={(title, desc) => {
+                      handleSaveIdeaToPlanner(title, desc);
+                      setCurrentView("strategy");
+                    }}
+                    onToast={showToast}
+                  />
+                )}
 
-              {currentView === "revenue" && (
-                <RevenueAnalyticsView />
-              )}
+                {currentView === "revenue" && (
+                  <RevenueAnalyticsView />
+                )}
 
-              {currentView === "diagnosis" && (
-                <ClinicView
-                  onSaveIdea={(t, d) => handleSaveIdeaToPlanner(t, d)}
-                  onToast={showToast}
-                />
-              )}
+                {currentView === "diagnosis" && (
+                  <ClinicView
+                    onSaveIdea={(t, d) => handleSaveIdeaToPlanner(t, d)}
+                    onToast={showToast}
+                  />
+                )}
 
-              {currentView === "opportunities" && (
-                <OpportunitiesView
-                  topic={topic}
-                  ideas={ideas}
-                  onGenerateAngles={handleGenerateAngles}
-                  onSelectIdeaForBrief={handleSelectIdeaForBrief}
-                  onSaveIdeaToPlanner={(idea) => handleSaveIdeaToPlanner(idea.title, idea.desc)}
-                />
-              )}
+                {currentView === "opportunities" && (
+                  <OpportunitiesView
+                    topic={topic}
+                    ideas={ideas}
+                    onGenerateAngles={handleGenerateAngles}
+                    onSelectIdeaForBrief={handleSelectIdeaForBrief}
+                    onSaveIdeaToPlanner={(idea) => handleSaveIdeaToPlanner(idea.title, idea.desc)}
+                  />
+                )}
 
-              {currentView === "strategy" && (
-                <StrategyView
-                  initialTopic={topic}
-                  onContinueToProduction={handleContinueToProduction}
-                  onSaveToPlanner={(t, n) => handleSaveIdeaToPlanner(t, n)}
-                  onToast={showToast}
-                />
-              )}
+                {currentView === "strategy" && (
+                  <StrategyView
+                    initialTopic={topic}
+                    onContinueToProduction={handleContinueToProduction}
+                    onSaveToPlanner={(t, n) => handleSaveIdeaToPlanner(t, n)}
+                    onToast={showToast}
+                  />
+                )}
 
-              {currentView === "autonomous-video" && (
-                <div className="space-y-6">
-                  <div className="bg-gradient-to-r from-[#2563EB]/10 via-[#3B82F6]/5 to-transparent border border-[#BFDBFE] p-6 rounded-[28px]">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#2563EB] text-white uppercase tracking-wider">
-                            Autonomous AI Agent
-                          </span>
-                          <span className="text-xs font-semibold text-[#2563EB]">
-                            11 YouTube Agent Skills Pipeline
-                          </span>
+                {currentView === "autonomous-video" && (
+                  <div className="space-y-6">
+                    <div className="bg-gradient-to-r from-[#2563EB]/10 via-[#3B82F6]/5 to-transparent border border-[#BFDBFE] p-6 rounded-[28px]">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#2563EB] text-white uppercase tracking-wider">
+                              Autonomous AI Agent
+                            </span>
+                            <span className="text-xs font-semibold text-[#2563EB]">
+                              11 YouTube Agent Skills Pipeline
+                            </span>
+                          </div>
+                          <h1 className="text-2xl font-bold text-[#111827] mt-1.5">
+                            Video Agent Analysis & Production
+                          </h1>
+                          <p className="text-xs text-[#6B7280] mt-1 max-w-2xl">
+                            Upload raw video footage for instant media inspection, speech transcription, CMX 3600 EDL cuts, viral outlier research, Short extraction, validated chapters, and optional direct YouTube OAuth publishing.
+                          </p>
                         </div>
-                        <h1 className="text-2xl font-bold text-[#111827] mt-1.5">
-                          Autonomous Video Analysis & Production
-                        </h1>
-                        <p className="text-xs text-[#6B7280] mt-1 max-w-2xl">
-                          Upload raw video footage for instant media inspection, speech transcription, CMX 3600 EDL cuts, viral outlier research, Short extraction, validated chapters, and optional direct YouTube OAuth publishing.
-                        </p>
                       </div>
                     </div>
-                  </div>
 
-                  <AutonomousVideoStudio
+                    <AutonomousVideoStudio
+                      onSaveToPlanner={(t, n, s) => {
+                        handleSaveIdeaToPlanner(t, n, s as PlanItem["status"]);
+                        setCurrentView("planner");
+                      }}
+                      onToast={showToast}
+                    />
+                  </div>
+                )}
+
+                {currentView === "production" && (
+                  <ProductionView
+                    initialData={productionTransferData}
                     onSaveToPlanner={(t, n, s) => {
                       handleSaveIdeaToPlanner(t, n, s as PlanItem["status"]);
                       setCurrentView("planner");
                     }}
                     onToast={showToast}
                   />
-                </div>
-              )}
+                )}
 
-              {currentView === "production" && (
-                <ProductionView
-                  initialData={productionTransferData}
-                  onSaveToPlanner={(t, n, s) => {
-                    handleSaveIdeaToPlanner(t, n, s as PlanItem["status"]);
-                    setCurrentView("planner");
-                  }}
-                  onToast={showToast}
-                />
-              )}
-
-              {currentView === "planner" && (
-                <PlannerView
-                  plans={plans}
-                  onAddIdeaClick={() => setIsManualIdeaOpen(true)}
-                  onUpdateStatus={handleUpdatePlanStatus}
-                  onDeletePlan={handleDeletePlan}
-                  onExportPlans={handleExportPlans}
-                />
-              )}
-            </motion.div>
-          </AnimatePresence>
-        </main>
+                {currentView === "planner" && (
+                  <PlannerView
+                    plans={plans}
+                    onAddIdeaClick={() => setIsManualIdeaOpen(true)}
+                    onUpdateStatus={handleUpdatePlanStatus}
+                    onDeletePlan={handleDeletePlan}
+                    onExportPlans={handleExportPlans}
+                  />
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </main>
         </div>
       </div>
 

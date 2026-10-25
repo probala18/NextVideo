@@ -42,7 +42,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: "audit", label: "Channel Audit", icon: ScanEye, badge: undefined },
     { id: "opportunities", label: "Opportunities", icon: Sparkles, badge: undefined },
     { id: "revenue", label: "Revenue Engine", icon: DollarSign, badge: "PRO" },
-    { id: "autonomous-video", label: "Autonomous Video", icon: Film, badge: "AGENT" },
+    { id: "autonomous-video", label: "video agent", icon: Film, badge: "AGENT" },
     { id: "production", label: "Production Studio", icon: Video, badge: "AI" },
     { id: "planner", label: "Content Planner", icon: FileEdit, badge: planCount > 0 ? `${planCount}` : undefined },
     { id: "diagnosis", label: "Performance Clinic", icon: Activity, badge: undefined },
@@ -61,9 +61,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Floating Outcrowd-styled sidebar */}
       <aside
-        className={`fixed lg:sticky top-0 left-0 h-screen w-64 bg-[#F7F8FA] border-r border-[#E8EAEE] flex flex-col justify-between z-50 transition-all duration-200 ease-in-out p-4 ${
-          isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        }`}
+        className={`fixed lg:sticky top-0 left-0 h-screen w-64 bg-[#F7F8FA] border-r border-[#E8EAEE] flex flex-col justify-between z-50 transition-all duration-200 ease-in-out p-4 ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          }`}
       >
         <div className="flex flex-col h-full overflow-y-auto">
           {/* Top Logo Emblem */}
@@ -128,32 +127,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     onSelectView(item.id);
                     onClose();
                   }}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition cursor-pointer ${
-                    isActive
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition cursor-pointer ${isActive
                       ? "bg-white text-[#111827] shadow-xs border border-[#E2E5EB]"
                       : "text-[#64748B] hover:text-[#111827] hover:bg-white/60"
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-3">
                     <Icon
-                      className={`w-4 h-4 ${
-                        isActive ? "text-[#3B82F6]" : "text-[#94A3B8]"
-                      }`}
+                      className={`w-4 h-4 ${isActive ? "text-[#3B82F6]" : "text-[#94A3B8]"
+                        }`}
                     />
                     <span>{item.label}</span>
                   </div>
 
                   {item.badge && (
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        item.badge === "PRO"
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${item.badge === "PRO"
                           ? "bg-[#FEF3C7] text-[#D97706]"
                           : item.badge === "AI"
-                          ? "bg-[#E0E7FF] text-[#4F46E5]"
-                          : item.badge === "AGENT"
-                          ? "bg-[#DBEAFE] text-[#1D4ED8]"
-                          : "bg-[#E2E8F0] text-[#475569]"
-                      }`}
+                            ? "bg-[#E0E7FF] text-[#4F46E5]"
+                            : item.badge === "AGENT"
+                              ? "bg-[#DBEAFE] text-[#1D4ED8]"
+                              : "bg-[#E2E8F0] text-[#475569]"
+                        }`}
                     >
                       {item.badge}
                     </span>

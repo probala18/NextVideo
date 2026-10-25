@@ -1,6 +1,6 @@
 /**
  * src/lib/types/videoWorkflow.ts
- * Type definitions for the Autonomous Video Analysis, Processing & Publishing Workflow
+ * Type definitions for the video agent Analysis, Processing & Publishing Workflow
  */
 
 import { HookScoreResult } from "../skills/hookscore";

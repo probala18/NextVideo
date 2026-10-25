@@ -78,7 +78,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
         setIsYoutubeConnected(Boolean(data.isConnected));
         if (data.channelTitle) setChannelTitle(data.channelTitle);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Poll active job until completion or error
@@ -100,7 +100,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
             if (["completed", "failed", "cancelled"].includes(updated.status)) {
               setIsPolling(false);
               if (updated.status === "completed") {
-                onToast("Autonomous video analysis complete! Report ready.", "success");
+                onToast("video agent analysis complete! Report ready.", "success");
               } else if (updated.status === "failed") {
                 onToast(updated.errorMessage || "Processing failed.", "error");
               }
@@ -238,13 +238,12 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
           {currentJob && currentJob.status && (
             <div className="flex items-center gap-2">
               <span
-                className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase ${
-                  currentJob.status === "completed"
+                className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase ${currentJob.status === "completed"
                     ? "bg-[#ECFDF5] text-[#059669]"
                     : currentJob.status === "failed"
-                    ? "bg-[#FEF2F2] text-[#DC2626]"
-                    : "bg-[#EFF6FF] text-[#2563EB] animate-pulse"
-                }`}
+                      ? "bg-[#FEF2F2] text-[#DC2626]"
+                      : "bg-[#EFF6FF] text-[#2563EB] animate-pulse"
+                  }`}
               >
                 {(currentJob.status || "uploaded").replace("_", " ")}
               </span>
@@ -258,11 +257,10 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
             {/* Primary Video File Picker */}
             <div
               onClick={() => fileInputRef.current?.click()}
-              className={`p-6 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition ${
-                videoFile
+              className={`p-6 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition ${videoFile
                   ? "border-[#3B82F6] bg-[#EFF6FF]/30"
                   : "border-[#E2E5EB] hover:border-[#3B82F6] bg-[#F9FAFB]"
-              }`}
+                }`}
             >
               <input
                 ref={fileInputRef}
@@ -287,11 +285,10 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
             {/* Optional Subtitles / Transcript Picker */}
             <div
               onClick={() => transcriptInputRef.current?.click()}
-              className={`p-6 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition ${
-                transcriptFile
+              className={`p-6 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition ${transcriptFile
                   ? "border-[#10B981] bg-[#ECFDF5]/30"
                   : "border-[#E2E5EB] hover:border-[#10B981] bg-[#F9FAFB]"
-              }`}
+                }`}
             >
               <input
                 ref={transcriptInputRef}
@@ -314,11 +311,10 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
             {/* Optional YouTube Studio Retention CSV */}
             <div
               onClick={() => retentionInputRef.current?.click()}
-              className={`p-6 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition ${
-                retentionFile
+              className={`p-6 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition ${retentionFile
                   ? "border-[#8B5CF6] bg-[#F5F3FF]/30"
                   : "border-[#E2E5EB] hover:border-[#8B5CF6] bg-[#F9FAFB]"
-              }`}
+                }`}
             >
               <input
                 ref={retentionInputRef}
@@ -428,9 +424,8 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
 
             <div className="w-full bg-[#E5E7EB] rounded-full h-2 overflow-hidden">
               <div
-                className={`h-full transition-all duration-500 ${
-                  currentJob.status === "failed" ? "bg-[#DC2626]" : "bg-[#3B82F6]"
-                }`}
+                className={`h-full transition-all duration-500 ${currentJob.status === "failed" ? "bg-[#DC2626]" : "bg-[#3B82F6]"
+                  }`}
                 style={{ width: `${currentJob.progressPercent}%` }}
               />
             </div>
@@ -439,13 +434,12 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
               {["uploaded", "transcribing", "analyzing", "generating_outputs", "completed"].map((st, i) => (
                 <span
                   key={st}
-                  className={`px-2 py-0.5 rounded-full ${
-                    currentJob.status === st
+                  className={`px-2 py-0.5 rounded-full ${currentJob.status === st
                       ? "bg-[#3B82F6] text-white font-bold"
                       : currentJob.progressPercent >= (i + 1) * 20
-                      ? "bg-[#ECFDF5] text-[#059669] font-medium"
-                      : "bg-[#F3F4F6] text-[#9CA3AF]"
-                  }`}
+                        ? "bg-[#ECFDF5] text-[#059669] font-medium"
+                        : "bg-[#F3F4F6] text-[#9CA3AF]"
+                    }`}
                 >
                   {st.replace("_", " ")}
                 </span>
@@ -709,13 +703,12 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
                         </td>
                         <td className="p-2.5">
                           <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                              c.kind === "dead_air"
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${c.kind === "dead_air"
                                 ? "bg-[#FEF2F2] text-[#DC2626]"
                                 : c.kind === "repeat"
-                                ? "bg-[#FEF3C7] text-[#D97706]"
-                                : "bg-[#EFF6FF] text-[#2563EB]"
-                            }`}
+                                  ? "bg-[#FEF3C7] text-[#D97706]"
+                                  : "bg-[#EFF6FF] text-[#2563EB]"
+                              }`}
                           >
                             {c.kind}
                           </span>
