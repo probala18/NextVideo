@@ -123,7 +123,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
     }
   };
 
-  // Check YouTube OAuth connection status on mount
+  // Check YouTube OAuth connection status on mount & restore active job
   useEffect(() => {
     fetch("/api/youtube/auth")
       .then((r) => r.json())
@@ -132,7 +132,58 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
         if (data.channelTitle) setChannelTitle(data.channelTitle);
       })
       .catch(() => { });
+
+    // Restore active job from localStorage so page never starts from scratch
+    try {
+      if (typeof window !== "undefined" && !currentJob) {
+        const savedJobId = localStorage.getItem("nextvideo_active_job_id");
+        if (savedJobId) {
+          fetch(`/api/video/jobs/${savedJobId}`)
+            .then((r) => r.json())
+            .then((data) => {
+              const job = data.job || data;
+              if (job && job.id && job.status !== "cancelled") {
+                setCurrentJob(job);
+                if (!["completed", "failed", "cancelled"].includes(job.status)) {
+                  setIsPolling(true);
+                }
+              }
+            })
+            .catch(() => {});
+        }
+      }
+    } catch {}
   }, []);
+
+  // Persist active job ID across page navigations & OAuth flow
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        if (currentJob?.id) {
+          localStorage.setItem("nextvideo_active_job_id", currentJob.id);
+        }
+      }
+    } catch {}
+  }, [currentJob?.id]);
+
+  // Listen for popup window OAuth completion message without page reload
+  useEffect(() => {
+    const handleOAuthMessage = (event: MessageEvent) => {
+      if (event.data?.type === "YOUTUBE_OAUTH_SUCCESS") {
+        setIsYoutubeConnected(true);
+        if (event.data.channelTitle) {
+          setChannelTitle(event.data.channelTitle);
+        }
+        setIsOAuthModalOpen(false);
+        onToast(`Connected YouTube Channel: ${event.data.channelTitle || "Success"}!`, "success");
+      } else if (event.data?.type === "YOUTUBE_OAUTH_ERROR") {
+        onToast(event.data.error || "YouTube authorization failed.", "error");
+      }
+    };
+
+    window.addEventListener("message", handleOAuthMessage);
+    return () => window.removeEventListener("message", handleOAuthMessage);
+  }, [onToast]);
 
   // Pre-fill editable packaging when analysis report is ready
   useEffect(() => {
