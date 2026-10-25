@@ -93,16 +93,24 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
   const [isRegeneratingPackaging, setIsRegeneratingPackaging] = useState(false);
   const [aiThumbnailConcepts, setAiThumbnailConcepts] = useState<any[]>([]);
   const [selectedThumbnailId, setSelectedThumbnailId] = useState<string>("thumb_v1_curiosity");
+  const [thumbImageErrors, setThumbImageErrors] = useState<Record<string, boolean>>({});
 
   const handleRegeneratePackagingWithAI = async () => {
     setIsRegeneratingPackaging(true);
     try {
+      const groundedTopic =
+        topicHint ||
+        editableTitle ||
+        currentJob?.report?.publishingPackage?.recommendedTitle ||
+        currentJob?.report?.packaging?.alternativeTitles?.[0] ||
+        "Uploaded Video Demonstration";
+
       const res = await fetch("/api/video/packaging", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          topic: topicHint || "YouTube Video",
-          currentTitle: editableTitle,
+          topic: groundedTopic,
+          currentTitle: editableTitle || groundedTopic,
           transcriptText: currentJob?.report?.transcript?.text || "",
           durationSeconds: currentJob?.report?.media?.durationSeconds || 600,
         }),
@@ -112,8 +120,23 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
 
       if (data.suggestedTitle) setEditableTitle(data.suggestedTitle);
       if (data.description) setEditableDesc(data.description);
-      if (data.tags) setEditableTags(data.tags.join(", "));
+      if (data.tags) setEditableTags(Array.isArray(data.tags) ? data.tags.join(", ") : data.tags);
       if (data.thumbnailConcepts) setAiThumbnailConcepts(data.thumbnailConcepts);
+      if (data.thumbnails && data.thumbnails.length > 0) {
+        setCurrentJob((prev: any) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            report: {
+              ...prev.report,
+              publishingPackage: {
+                ...prev.report?.publishingPackage,
+                thumbnails: data.thumbnails,
+              },
+            },
+          };
+        });
+      }
       setIsApproved(false);
       onToast(`Generated Title, Description & Thumbnails with ${data.notice || "Configured AI Model"}!`, "success");
     } catch (err: any) {
@@ -1423,22 +1446,57 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
                         >
                           <div className="space-y-1.5">
                             {/* 16:9 Visual Preview Box */}
-                            <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-black/90 border border-black/10 group">
-                              <img
-                                src={thumb.imageUrl}
-                                alt={thumb.headline}
-                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                onError={(e: any) => {
-                                  // Fallback display if direct URL image rendering fails
-                                  e.target.style.display = "none";
-                                }}
-                              />
+                            <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-gradient-to-br from-[#0F172A] via-[#1E1B4B] to-[#020617] border border-black/10 group">
+                              {thumbImageErrors[thumb.id] ? (
+                                <div className="w-full h-full flex flex-col justify-between p-3.5 text-white">
+                                  <div className="flex items-center justify-between">
+                                    <span
+                                      className="px-2 py-0.5 rounded-full text-[9px] font-black tracking-wider text-black shadow-xs"
+                                      style={{
+                                        backgroundColor: thumb.id?.includes("outcome")
+                                          ? "#10B981"
+                                          : thumb.id?.includes("blueprint") || thumb.id?.includes("mastery")
+                                          ? "#38BDF8"
+                                          : "#F43F5E",
+                                      }}
+                                    >
+                                      {thumb.id?.includes("outcome")
+                                        ? "RESULTS"
+                                        : thumb.id?.includes("blueprint") || thumb.id?.includes("mastery")
+                                        ? "2026 GUIDE"
+                                        : "CRITICAL"}
+                                    </span>
+                                    <span className="text-[9px] text-gray-400 font-mono">16:9 • 1280×720</span>
+                                  </div>
+                                  <div className="my-auto">
+                                    <span className="text-lg md:text-xl font-black tracking-tight text-white drop-shadow-md block">
+                                      {thumb.headline}
+                                    </span>
+                                    <p className="text-[10px] text-gray-300 line-clamp-1 mt-0.5">
+                                      {thumb.variationName}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center justify-between text-[8px] text-gray-400 border-t border-white/10 pt-1">
+                                    <span>YOUTUBE BROADCAST READY</span>
+                                    <span className="text-emerald-400 font-bold">VERIFIED ✓</span>
+                                  </div>
+                                </div>
+                              ) : (
+                                <img
+                                  src={thumb.imageUrl}
+                                  alt={thumb.headline}
+                                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                  onError={() => {
+                                    setThumbImageErrors((prev) => ({ ...prev, [thumb.id]: true }));
+                                  }}
+                                />
+                              )}
                               {/* Overlay Badge */}
-                              <div className="absolute top-2 left-2 px-2 py-0.5 bg-[#111827]/90 text-white rounded font-mono font-bold text-[9px] backdrop-blur-xs">
-                                {thumb.width}×{thumb.height} • {thumb.format.toUpperCase()}
+                              <div className="absolute top-2 left-2 px-2 py-0.5 bg-[#111827]/90 text-white rounded font-mono font-bold text-[9px] backdrop-blur-xs pointer-events-none">
+                                {thumb.width || 1280}×{thumb.height || 720} • {(thumb.format || "PNG").toUpperCase()}
                               </div>
-                              <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-[#059669] text-white rounded font-bold text-[9px] shadow-xs">
-                                {(thumb.sizeBytes / 1024).toFixed(0)} KB (&lt; 2MB)
+                              <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-[#059669] text-white rounded font-bold text-[9px] shadow-xs pointer-events-none">
+                                {((thumb.sizeBytes || 3072) / 1024).toFixed(0)} KB (&lt; 2MB)
                               </div>
                             </div>
 

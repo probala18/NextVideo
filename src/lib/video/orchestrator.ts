@@ -17,6 +17,7 @@ import { analyzeVideoWithComputerVision } from "./vision";
 import { assembleVideoUnderstanding } from "./understanding";
 import { generateYouTubeThumbnails } from "./thumbnail-generator";
 import { generatePublishingPackageWithAI } from "./generator";
+import { youtubePatternModel } from "../models/youtube-pattern-model";
 import fs from "fs";
 
 export async function runAutonomousVideoWorkflow(params: {
@@ -83,7 +84,16 @@ export async function runAutonomousVideoWorkflow(params: {
 
   const titleAudit = checkTitle(currentTitle, currentThumb);
 
-  // Generate Titles, Description, and Thumbnail Concepts using the configured AI model
+  // Generate Titles, Description, and Thumbnail Concepts using the trained YouTube Pattern Model & AI
+  const patternAssets = youtubePatternModel.generateGroundedAssets({
+    detectedSubject: understanding.actualTopic,
+    detectedOnScreenText: vision.onScreenTextCues?.map((c) => c.text) || [],
+    sampledFrames: vision.sampledFrames,
+    durationSeconds: media.durationSeconds,
+    focalPoint: vision.sampledFrames?.[0]?.properties?.focalPoint,
+    transcriptSnippet: transcript.text?.slice(0, 300),
+  });
+
   const packagingAI = await generatePackagingWithAI({
     topic,
     currentTitle,
@@ -93,28 +103,16 @@ export async function runAutonomousVideoWorkflow(params: {
 
   const alternativeTitles = packagingAI.titles.length > 0
     ? packagingAI.titles
-    : [
-        `How I Learned ${topic} in 14 Days (Step-by-Step)`,
-        `The Only ${topic} Guide You Need in 2026`,
-        `Why 90% of ${topic} Beginners Fail at First`,
-      ];
+    : patternAssets.titles.map((t) => t.title);
 
   const thumbnailConcepts = packagingAI.thumbnailConcepts.length > 0
     ? packagingAI.thumbnailConcepts
-    : [
-        {
-          headline: "FAST PATH",
-          visualDescription: "Split screen showing cluttered complex code vs 3-line clean implementation",
-          colorPalette: "Electric Blue (#2563EB) with high-contrast White typography",
-          reason: "Creates immediate visual curiosity without repeating title keywords",
-        },
-        {
-          headline: "90% QUIT",
-          visualDescription: "Frustrated creator looking at screen with red highlight bar on 0:15 timecode",
-          colorPalette: "Crimson Red (#EF4444) on Charcoal background",
-          reason: "Strong emotional stakes with concrete metric anchor",
-        },
-      ];
+    : patternAssets.thumbnails.map((t) => ({
+        headline: t.headline,
+        visualDescription: t.visualComposition,
+        colorPalette: `${t.accentColor} high-contrast`,
+        reason: t.rationale,
+      }));
 
   // 4. Generate Real Visual Thumbnails (1280x720 16:9 compliant files)
   const generatedThumbnails = await generateYouTubeThumbnails({

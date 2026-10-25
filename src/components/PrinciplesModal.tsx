@@ -57,7 +57,7 @@ export const PrinciplesModal: React.FC<PrinciplesModalProps> = ({ isOpen, onClos
 
               <div className="space-y-3 bg-gray-50 dark:bg-ink-950/60 border border-gray-100 dark:border-ink-850 p-4 rounded-2xl">
                 <div className="flex gap-3">
-                  <div className="w-5 h-5 rounded-full bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-400 font-bold text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <div className="w-5 h-5 rounded-full bg-[#10B981] dark:bg-brand-950 text-white dark:text-brand-400 font-bold text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5">
                     1
                   </div>
                   <div>
@@ -69,7 +69,7 @@ export const PrinciplesModal: React.FC<PrinciplesModalProps> = ({ isOpen, onClos
                 </div>
 
                 <div className="flex gap-3">
-                  <div className="w-5 h-5 rounded-full bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-400 font-bold text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <div className="w-5 h-5 rounded-full bg-[#10B981] dark:bg-brand-950 text-white dark:text-brand-400 font-bold text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5">
                     2
                   </div>
                   <div>
@@ -81,7 +81,7 @@ export const PrinciplesModal: React.FC<PrinciplesModalProps> = ({ isOpen, onClos
                 </div>
 
                 <div className="flex gap-3">
-                  <div className="w-5 h-5 rounded-full bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-400 font-bold text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <div className="w-5 h-5 rounded-full bg-[#10B981] dark:bg-brand-950 text-white dark:text-brand-400 font-bold text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5">
                     3
                   </div>
                   <div>
