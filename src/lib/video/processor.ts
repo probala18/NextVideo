@@ -15,14 +15,16 @@ import { saveDerivedAsset } from "./storage";
 
 const execAsync = promisify(exec);
 
+let ffmpegCached: boolean | null = null;
+
 export async function isFfmpegAvailable(): Promise<boolean> {
-  const binary = process.env.FFMPEG_PATH || "ffmpeg";
-  try {
-    await execAsync(`${binary} -version`);
-    return true;
-  } catch {
-    return false;
+  if (ffmpegCached !== null) return ffmpegCached;
+  if (process.env.FFMPEG_PATH) {
+    ffmpegCached = fs.existsSync(process.env.FFMPEG_PATH);
+    return ffmpegCached;
   }
+  ffmpegCached = false;
+  return false;
 }
 
 /**

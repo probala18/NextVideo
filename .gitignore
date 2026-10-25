@@ -34,9 +34,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# database
+# database & local uploads
 *.db
 *.db-journal
 *.db-wal
-/data/*.db*
-
+/data/

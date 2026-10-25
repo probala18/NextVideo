@@ -11,14 +11,16 @@ import { MediaMetadata } from "../types/videoWorkflow";
 
 const execAsync = promisify(exec);
 
+let ffprobeCached: boolean | null = null;
+
 export async function isFfprobeAvailable(): Promise<boolean> {
-  const binary = process.env.FFPROBE_PATH || "ffprobe";
-  try {
-    await execAsync(`${binary} -version`);
-    return true;
-  } catch {
-    return false;
+  if (ffprobeCached !== null) return ffprobeCached;
+  if (process.env.FFPROBE_PATH) {
+    ffprobeCached = fs.existsSync(process.env.FFPROBE_PATH);
+    return ffprobeCached;
   }
+  ffprobeCached = false;
+  return false;
 }
 
 export async function inspectMedia(filePath: string, originalFilename?: string): Promise<MediaMetadata> {
