@@ -549,13 +549,13 @@ export default function Home() {
       {/* Sidebar Navigation matching Outcrowd Layout */}
       <Sidebar
         currentView={currentView}
-        onSelectView={setCurrentView}
+        onSelectView={navigateView}
         planCount={plans.length}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onOpenPrinciples={() => setIsPrinciplesOpen(true)}
         onNewResearch={() => {
-          setCurrentView("overview");
+          navigateView("overview");
           setTopic("");
         }}
       />
@@ -565,7 +565,7 @@ export default function Home() {
         <div className="flex-1 flex flex-col min-w-0 bg-[#F5F6F9] rounded-[32px] border border-[#E0E4EB] shadow-[0_10px_35px_rgba(0,0,0,0.03)] overflow-hidden">
           <Header
             currentView={currentView}
-            onSelectView={setCurrentView}
+            onSelectView={navigateView}
             isDark={isDark}
             onToggleTheme={toggleTheme}
             onOpenPrinciples={() => setIsPrinciplesOpen(true)}
