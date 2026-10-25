@@ -24,6 +24,9 @@ import {
   Sliders,
   FileText,
   XCircle,
+  Search,
+  Award,
+  TrendingUp,
 } from "lucide-react";
 import {
   VideoProcessingJob,
@@ -33,6 +36,9 @@ import {
 } from "@/lib/types/videoWorkflow";
 import { YouTubeOAuthModal } from "./YouTubeOAuthModal";
 import { EditedVideoPlayer } from "./EditedVideoPlayer";
+import { NicheResearchView } from "./studio/NicheResearchView";
+import { ScorecardView } from "./studio/ScorecardView";
+import { LearningFeedbackView } from "./studio/LearningFeedbackView";
 
 interface AutonomousVideoStudioProps {
   onSaveToPlanner: (title: string, note: string, status?: string) => void;
@@ -70,6 +76,17 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
   const transcriptInputRef = useRef<HTMLInputElement>(null);
   const retentionInputRef = useRef<HTMLInputElement>(null);
 
+  // Studio sub-tab navigation
+  const [studioTab, setStudioTab] = useState<"video_pipeline" | "niche_research" | "pattern_scorecard" | "learning_feedback">("video_pipeline");
+  const [scorecardTitle, setScorecardTitle] = useState("");
+  const [scorecardTopic, setScorecardTopic] = useState("");
+
+  // Editable publishing fields
+  const [editableTitle, setEditableTitle] = useState("");
+  const [editableDesc, setEditableDesc] = useState("");
+  const [editableTags, setEditableTags] = useState("");
+  const [isApproved, setIsApproved] = useState(false);
+
   // Check YouTube OAuth connection status on mount
   useEffect(() => {
     fetch("/api/youtube/auth")
@@ -80,6 +97,22 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       })
       .catch(() => { });
   }, []);
+
+  // Pre-fill editable packaging when analysis report is ready
+  useEffect(() => {
+    if (currentJob?.report) {
+      const rep = currentJob.report;
+      if (!editableTitle) {
+        setEditableTitle(rep.packaging?.alternativeTitles?.[0] || rep.seo?.suggestedTitle || "");
+      }
+      if (!editableDesc) {
+        setEditableDesc(rep.seo?.description || "");
+      }
+      if (!editableTags) {
+        setEditableTags(rep.seo?.tags?.join(", ") || "");
+      }
+    }
+  }, [currentJob?.report]);
 
   // Poll active job until completion or error
   useEffect(() => {
@@ -182,6 +215,36 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
     }
   };
 
+  // Approve and record in learning feedback loop
+  const handleApproveAndStage = async () => {
+    if (!currentJob?.report) return;
+    try {
+      const rep = currentJob.report;
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "approve",
+          channelId: channelTitle || "default_channel",
+          originalTitle: topicHint || "Raw Video Upload",
+          approvedTitle: editableTitle || rep.packaging?.alternativeTitles?.[0] || rep.seo?.suggestedTitle,
+          approvedDescription: editableDesc || rep.seo?.description,
+          approvedTags: editableTags ? editableTags.split(",").map((s) => s.trim()).filter(Boolean) : rep.seo?.tags,
+          appliedCutsCount: rep.editing?.edl?.cuts?.length || 0,
+          timeSavedSeconds: rep.editing?.edl?.removed || 0,
+          modelVersionUsed: "selected_llm",
+          providerUsed: "NextVideo Engine",
+        }),
+      });
+      if (res.ok) {
+        setIsApproved(true);
+        onToast("Optimized assets approved and recorded in learning loop!", "success");
+      }
+    } catch {
+      onToast("Failed to record approval in feedback loop.", "error");
+    }
+  };
+
   // Publish Video to YouTube
   const handlePublishToYouTube = async () => {
     if (!currentJob || !currentJob.report) return;
@@ -190,6 +253,10 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
 
     try {
       const report: ConsolidatedAnalysisReport = currentJob.report;
+      const finalTitle = editableTitle || report.packaging.alternativeTitles[0] || report.seo.suggestedTitle;
+      const finalDesc = editableDesc || report.seo.description;
+      const finalTags = editableTags ? editableTags.split(",").map(s => s.trim()).filter(Boolean) : report.seo.tags;
+
       const res = await fetch("/api/youtube/publish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -197,9 +264,9 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
           jobId: currentJob.id,
           privacy: publishPrivacy,
           selectedAsset: selectedPublishAsset,
-          title: report.packaging.alternativeTitles[0] || report.seo.suggestedTitle,
-          description: report.seo.description,
-          tags: report.seo.tags,
+          title: finalTitle,
+          description: finalDesc,
+          tags: finalTags,
         }),
       });
 
@@ -208,6 +275,28 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
 
       setPublishedVideoUrl(data.videoUrl);
       onToast(`Published to YouTube as ${publishPrivacy.toUpperCase()}!`, "success");
+
+      // Auto-record publication in learning feedback loop
+      await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "approve",
+          channelId: channelTitle || "default_channel",
+          originalTitle: topicHint || "Raw Video Upload",
+          approvedTitle: finalTitle,
+          approvedDescription: finalDesc,
+          approvedTags: finalTags,
+          appliedCutsCount: report.editing?.edl?.cuts?.length || 0,
+          timeSavedSeconds: report.editing?.edl?.removed || 0,
+          modelVersionUsed: "selected_llm",
+          providerUsed: "NextVideo Engine",
+          publishedToYouTube: true,
+          publishedVideoId: data.videoId,
+          publishedAt: new Date().toISOString(),
+          publishedPrivacy: publishPrivacy,
+        }),
+      }).catch(() => {});
     } catch (err: any) {
       onToast(err.message || "Failed to publish video.", "error");
     } finally {
@@ -219,8 +308,99 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Upload & Job Setup Card */}
-      <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 sm:p-8 shadow-xs">
+      {/* Studio Sub-Navigation Tabs */}
+      <div className="flex flex-wrap items-center gap-2 p-1.5 bg-[#F3F4F6] rounded-2xl w-fit">
+        <button
+          type="button"
+          onClick={() => setStudioTab("video_pipeline")}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            studioTab === "video_pipeline"
+              ? "bg-white text-[#111827] shadow-xs"
+              : "text-[#6B7280] hover:text-[#111827]"
+          }`}
+        >
+          <Film className="w-3.5 h-3.5 text-[#3B82F6]" />
+          <span>Video Analysis & Production</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStudioTab("niche_research")}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            studioTab === "niche_research"
+              ? "bg-white text-[#111827] shadow-xs"
+              : "text-[#6B7280] hover:text-[#111827]"
+          }`}
+        >
+          <Search className="w-3.5 h-3.5 text-[#10B981]" />
+          <span>Niche Research & Outliers</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStudioTab("pattern_scorecard")}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            studioTab === "pattern_scorecard"
+              ? "bg-white text-[#111827] shadow-xs"
+              : "text-[#6B7280] hover:text-[#111827]"
+          }`}
+        >
+          <Award className="w-3.5 h-3.5 text-[#F59E0B]" />
+          <span>Pattern Diagnostic & Scorecard</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStudioTab("learning_feedback")}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            studioTab === "learning_feedback"
+              ? "bg-white text-[#111827] shadow-xs"
+              : "text-[#6B7280] hover:text-[#111827]"
+          }`}
+        >
+          <TrendingUp className="w-3.5 h-3.5 text-[#8B5CF6]" />
+          <span>Learning & Feedback History</span>
+        </button>
+      </div>
+
+      {/* Niche Research View */}
+      {studioTab === "niche_research" && (
+        <NicheResearchView
+          onApplyTitleToPlanner={onSaveToPlanner}
+          onSendToScorecard={(t, topic) => {
+            setScorecardTitle(t);
+            setScorecardTopic(topic);
+            setStudioTab("pattern_scorecard");
+          }}
+          onToast={onToast}
+        />
+      )}
+
+      {/* Pattern Diagnostic Scorecard View */}
+      {studioTab === "pattern_scorecard" && (
+        <ScorecardView
+          initialTitle={scorecardTitle || editableTitle}
+          initialTopic={scorecardTopic || topicHint}
+          initialHook={report?.transcript?.cues?.slice(0, 5).map(c => c.text).join(" ")}
+          onApplyTitle={(t) => {
+            setEditableTitle(t);
+            setStudioTab("video_pipeline");
+            onToast("Applied title to publishing stage!", "info");
+          }}
+          onToast={onToast}
+        />
+      )}
+
+      {/* Learning & Feedback Loop History */}
+      {studioTab === "learning_feedback" && (
+        <LearningFeedbackView onToast={onToast} />
+      )}
+
+      {/* Video Pipeline Workflow */}
+      {studioTab === "video_pipeline" && (
+        <div className="space-y-6">
+          {/* Upload & Job Setup Card */}
+          <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 sm:p-8 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#EFF6FF] text-[#2563EB] rounded-full text-xs font-bold mb-2">
@@ -832,6 +1012,82 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
               )}
             </div>
 
+            {/* Creator Review & Edit Asset Form */}
+            <div className="space-y-3 p-4 bg-[#F9FAFB] rounded-2xl border border-[#E5E7EB]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E5E7EB] pb-2">
+                <div>
+                  <span className="text-xs font-bold text-[#111827]">
+                    Review, Edit & Approve Generated Assets
+                  </span>
+                  <p className="text-[11px] text-[#6B7280]">
+                    Verify every field before publishing. Approved changes train the learning feedback loop.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleApproveAndStage}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer self-start sm:self-center ${
+                    isApproved
+                      ? "bg-[#ECFDF5] text-[#059669]"
+                      : "bg-[#3B82F6] hover:bg-[#2563EB] text-white shadow-xs"
+                  }`}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>{isApproved ? "Approved ✓" : "Approve & Record in Learning Loop"}</span>
+                </button>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-[11px] font-bold text-[#6B7280]">
+                    Approved Video Title ({editableTitle.length} chars)
+                  </label>
+                  <span className={`text-[10px] font-medium ${editableTitle.length > 50 ? "text-[#D97706]" : "text-[#059669]"}`}>
+                    {editableTitle.length > 50 ? "Truncated on mobile search" : "Mobile-safe length (< 50 chars)"}
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  value={editableTitle}
+                  onChange={(e) => {
+                    setEditableTitle(e.target.value);
+                    setIsApproved(false);
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-[#E2E5EB] rounded-xl text-xs text-[#111827] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-[#6B7280] block mb-1">
+                  Approved Description with Timestamps & Call to Action
+                </label>
+                <textarea
+                  rows={4}
+                  value={editableDesc}
+                  onChange={(e) => {
+                    setEditableDesc(e.target.value);
+                    setIsApproved(false);
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-[#E2E5EB] rounded-xl text-xs text-[#111827] focus:outline-none font-mono text-[11px]"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-[#6B7280] block mb-1">
+                  Approved Tags (comma-separated metadata aids)
+                </label>
+                <input
+                  type="text"
+                  value={editableTags}
+                  onChange={(e) => {
+                    setEditableTags(e.target.value);
+                    setIsApproved(false);
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-[#E2E5EB] rounded-xl text-xs text-[#111827] focus:outline-none"
+                />
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="text-[11px] font-bold text-[#6B7280] block mb-1">Select Asset to Publish</label>
@@ -892,6 +1148,8 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
               </div>
             )}
           </div>
+        </div>
+      )}
         </div>
       )}
 
