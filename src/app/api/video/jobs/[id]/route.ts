@@ -14,7 +14,7 @@ export async function GET(
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, job });
+    return NextResponse.json({ success: true, job, ...job });
   } catch (err: any) {
     return NextResponse.json(
       { error: err.message || "Failed to fetch job" },

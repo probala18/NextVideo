@@ -90,14 +90,17 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       try {
         const res = await fetch(`/api/video/jobs/${currentJob.id}`);
         if (res.ok) {
-          const updated: VideoProcessingJob = await res.json();
-          setCurrentJob(updated);
-          if (["completed", "failed", "cancelled"].includes(updated.status)) {
-            setIsPolling(false);
-            if (updated.status === "completed") {
-              onToast("Autonomous video analysis complete! Report ready.", "success");
-            } else if (updated.status === "failed") {
-              onToast(updated.errorMessage || "Processing failed.", "error");
+          const data = await res.json();
+          const updated: VideoProcessingJob = data.job || data;
+          if (updated && updated.status) {
+            setCurrentJob(updated);
+            if (["completed", "failed", "cancelled"].includes(updated.status)) {
+              setIsPolling(false);
+              if (updated.status === "completed") {
+                onToast("Autonomous video analysis complete! Report ready.", "success");
+              } else if (updated.status === "failed") {
+                onToast(updated.errorMessage || "Processing failed.", "error");
+              }
             }
           }
         }
@@ -143,7 +146,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
 
       const data = await res.json();
       setUploadProgress(100);
-      setCurrentJob(data.job);
+      setCurrentJob(data.job || data);
       setIsPolling(true);
       onToast("Video uploaded successfully. Autonomous pipeline started!", "success");
     } catch (err: any) {
@@ -228,7 +231,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
             </p>
           </div>
 
-          {currentJob && (
+          {currentJob && currentJob.status && (
             <div className="flex items-center gap-2">
               <span
                 className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase ${
@@ -239,7 +242,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
                     : "bg-[#EFF6FF] text-[#2563EB] animate-pulse"
                 }`}
               >
-                {currentJob.status.replace("_", " ")}
+                {(currentJob.status || "uploaded").replace("_", " ")}
               </span>
             </div>
           )}
