@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -104,12 +105,17 @@ export const ModelSettingsModal: React.FC<ModelSettingsModalProps> = ({
   onModelSaved,
   onToast,
 }) => {
+  const [mounted, setMounted] = useState(false);
   const [selectedModel, setSelectedModel] = useState("openai/gpt-4o-mini");
   const [customModelInput, setCustomModelInput] = useState("");
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [maskedKey, setMaskedKey] = useState<string | null>(null);
   const [isConfigured, setIsConfigured] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{
@@ -238,18 +244,24 @@ export const ModelSettingsModal: React.FC<ModelSettingsModalProps> = ({
     }
   };
 
-  if (!isOpen) return null;
+  if (!mounted) return null;
 
-  return (
+  return createPortal(
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96, y: 10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.96, y: 10 }}
-          transition={{ duration: 0.2 }}
-          className="relative w-full max-w-2xl bg-white rounded-[28px] border border-[#E5E7EB] shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col"
-        >
+      {isOpen && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+          {/* Backdrop click to dismiss */}
+          <div
+            className="fixed inset-0 -z-10"
+            onClick={onClose}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 10 }}
+            transition={{ duration: 0.2 }}
+            className="relative w-full max-w-2xl bg-white rounded-[28px] border border-[#E5E7EB] shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col z-10"
+          >
           {/* Header */}
           <div className="px-6 py-5 border-b border-[#F0F2F5] flex items-center justify-between flex-shrink-0 bg-white">
             <div className="flex items-center gap-3">
@@ -511,6 +523,8 @@ export const ModelSettingsModal: React.FC<ModelSettingsModalProps> = ({
           </div>
         </motion.div>
       </div>
-    </AnimatePresence>
+      )}
+    </AnimatePresence>,
+    document.body
   );
 };
