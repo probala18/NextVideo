@@ -3,6 +3,7 @@ import { collectNicheResearch } from "../research/collector";
 import { extractPatterns } from "../patterns/engine";
 import { computeOptimizationScores } from "../scoring/optimizer";
 import { saveOptimizationRecord, recordPerformanceSnapshot, getChannelHistory } from "../feedback/tracker";
+import { generatePackagingWithAI } from "../openrouter";
 
 describe("YouTube Pattern Recognition & Optimization Engine", () => {
   describe("Research Collector", () => {
@@ -150,4 +151,44 @@ describe("YouTube Pattern Recognition & Optimization Engine", () => {
       expect(history.some((h) => h.recordId === record.recordId)).toBe(true);
     });
   });
+
+  describe("AI Content Generation Agent", () => {
+    it("generates packaging (titles, description, thumbnail concepts) respecting constraints", async () => {
+      const packaging = await generatePackagingWithAI({
+        transcriptOrSummary: "In this tutorial we build an autonomous AI agent in Next.js that automates video editing and SEO optimization.",
+        niche: "AI & Tech",
+        targetAudience: "Developers & Creators",
+        winningFormulas: ["Curiosity Gap", "Ultimate Guide", "X vs Y"],
+        durationSeconds: 600,
+      });
+
+      expect(packaging).toBeDefined();
+      expect(packaging.titles.length).toBeGreaterThanOrEqual(3);
+      // All titles should be within reasonable YouTube boundaries (<= 85 chars)
+      for (const title of packaging.titles) {
+        expect(title.length).toBeGreaterThan(5);
+        expect(title.length).toBeLessThanOrEqual(85);
+      }
+
+      // Description should have value hook and sections
+      expect(packaging.description).toBeDefined();
+      expect(packaging.description.length).toBeGreaterThan(50);
+
+      // Thumbnail concepts
+      expect(packaging.thumbnailConcepts.length).toBeGreaterThanOrEqual(1);
+      for (const concept of packaging.thumbnailConcepts) {
+        expect(concept.textOverlay).toBeDefined();
+        // Text overlay should be punchy (<= 6 words)
+        const wordCount = concept.textOverlay.split(/\s+/).length;
+        expect(wordCount).toBeLessThanOrEqual(8);
+        expect(concept.visualLayout).toBeDefined();
+        expect(concept.focalPoint).toBeDefined();
+      }
+
+      // Tags
+      expect(packaging.tags.length).toBeGreaterThan(0);
+      expect(packaging.modelUsed).toBeDefined();
+    });
+  });
 });
+

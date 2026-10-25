@@ -576,7 +576,10 @@ export interface PackagingAIResult {
   hashtags: string[];
   thumbnailConcepts: Array<{
     headline: string;
+    textOverlay?: string;
     visualDescription: string;
+    visualLayout?: string;
+    focalPoint?: string;
     colorPalette: string;
     reason: string;
   }>;
@@ -590,9 +593,13 @@ export interface PackagingAIResult {
  * using the user's configured LLM provider and model with a specialized system prompt.
  */
 export async function generatePackagingWithAI(input: {
-  topic: string;
+  topic?: string;
+  transcriptOrSummary?: string;
   currentTitle?: string;
   transcriptText?: string;
+  niche?: string;
+  targetAudience?: string;
+  winningFormulas?: string[];
   durationSeconds?: number;
 }): Promise<PackagingAIResult> {
   const baseConfig = getLLMConfig();
@@ -605,7 +612,7 @@ export async function generatePackagingWithAI(input: {
   const isConfigured = provider === "custom" ? true : Boolean(apiKey && apiKey.length > 4);
 
   // Fallback defaults
-  const cleanTopic = (input.topic || input.currentTitle || "YouTube Video").trim();
+  const cleanTopic = (input.topic || input.currentTitle || input.transcriptOrSummary || "YouTube Video").trim();
   const fallbackResult: PackagingAIResult = {
     titles: [
       `How I Mastered ${cleanTopic} (Step-by-Step)`,
@@ -621,19 +628,28 @@ export async function generatePackagingWithAI(input: {
     thumbnailConcepts: [
       {
         headline: "FAST PATH",
+        textOverlay: "FAST PATH",
         visualDescription: `Side-by-side split screen showing confused creator vs clean ${cleanTopic} setup with green checkmark.`,
+        visualLayout: "Side-by-side split comparison",
+        focalPoint: "Green checkmark on clean setup",
         colorPalette: "Electric Blue (#2563EB) & Crisp White",
         reason: "Instant visual contrast showing the solution without repeating title text.",
       },
       {
         headline: "90% QUIT",
+        textOverlay: "90% QUIT",
         visualDescription: `High-contrast close up of creator pointing at dramatic metric spike or red highlight box.`,
+        visualLayout: "High-contrast close up",
+        focalPoint: "Dramatic metric spike and red highlight",
         colorPalette: "Crimson Red (#DC2626) on Deep Slate (#0F172A)",
         reason: "High curiosity trigger and emotional stakes that stand out on mobile feeds.",
       },
       {
         headline: "REAL RESULTS",
+        textOverlay: "REAL RESULTS",
         visualDescription: `Clean dashboard showing before/after results with bold glowing outcome indicator.`,
+        visualLayout: "Clean before/after dashboard",
+        focalPoint: "Glowing outcome indicator",
         colorPalette: "Emerald Green (#059669) & Amber Gold (#F59E0B)",
         reason: "Concrete proof-based packaging for audience seeking verified outcomes.",
       },
