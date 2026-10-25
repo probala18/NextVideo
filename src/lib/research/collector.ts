@@ -177,10 +177,11 @@ const BENCHMARK_VIDEOS: Omit<ResearchVideoItem, "collectedAt" | "daysSincePublis
 export async function collectNicheResearch(params: {
   nicheOrTopic: string;
   competitorChannelIds?: string[];
+  competitorUrls?: string[];
   maxVideos?: number;
   apiKey?: string;
 }): Promise<ResearchReport> {
-  const { nicheOrTopic, competitorChannelIds = [], maxVideos = 25 } = params;
+  const { nicheOrTopic, competitorChannelIds = [], competitorUrls = [], maxVideos = 25 } = params;
   const apiKey = (params.apiKey || process.env.YOUTUBE_API_KEY || "").trim();
 
   const collectedAt = new Date().toISOString();
