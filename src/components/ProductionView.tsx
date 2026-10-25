@@ -40,21 +40,24 @@ export const ProductionView: React.FC<ProductionViewProps> = ({
   const [studioMode, setStudioMode] = useState<"script" | "analysis">("script");
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [modelName, setModelName] = useState("openai/gpt-4o-mini");
-  const [source, setSource] = useState<"openrouter" | "template">("template");
+  const [source, setSource] = useState<string>("template");
+  const [providerName, setProviderName] = useState("AI Model");
 
   useEffect(() => {
     fetch("/api/video/status")
       .then((r) => r.json())
       .then((d) => {
         if (d.model) setModelName(d.model);
-        if (d.isConfigured) setSource("openrouter");
+        if (d.providerName) setProviderName(d.providerName);
+        if (d.isConfigured) setSource(d.provider || "ai");
       })
       .catch(() => { });
 
     const handleConfigUpdated = (e: any) => {
       if (e.detail?.model) {
         setModelName(e.detail.model);
-        if (e.detail.isConfigured) setSource("openrouter");
+        if (e.detail.provider) setProviderName(e.detail.provider);
+        if (e.detail.isConfigured) setSource(e.detail.provider || "ai");
       }
     };
 

@@ -25,7 +25,7 @@ interface VideoPlayerModalProps {
   onClose: () => void;
   pack: ProductionPack;
   modelName?: string;
-  source?: "openrouter" | "template";
+  source?: string;
 }
 
 export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({

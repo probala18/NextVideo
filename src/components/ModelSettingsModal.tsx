@@ -16,81 +16,13 @@ import {
   Sliders,
   Check,
   ShieldCheck,
+  Globe,
+  Server,
+  Layers,
+  Eye,
+  EyeOff
 } from "lucide-react";
-
-export interface ModelOption {
-  id: string;
-  name: string;
-  provider: string;
-  badge?: string;
-  badgeColor?: string;
-  desc: string;
-  contextWindow: string;
-  speed: "Ultra-fast" | "Fast" | "Standard";
-}
-
-export const PRESET_MODELS: ModelOption[] = [
-  {
-    id: "openai/gpt-4o-mini",
-    name: "GPT-4o Mini",
-    provider: "OpenAI",
-    badge: "Recommended",
-    badgeColor: "bg-blue-50 text-blue-700 border-blue-200",
-    desc: "Lightning fast, reliable structured JSON output, excellent for YouTube retention hooks and storyboard packs.",
-    contextWindow: "128k",
-    speed: "Ultra-fast",
-  },
-  {
-    id: "openai/gpt-4o",
-    name: "GPT-4o Flagship",
-    provider: "OpenAI",
-    badge: "Flagship",
-    badgeColor: "bg-purple-50 text-purple-700 border-purple-200",
-    desc: "Peak multimodal reasoning, deepest psychological viewer insight, and viral title ideation.",
-    contextWindow: "128k",
-    speed: "Fast",
-  },
-  {
-    id: "anthropic/claude-3.5-sonnet",
-    name: "Claude 3.5 Sonnet",
-    provider: "Anthropic",
-    badge: "Elite Scripting",
-    badgeColor: "bg-amber-50 text-amber-700 border-amber-200",
-    desc: "Unmatched natural human tone for teleprompter voiceover dialogue and cinematic scene progression.",
-    contextWindow: "200k",
-    speed: "Fast",
-  },
-  {
-    id: "google/gemini-2.0-flash-exp:free",
-    name: "Gemini 2.0 Flash (Free)",
-    provider: "Google",
-    badge: "Zero-Cost",
-    badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    desc: "Fast, zero-cost generation via OpenRouter Free tier. Perfect for endless iteration without credit usage.",
-    contextWindow: "1M+",
-    speed: "Ultra-fast",
-  },
-  {
-    id: "deepseek/deepseek-chat",
-    name: "DeepSeek V3",
-    provider: "DeepSeek",
-    badge: "Budget King",
-    badgeColor: "bg-cyan-50 text-cyan-700 border-cyan-200",
-    desc: "State-of-the-art cost-to-performance ratio with exceptional structured coding and educational explanations.",
-    contextWindow: "64k",
-    speed: "Fast",
-  },
-  {
-    id: "meta-llama/llama-3.1-70b-instruct",
-    name: "Llama 3.1 70B",
-    provider: "Meta",
-    badge: "Open Weights",
-    badgeColor: "bg-indigo-50 text-indigo-700 border-indigo-200",
-    desc: "High-caliber open-source intelligence with versatile formatting and nuanced perspective angles.",
-    contextWindow: "128k",
-    speed: "Fast",
-  },
-];
+import { LLM_PROVIDERS, LLMProviderId, ProviderDefinition, ModelPreset } from "@/lib/llmProviders";
 
 interface ModelSettingsModalProps {
   isOpen: boolean;
@@ -106,16 +38,15 @@ export const ModelSettingsModal: React.FC<ModelSettingsModalProps> = ({
   onToast,
 }) => {
   const [mounted, setMounted] = useState(false);
+  const [activeProviderId, setActiveProviderId] = useState<LLMProviderId>("openrouter");
   const [selectedModel, setSelectedModel] = useState("openai/gpt-4o-mini");
   const [customModelInput, setCustomModelInput] = useState("");
   const [isCustomMode, setIsCustomMode] = useState(false);
+  const [baseUrlInput, setBaseUrlInput] = useState("");
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [maskedKey, setMaskedKey] = useState<string | null>(null);
   const [isConfigured, setIsConfigured] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const [showKeyText, setShowKeyText] = useState(false);
 
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{
@@ -126,22 +57,36 @@ export const ModelSettingsModal: React.FC<ModelSettingsModalProps> = ({
 
   const [isSaving, setIsSaving] = useState(false);
 
-  // Fetch current backend configuration
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Active provider definition
+  const currentProviderDef: ProviderDefinition =
+    LLM_PROVIDERS.find((p) => p.id === activeProviderId) || LLM_PROVIDERS[0];
+
+  // Fetch current backend configuration on modal open
   useEffect(() => {
     if (isOpen) {
       fetch("/api/video/status")
         .then((r) => r.json())
         .then((data) => {
+          if (data.provider) {
+            setActiveProviderId(data.provider);
+          }
           if (data.model) {
-            const isPreset = PRESET_MODELS.some((m) => m.id === data.model);
-            if (isPreset) {
-              setSelectedModel(data.model);
-              setIsCustomMode(false);
-            } else {
-              setSelectedModel(data.model);
+            setSelectedModel(data.model);
+            const providerDef = LLM_PROVIDERS.find((p) => p.id === data.provider) || LLM_PROVIDERS[0];
+            const isPreset = providerDef.presets.some((m) => m.id === data.model);
+            if (!isPreset) {
               setCustomModelInput(data.model);
               setIsCustomMode(true);
+            } else {
+              setIsCustomMode(false);
             }
+          }
+          if (data.baseUrl) {
+            setBaseUrlInput(data.baseUrl);
           }
           if (data.maskedKey) setMaskedKey(data.maskedKey);
           setIsConfigured(Boolean(data.isConfigured));
@@ -151,10 +96,20 @@ export const ModelSettingsModal: React.FC<ModelSettingsModalProps> = ({
     }
   }, [isOpen]);
 
+  // When switching provider tabs, set default model & baseUrl if not custom
+  const handleSelectProvider = (provId: LLMProviderId) => {
+    setActiveProviderId(provId);
+    const def = LLM_PROVIDERS.find((p) => p.id === provId) || LLM_PROVIDERS[0];
+    setSelectedModel(def.defaultModel);
+    setBaseUrlInput(def.defaultBaseUrl);
+    setIsCustomMode(false);
+    setTestResult(null);
+  };
+
   const activeModelId = isCustomMode ? customModelInput.trim() || selectedModel : selectedModel;
 
-  const handleSelectPreset = (id: string) => {
-    setSelectedModel(id);
+  const handleSelectPreset = (presetId: string) => {
+    setSelectedModel(presetId);
     setIsCustomMode(false);
     setTestResult(null);
   };
@@ -167,8 +122,10 @@ export const ModelSettingsModal: React.FC<ModelSettingsModalProps> = ({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          provider: activeProviderId,
           model: activeModelId,
           apiKey: apiKeyInput.trim() || undefined,
+          baseUrl: baseUrlInput.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -196,8 +153,15 @@ export const ModelSettingsModal: React.FC<ModelSettingsModalProps> = ({
 
     setIsSaving(true);
     try {
-      const payload: { model: string; apiKey?: string } = {
+      const payload: {
+        provider: LLMProviderId;
+        model: string;
+        apiKey?: string;
+        baseUrl?: string;
+      } = {
+        provider: activeProviderId,
         model: finalModel,
+        baseUrl: baseUrlInput.trim() || undefined,
       };
       if (apiKeyInput.trim()) {
         payload.apiKey = apiKeyInput.trim();
@@ -214,19 +178,21 @@ export const ModelSettingsModal: React.FC<ModelSettingsModalProps> = ({
         throw new Error(data.error || "Failed to save settings");
       }
 
-      // Persist in localStorage for quick client access
+      // Persist in localStorage
       try {
+        localStorage.setItem("nextvideo_llm_provider", activeProviderId);
         localStorage.setItem("nextvideo_active_model", finalModel);
         if (apiKeyInput.trim()) {
           localStorage.setItem("nextvideo_active_key", apiKeyInput.trim());
         }
       } catch {}
 
-      // Dispatch window event so StrategyView and other components can update immediately
+      // Broadcast event across views
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent("openrouter-config-updated", {
             detail: {
+              provider: activeProviderId,
               model: finalModel,
               isConfigured: data.isConfigured,
             },
@@ -235,7 +201,7 @@ export const ModelSettingsModal: React.FC<ModelSettingsModalProps> = ({
       }
 
       if (onModelSaved) onModelSaved(finalModel);
-      if (onToast) onToast(`AI Model updated to: ${finalModel}`, "success");
+      if (onToast) onToast(`AI Engine configured: ${currentProviderDef.name} (${finalModel})`, "success");
       onClose();
     } catch (err: any) {
       if (onToast) onToast(err.message || "Failed to save model settings", "error");
@@ -249,280 +215,342 @@ export const ModelSettingsModal: React.FC<ModelSettingsModalProps> = ({
   return createPortal(
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-          {/* Backdrop click to dismiss */}
-          <div
-            className="fixed inset-0 -z-10"
-            onClick={onClose}
-          />
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          {/* Backdrop */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: 10 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/60 backdrop-blur-md"
+          />
+
+          {/* Modal Card */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 10 }}
-            transition={{ duration: 0.2 }}
-            className="relative w-full max-w-2xl bg-white rounded-[28px] border border-[#E5E7EB] shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col z-10"
+            exit={{ opacity: 0, scale: 0.96, y: 12 }}
+            transition={{ type: "spring", stiffness: 380, damping: 28 }}
+            className="relative w-full max-w-3xl max-h-[92vh] flex flex-col bg-white rounded-[28px] border border-[#E2E5EB] shadow-2xl overflow-hidden z-10"
           >
-          {/* Header */}
-          <div className="px-6 py-5 border-b border-[#F0F2F5] flex items-center justify-between flex-shrink-0 bg-white">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-[#EFF6FF] border border-[#DBEAFE] flex items-center justify-center text-[#2563EB]">
-                <Sliders className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-[#111827] flex items-center gap-2">
-                  <span>AI Video Generation Settings</span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EFF6FF] text-[#2563EB] border border-[#BFDBFE]">
-                    OpenRouter
-                  </span>
-                </h2>
-                <p className="text-xs text-[#6B7280]">
-                  Configure your primary LLM model and credentials for video strategy & script generation
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-2 text-[#9CA3AF] hover:text-[#111827] hover:bg-[#F3F4F6] rounded-full transition cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Body Content */}
-          <div className="p-6 space-y-6 overflow-y-auto flex-1">
-            {/* OpenRouter API Key Section */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-[#111827] flex items-center gap-1.5">
-                  <Key className="w-3.5 h-3.5 text-[#3B82F6]" />
-                  <span>OpenRouter API Key</span>
-                </label>
-                <a
-                  href="https://openrouter.ai/keys"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[11px] font-semibold text-[#2563EB] hover:underline flex items-center gap-1"
-                >
-                  <span>Get API Key</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
-
-              <div className="relative">
-                <input
-                  type="password"
-                  placeholder={maskedKey ? `Current Key: ${maskedKey}` : "sk-or-v1-..."}
-                  value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-[#F9FAFB] border border-[#E2E5EB] focus:border-[#3B82F6] rounded-xl text-xs text-[#111827] placeholder-[#9CA3AF] focus:outline-none transition"
-                />
-              </div>
-
-              <div className="flex items-center justify-between text-[11px] text-[#6B7280] pt-0.5">
-                <span>
-                  {maskedKey ? (
-                    <span className="inline-flex items-center gap-1 text-[#059669] font-medium">
-                      <ShieldCheck className="w-3.5 h-3.5" />
-                      API Key configured ({maskedKey})
-                    </span>
-                  ) : (
-                    <span>Leave blank to use existing key from .env.local</span>
-                  )}
-                </span>
-                <span className="text-[10px] text-[#9CA3AF]">Saved securely in local studio config</span>
-              </div>
-            </div>
-
-            {/* Model Selection Options */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-[#111827] flex items-center gap-1.5">
-                  <Cpu className="w-3.5 h-3.5 text-[#3B82F6]" />
-                  <span>Choose Video Generation Model</span>
-                </label>
-                <span className="text-[11px] text-[#6B7280]">
-                  Active: <strong className="text-[#111827] font-mono">{activeModelId}</strong>
-                </span>
-              </div>
-
-              {/* Preset Models Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {PRESET_MODELS.map((m) => {
-                  const isSelected = !isCustomMode && selectedModel === m.id;
-                  return (
-                    <div
-                      key={m.id}
-                      onClick={() => handleSelectPreset(m.id)}
-                      className={`p-3.5 rounded-2xl border transition-all cursor-pointer relative text-left flex flex-col justify-between ${
-                        isSelected
-                          ? "bg-[#EFF6FF] border-[#3B82F6] shadow-xs ring-1 ring-[#3B82F6]"
-                          : "bg-white hover:bg-[#F9FAFB] border-[#E5E7EB]"
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between gap-1 mb-1">
-                          <span className="text-xs font-bold text-[#111827] flex items-center gap-1.5">
-                            {isSelected && (
-                              <div className="w-2 h-2 rounded-full bg-[#3B82F6]" />
-                            )}
-                            {m.name}
-                          </span>
-                          {m.badge && (
-                            <span
-                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${
-                                m.badgeColor || "bg-gray-100 text-gray-700"
-                              }`}
-                            >
-                              {m.badge}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-[#4B5563] line-clamp-2 leading-relaxed">
-                          {m.desc}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center justify-between text-[10px] text-[#6B7280] mt-2 pt-2 border-t border-[#F0F2F5]">
-                        <span className="font-mono">{m.provider}</span>
-                        <span className="flex items-center gap-1">
-                          <Zap className="w-2.5 h-2.5 text-amber-500" />
-                          {m.speed} · {m.contextWindow}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Custom Model ID Entry */}
-              <div
-                className={`p-4 rounded-2xl border transition-all ${
-                  isCustomMode
-                    ? "bg-[#EFF6FF] border-[#3B82F6] ring-1 ring-[#3B82F6]"
-                    : "bg-[#F9FAFB] border-[#E5E7EB]"
-                }`}
-              >
-                <div
-                  className="flex items-center justify-between cursor-pointer"
-                  onClick={() => setIsCustomMode(!isCustomMode)}
-                >
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      checked={isCustomMode}
-                      onChange={() => setIsCustomMode(true)}
-                      className="cursor-pointer text-[#3B82F6] focus:ring-[#3B82F6]"
-                    />
-                    <span className="text-xs font-bold text-[#111827]">
-                      Custom OpenRouter Model ID
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-[#6B7280]">
-                    Enter any valid model slug from openrouter.ai/models
-                  </span>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#F0F2F5] bg-gradient-to-r from-[#F8FAFC] to-white shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#2563EB]">
+                  <Cpu className="w-5 h-5" />
                 </div>
-
-                {isCustomMode && (
-                  <div className="mt-3 space-y-1.5">
-                    <input
-                      type="text"
-                      placeholder="e.g. anthropic/claude-3-haiku, mistralai/mistral-large-2407"
-                      value={customModelInput}
-                      onChange={(e) => {
-                        setCustomModelInput(e.target.value);
-                        setTestResult(null);
-                      }}
-                      className="w-full px-3.5 py-2 bg-white border border-[#CBD5E1] focus:border-[#3B82F6] rounded-xl text-xs text-[#111827] font-mono focus:outline-none"
-                    />
-                    <p className="text-[10px] text-[#6B7280]">
-                      Format: <code className="text-[#1D4ED8]">author/model-name</code>. Any model available on OpenRouter can be used for video production packs.
-                    </p>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold text-[#111827]">
+                      AI Model & LLM Provider Settings
+                    </h2>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                      Multi-Provider
+                    </span>
                   </div>
-                )}
-              </div>
-            </div>
-
-            {/* Test Connection Banner */}
-            <div className="p-3.5 bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="space-y-0.5">
-                <span className="text-xs font-bold text-[#1E293B] block">
-                  Validate Configuration
-                </span>
-                <p className="text-[11px] text-[#64748B]">
-                  Send a fast live ping to OpenRouter to ensure your key and model are active.
-                </p>
+                  <p className="text-xs text-[#6B7280]">
+                    Select any LLM provider (OpenRouter, OpenAI, Anthropic, Gemini, DeepSeek, Groq, or Local).
+                  </p>
+                </div>
               </div>
 
               <button
                 type="button"
-                onClick={handleTestConnection}
-                disabled={isTesting}
-                className="flex items-center justify-center gap-1.5 px-4 py-2 bg-white hover:bg-[#F1F5F9] text-[#1E293B] border border-[#CBD5E1] rounded-full text-xs font-semibold shadow-xs transition disabled:opacity-50 cursor-pointer flex-shrink-0"
+                onClick={onClose}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition cursor-pointer"
               >
-                <RotateCw className={`w-3.5 h-3.5 ${isTesting ? "animate-spin" : ""}`} />
-                <span>{isTesting ? "Testing Ping..." : "Test Model"}</span>
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Test Result Message */}
-            {testResult && (
-              <motion.div
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`p-3 rounded-2xl text-xs flex items-start gap-2 border ${
-                  testResult.success
-                    ? "bg-[#ECFDF5] border-[#A7F3D0] text-[#065F46]"
-                    : "bg-[#FEF2F2] border-[#FECACA] text-[#991B1B]"
-                }`}
-              >
-                {testResult.success ? (
-                  <CheckCircle2 className="w-4 h-4 text-[#059669] flex-shrink-0 mt-0.5" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 text-[#DC2626] flex-shrink-0 mt-0.5" />
-                )}
-                <div>
-                  <span className="font-bold">
-                    {testResult.success ? "Model Ready for Generation!" : "Test Failed:"}
+            {/* Provider Selector Tabs */}
+            <div className="px-6 pt-3 pb-2 border-b border-[#F0F2F5] bg-[#FAFAFA] overflow-x-auto shrink-0">
+              <div className="flex items-center gap-1.5 min-w-max">
+                {LLM_PROVIDERS.map((prov) => {
+                  const isActive = prov.id === activeProviderId;
+                  return (
+                    <button
+                      key={prov.id}
+                      type="button"
+                      onClick={() => handleSelectProvider(prov.id)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer ${
+                        isActive
+                          ? "bg-[#2563EB] text-white shadow-xs font-bold"
+                          : "bg-white text-[#4B5563] hover:text-[#111827] hover:bg-gray-100 border border-[#E5E7EB]"
+                      }`}
+                    >
+                      <span>{prov.name}</span>
+                      {prov.badge && (
+                        <span
+                          className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ${
+                            isActive
+                              ? "bg-white/20 text-white"
+                              : "bg-gray-100 text-gray-600"
+                          }`}
+                        >
+                          {prov.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              {/* Active Provider Tagline */}
+              <div className="flex items-center justify-between p-3.5 bg-blue-50/60 border border-blue-100 rounded-2xl text-xs text-blue-900">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span>
+                    <strong>{currentProviderDef.name}:</strong> {currentProviderDef.tagline}.
                   </span>
-                  <p className="text-[11px] mt-0.5">{testResult.message}</p>
                 </div>
-              </motion.div>
-            )}
-          </div>
+                <a
+                  href={currentProviderDef.keyHelperUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-bold text-blue-600 hover:underline flex items-center gap-1 shrink-0"
+                >
+                  <span>{currentProviderDef.keyHelperLabel}</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
 
-          {/* Footer Controls */}
-          <div className="px-6 py-4 bg-[#F9FAFB] border-t border-[#F0F2F5] flex items-center justify-between flex-shrink-0">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-[#64748B] hover:text-[#111827] rounded-full hover:bg-[#E2E8F0] transition cursor-pointer"
-            >
-              Cancel
-            </button>
+              {/* Model Presets Grid */}
+              <div>
+                <div className="flex items-center justify-between mb-2.5">
+                  <label className="text-xs font-bold text-[#374151] uppercase tracking-wider">
+                    Curated Models for {currentProviderDef.name}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomMode(!isCustomMode);
+                      if (!isCustomMode) {
+                        setCustomModelInput(selectedModel);
+                      }
+                    }}
+                    className="text-xs text-[#2563EB] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Sliders className="w-3 h-3" />
+                    <span>{isCustomMode ? "Choose from presets" : "Enter custom model ID"}</span>
+                  </button>
+                </div>
 
-            <button
-              type="button"
-              onClick={handleSaveSettings}
-              disabled={isSaving}
-              className="flex items-center gap-2 px-6 py-2.5 bg-[#3B82F6] hover:bg-[#2563EB] text-white rounded-full text-xs font-bold shadow-xs transition cursor-pointer disabled:opacity-50"
-            >
-              {isSaving ? (
-                <>
-                  <RotateCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>Applying...</span>
-                </>
-              ) : (
-                <>
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Save &amp; Apply Model</span>
-                </>
+                {!isCustomMode ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {currentProviderDef.presets.map((preset: ModelPreset) => {
+                      const isSelected = selectedModel === preset.id;
+                      return (
+                        <div
+                          key={preset.id}
+                          onClick={() => handleSelectPreset(preset.id)}
+                          className={`p-3.5 rounded-2xl border transition text-left cursor-pointer relative ${
+                            isSelected
+                              ? "bg-blue-50/40 border-[#2563EB] shadow-xs"
+                              : "bg-white border-[#E5E7EB] hover:border-gray-300 hover:bg-gray-50/50"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="font-bold text-xs text-[#111827] flex items-center gap-1.5">
+                                <span>{preset.name}</span>
+                                {preset.badge && (
+                                  <span
+                                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
+                                      preset.badgeColor || "bg-gray-100 text-gray-700 border-gray-200"
+                                    }`}
+                                  >
+                                    {preset.badge}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-[#6B7280] mt-1 leading-relaxed">
+                                {preset.desc}
+                              </p>
+                            </div>
+                            <div className="shrink-0">
+                              {isSelected ? (
+                                <div className="w-4 h-4 rounded-full bg-[#2563EB] text-white flex items-center justify-center">
+                                  <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                </div>
+                              ) : (
+                                <div className="w-4 h-4 rounded-full border border-gray-300" />
+                              )}
+                            </div>
+                          </div>
+                          <div className="mt-2.5 flex items-center gap-2 text-[10px] text-[#6B7280]">
+                            <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded-md font-medium">
+                              ctx: {preset.contextWindow}
+                            </span>
+                            <span className="flex items-center gap-0.5 text-emerald-600 font-medium">
+                              <Zap className="w-3 h-3" />
+                              {preset.speed}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-2">
+                    <label className="text-xs font-bold text-[#111827] block">
+                      Custom Model Identifier
+                    </label>
+                    <input
+                      type="text"
+                      value={customModelInput}
+                      onChange={(e) => setCustomModelInput(e.target.value)}
+                      placeholder={`e.g. ${currentProviderDef.defaultModel}`}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white text-xs font-mono text-[#111827] focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                    <p className="text-[11px] text-[#6B7280]">
+                      Specify any model string supported by {currentProviderDef.name}.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Custom Base URL (if custom or user proxy) */}
+              {(currentProviderDef.isBaseUrlEditable || activeProviderId === "custom") && (
+                <div className="space-y-1.5 p-3.5 bg-gray-50 rounded-2xl border border-gray-200">
+                  <label className="text-xs font-bold text-[#111827] flex items-center gap-1.5">
+                    <Server className="w-3.5 h-3.5 text-gray-500" />
+                    <span>API Base URL</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={baseUrlInput}
+                    onChange={(e) => setBaseUrlInput(e.target.value)}
+                    placeholder={currentProviderDef.defaultBaseUrl}
+                    className="w-full px-3.5 py-2 rounded-xl border border-gray-300 bg-white text-xs font-mono text-[#111827] focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                  <p className="text-[11px] text-[#6B7280]">
+                    Default: {currentProviderDef.defaultBaseUrl} (e.g. for Ollama use http://localhost:11434/v1).
+                  </p>
+                </div>
               )}
-            </button>
-          </div>
-        </motion.div>
-      </div>
+
+              {/* API Key Section */}
+              <div className="p-4 bg-gray-50/70 rounded-2xl border border-gray-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-[#111827] flex items-center gap-1.5">
+                    <Key className="w-3.5 h-3.5 text-gray-500" />
+                    <span>{currentProviderDef.name} API Key</span>
+                  </label>
+                  {maskedKey && (
+                    <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-mono flex items-center gap-1 border border-emerald-200">
+                      <ShieldCheck className="w-3 h-3" />
+                      Active Key: {maskedKey}
+                    </span>
+                  )}
+                </div>
+
+                <div className="relative">
+                  <input
+                    type={showKeyText ? "text" : "password"}
+                    value={apiKeyInput}
+                    onChange={(e) => setApiKeyInput(e.target.value)}
+                    placeholder={maskedKey ? "Leave blank to keep existing key, or enter new key..." : currentProviderDef.keyPlaceholder}
+                    className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-gray-300 bg-white text-xs font-mono text-[#111827] focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKeyText(!showKeyText)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                  >
+                    {showKeyText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 text-[11px]">
+                  <a
+                    href={currentProviderDef.keyHelperUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[#2563EB] hover:underline font-semibold flex items-center gap-1"
+                  >
+                    <span>{currentProviderDef.keyHelperLabel}</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={handleTestConnection}
+                    disabled={isTesting}
+                    className="px-3 py-1.5 bg-white border border-gray-300 hover:bg-gray-100 rounded-lg text-xs font-semibold text-gray-700 transition flex items-center gap-1.5 cursor-pointer self-start sm:self-auto shadow-xs"
+                  >
+                    <RotateCw className={`w-3.5 h-3.5 ${isTesting ? "animate-spin text-blue-600" : ""}`} />
+                    <span>{isTesting ? "Testing endpoint..." : "Test Connection"}</span>
+                  </button>
+                </div>
+
+                {/* Test Result Toast */}
+                {testResult && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                      testResult.success
+                        ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                        : "bg-red-50 text-red-800 border border-red-200"
+                    }`}
+                  >
+                    {testResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                    )}
+                    <span className="flex-1 font-medium">{testResult.message}</span>
+                    {testResult.latencyMs !== undefined && (
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-white/60 shrink-0">
+                        {testResult.latencyMs}ms
+                      </span>
+                    )}
+                  </motion.div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="flex items-center justify-between px-6 py-4 bg-[#F8FAFC] border-t border-[#F0F2F5] shrink-0">
+              <div className="text-xs text-[#6B7280]">
+                Active Engine: <strong className="text-[#111827]">{currentProviderDef.name} ({activeModelId})</strong>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 rounded-full text-xs font-semibold text-gray-700 hover:bg-gray-200 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveSettings}
+                  disabled={isSaving}
+                  className="px-5 py-2 rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-sm hover:shadow-md disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <>
+                      <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      <span>Save & Apply Settings</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
       )}
     </AnimatePresence>,
     document.body

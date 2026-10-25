@@ -43,8 +43,9 @@ export const StrategyView: React.FC<StrategyViewProps> = ({
   const [activeTab, setActiveTab] = useState<"blueprint" | "script" | "scenes" | "metadata">("blueprint");
   const [copied, setCopied] = useState(false);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
-  const [aiSource, setAiSource] = useState<"openrouter" | "template">("template");
+  const [aiSource, setAiSource] = useState<string>("template");
   const [aiModel, setAiModel] = useState("openai/gpt-4o-mini");
+  const [providerName, setProviderName] = useState("AI Model");
   const [isOpenRouterActive, setIsOpenRouterActive] = useState(false);
 
   useEffect(() => {
@@ -52,9 +53,10 @@ export const StrategyView: React.FC<StrategyViewProps> = ({
       .then((r) => r.json())
       .then((d) => {
         if (d.model) setAiModel(d.model);
+        if (d.providerName) setProviderName(d.providerName);
         if (d.isConfigured) {
           setIsOpenRouterActive(true);
-          setAiSource("openrouter");
+          setAiSource(d.provider || "ai");
         }
       })
       .catch(() => {});
@@ -62,9 +64,10 @@ export const StrategyView: React.FC<StrategyViewProps> = ({
     const handleConfigUpdated = (e: any) => {
       if (e.detail?.model) {
         setAiModel(e.detail.model);
+        if (e.detail.provider) setProviderName(e.detail.provider);
         if (e.detail.isConfigured !== undefined) {
           setIsOpenRouterActive(Boolean(e.detail.isConfigured));
-          if (e.detail.isConfigured) setAiSource("openrouter");
+          if (e.detail.isConfigured) setAiSource(e.detail.provider || "ai");
         }
       }
     };
@@ -393,7 +396,7 @@ Pinned Comment: ${p?.pinnedComment || "N/A"}
                       : "bg-amber-400"
                   }`}
                 />
-                <span>OpenRouter Model: <strong className="text-[#111827]">{aiModel}</strong></span>
+                <span>{providerName}: <strong className="text-[#111827]">{aiModel}</strong></span>
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-[#111827] tracking-tight">
