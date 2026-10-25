@@ -67,7 +67,7 @@ export const YouTubeOAuthModal: React.FC<YouTubeOAuthModalProps> = ({
 
       const authUrl = data.oauthUrl || data.authUrl;
       if (authUrl) {
-        onToast("Credentials saved! Redirecting to Google authorization...", "success");
+        onToast("Credentials saved! Opening Google authorization popup...", "success");
         onSuccess(authUrl);
       } else {
         onToast("Saved credentials successfully.", "success");

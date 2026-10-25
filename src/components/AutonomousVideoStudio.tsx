@@ -712,19 +712,31 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
               <span>{isUploading ? "Uploading..." : isPolling ? "Processing Workflow..." : "Start Autonomous Analysis →"}</span>
             </button>
 
-            {videoFile && (
-              <button
-                type="button"
-                onClick={() => {
-                  setVideoFile(null);
-                  setTranscriptFile(null);
-                  setRetentionFile(null);
-                }}
-                className="text-xs text-[#6B7280] hover:text-[#DC2626] cursor-pointer"
-              >
-                Clear Selected Files
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {currentJob && (
+                <button
+                  type="button"
+                  onClick={handleClearCurrentJob}
+                  className="px-3.5 py-1.5 rounded-full text-xs font-bold text-[#6B7280] hover:text-[#DC2626] bg-[#F3F4F6] hover:bg-[#FEE2E2] transition cursor-pointer"
+                >
+                  ✕ Upload Another Video
+                </button>
+              )}
+
+              {videoFile && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVideoFile(null);
+                    setTranscriptFile(null);
+                    setRetentionFile(null);
+                  }}
+                  className="text-xs text-[#6B7280] hover:text-[#DC2626] cursor-pointer"
+                >
+                  Clear Selected Files
+                </button>
+              )}
+            </div>
           </div>
         </form>
 
