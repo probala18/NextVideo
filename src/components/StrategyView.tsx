@@ -58,6 +58,21 @@ export const StrategyView: React.FC<StrategyViewProps> = ({
         }
       })
       .catch(() => {});
+
+    const handleConfigUpdated = (e: any) => {
+      if (e.detail?.model) {
+        setAiModel(e.detail.model);
+        if (e.detail.isConfigured !== undefined) {
+          setIsOpenRouterActive(Boolean(e.detail.isConfigured));
+          if (e.detail.isConfigured) setAiSource("openrouter");
+        }
+      }
+    };
+
+    window.addEventListener("openrouter-config-updated", handleConfigUpdated);
+    return () => {
+      window.removeEventListener("openrouter-config-updated", handleConfigUpdated);
+    };
   }, []);
 
   useEffect(() => {

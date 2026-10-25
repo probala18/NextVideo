@@ -48,6 +48,18 @@ export const ProductionView: React.FC<ProductionViewProps> = ({
         if (d.isConfigured) setSource("openrouter");
       })
       .catch(() => {});
+
+    const handleConfigUpdated = (e: any) => {
+      if (e.detail?.model) {
+        setModelName(e.detail.model);
+        if (e.detail.isConfigured) setSource("openrouter");
+      }
+    };
+
+    window.addEventListener("openrouter-config-updated", handleConfigUpdated);
+    return () => {
+      window.removeEventListener("openrouter-config-updated", handleConfigUpdated);
+    };
   }, []);
 
   const triggerGenerate = async (params: {

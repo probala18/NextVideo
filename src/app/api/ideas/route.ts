@@ -24,6 +24,8 @@ export async function POST(req: NextRequest) {
     format,
     stage,
     differentiator,
+    model: typeof body.model === "string" ? body.model.trim() : undefined,
+    apiKey: typeof body.apiKey === "string" ? body.apiKey.trim() : undefined,
   });
 
   return NextResponse.json({
