@@ -68,6 +68,9 @@ function createFallbackClient(): Client {
               rows = rows.filter((s) => String(s.observed_at).startsWith(String(args[1])));
             }
           }
+          if (trimmed.includes("COUNT(*)")) {
+            return { columns: ["count"], columnTypes: ["INTEGER"], rows: [{ count: rows.length }], rowsAffected: 0, lastInsertRowid: undefined };
+          }
           return { columns: [], columnTypes: [], rows, rowsAffected: 0, lastInsertRowid: undefined };
         }
 
@@ -89,7 +92,31 @@ function createFallbackClient(): Client {
 
         if (trimmed.includes("RPM_ASSUMPTIONS")) {
           let rows = [...store.rpm_assumptions];
-          if (args.length > 0) {
+          if (trimmed.includes("CATEGORY = ?") && args.length >= 4) {
+            rows = rows.filter(
+              (r) =>
+                r.category.toLowerCase() === String(args[0]).toLowerCase() &&
+                r.region.toUpperCase() === String(args[1]).toUpperCase() &&
+                r.format.toLowerCase() === String(args[2]).toLowerCase() &&
+                r.currency.toUpperCase() === String(args[3]).toUpperCase()
+            );
+          } else if (trimmed.includes("REGION = 'GLOBAL'") && args.length >= 2) {
+            rows = rows.filter(
+              (r) =>
+                r.category.toLowerCase() === String(args[0]).toLowerCase() &&
+                r.region.toUpperCase() === "GLOBAL" &&
+                r.format.toLowerCase() === String(args[1]).toLowerCase() &&
+                (args.length < 3 || r.currency.toUpperCase() === String(args[2]).toUpperCase())
+            );
+          } else if (trimmed.includes("CATEGORY = 'GENERAL'") && args.length >= 3) {
+            rows = rows.filter(
+              (r) =>
+                r.category.toLowerCase() === "general" &&
+                r.region.toUpperCase() === String(args[0]).toUpperCase() &&
+                r.format.toLowerCase() === String(args[1]).toLowerCase() &&
+                r.currency.toUpperCase() === String(args[2]).toUpperCase()
+            );
+          } else if (args.length > 0) {
             rows = rows.filter((r) => Object.values(r).includes(args[0]));
           }
           return { columns: [], columnTypes: [], rows, rowsAffected: 0, lastInsertRowid: undefined };
@@ -128,16 +155,23 @@ function createFallbackClient(): Client {
           return { columns: [], columnTypes: [], rows: [], rowsAffected: 1, lastInsertRowid: BigInt(Date.now()) };
         }
 
-        if (trimmed.includes("CHANNEL_VIEW_SNAPSHOTS") && Array.isArray(args) && args.length >= 2) {
+        if (trimmed.includes("CHANNEL_VIEW_SNAPSHOTS") && Array.isArray(args) && args.length >= 1) {
           const snapObj = {
             id: store.channel_view_snapshots.length + 1,
             channel_id: String(args[0]),
-            cumulative_views: Number(args[1] || 0),
+            cumulative_views: Number(args[1] !== undefined ? args[1] : 500000),
             observed_at: String(args[2] || new Date().toISOString()),
             source: String(args[3] || "youtube_api"),
             metadata: args[4] ? String(args[4]) : null,
           };
-          store.channel_view_snapshots.push(snapObj);
+          const existingIdx = store.channel_view_snapshots.findIndex(
+            (s) => s.channel_id === snapObj.channel_id && s.observed_at.slice(0, 10) === snapObj.observed_at.slice(0, 10)
+          );
+          if (existingIdx >= 0) {
+            store.channel_view_snapshots[existingIdx] = { ...store.channel_view_snapshots[existingIdx], ...snapObj, id: store.channel_view_snapshots[existingIdx].id };
+          } else {
+            store.channel_view_snapshots.push(snapObj);
+          }
           return { columns: [], columnTypes: [], rows: [], rowsAffected: 1, lastInsertRowid: BigInt(snapObj.id) };
         }
 
