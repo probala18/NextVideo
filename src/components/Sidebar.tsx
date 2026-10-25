@@ -42,7 +42,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: "audit", label: "Channel Audit", icon: ScanEye, badge: undefined },
     { id: "opportunities", label: "Opportunities", icon: Sparkles, badge: undefined },
     { id: "revenue", label: "Revenue Engine", icon: DollarSign, badge: "PRO" },
-    { id: "autonomous-video", label: "video agent", icon: Film, badge: "AGENT" },
+    { id: "autonomous-video", label: "Video Agent", icon: Film, badge: "AGENT" },
     { id: "production", label: "Production Studio", icon: Video, badge: "AI" },
     { id: "planner", label: "Content Planner", icon: FileEdit, badge: planCount > 0 ? `${planCount}` : undefined },
     { id: "diagnosis", label: "Performance Clinic", icon: Activity, badge: undefined },
