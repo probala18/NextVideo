@@ -1579,7 +1579,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
         onClose={() => setIsOAuthModalOpen(false)}
         onSuccess={(authUrl) => {
           setIsOAuthModalOpen(false);
-          window.location.href = authUrl;
+          openOAuthPopup(authUrl);
         }}
         onToast={onToast}
       />
