@@ -314,6 +314,10 @@ Produce 5 to 7 detailed scene breakdowns with exact teleprompter voiceover narra
           topic: input.topic,
           audience: input.audience,
           outcome: parsed.promise || input.goal || input.topic,
+          format: input.format || "Tutorial (6–12 min)",
+          duration: input.duration || (isShort ? "<60 seconds" : "6–8 minutes"),
+          tone: input.tone || "Friendly teacher",
+          language: "English",
         }).scenes;
 
     const pack: ProductionPack = {
@@ -326,6 +330,7 @@ Produce 5 to 7 detailed scene breakdowns with exact teleprompter voiceover narra
       language: "English",
       titleOptions: Array.isArray(parsed.titles) && parsed.titles.length > 0 ? parsed.titles : [input.topic],
       openingHook: parsed.hook || `Learn ${input.topic} effectively.`,
+      voiceoverScript: scenes.map((s) => `[${s.purpose}]: ${s.voiceover}`).join("\n\n"),
       scenes,
       description: parsed.description || `In this video, we explore ${input.topic}.`,
       hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags : ["#creatorlens", "#youtube"],
@@ -336,6 +341,8 @@ Produce 5 to 7 detailed scene breakdowns with exact teleprompter voiceover narra
         "Shoot 4K A-roll with focal length at eye level",
         "Add kinetic typography captions for key keywords",
       ],
+      source: "ai",
+      notice: `Generated with OpenRouter (${model})`,
     };
 
     const brief: VideoBrief = {
