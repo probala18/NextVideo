@@ -86,6 +86,37 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
   const [editableDesc, setEditableDesc] = useState("");
   const [editableTags, setEditableTags] = useState("");
   const [isApproved, setIsApproved] = useState(false);
+  const [isRegeneratingPackaging, setIsRegeneratingPackaging] = useState(false);
+  const [aiThumbnailConcepts, setAiThumbnailConcepts] = useState<any[]>([]);
+
+  const handleRegeneratePackagingWithAI = async () => {
+    setIsRegeneratingPackaging(true);
+    try {
+      const res = await fetch("/api/video/packaging", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: topicHint || "YouTube Video",
+          currentTitle: editableTitle,
+          transcriptText: currentJob?.report?.transcript?.text || "",
+          durationSeconds: currentJob?.report?.media?.durationSeconds || 600,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed to generate packaging");
+
+      if (data.suggestedTitle) setEditableTitle(data.suggestedTitle);
+      if (data.description) setEditableDesc(data.description);
+      if (data.tags) setEditableTags(data.tags.join(", "));
+      if (data.thumbnailConcepts) setAiThumbnailConcepts(data.thumbnailConcepts);
+      setIsApproved(false);
+      onToast(`Generated Title, Description & Thumbnails with ${data.notice || "Configured AI Model"}!`, "success");
+    } catch (err: any) {
+      onToast(err.message || "Packaging generation failed", "error");
+    } finally {
+      setIsRegeneratingPackaging(false);
+    }
+  };
 
   // Check YouTube OAuth connection status on mount
   useEffect(() => {

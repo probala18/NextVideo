@@ -41,6 +41,38 @@ export const ScorecardView: React.FC<ScorecardViewProps> = ({
 
   const [isLoading, setIsLoading] = useState(false);
   const [scorecard, setScorecard] = useState<any>(null);
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [generatedPackaging, setGeneratedPackaging] = useState<any>(null);
+
+  const handleGenerateWithAI = async () => {
+    setIsGeneratingAI(true);
+    try {
+      const res = await fetch("/api/video/packaging", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: niche.trim() || title.trim(),
+          currentTitle: title.trim(),
+          transcriptText: hook.trim(),
+          durationSeconds: Number(durationSecs) || 600,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || "Failed to generate packaging with configured model");
+      }
+
+      setGeneratedPackaging(json);
+      if (json.suggestedTitle) setTitle(json.suggestedTitle);
+      if (json.description) setDescription(json.description);
+      onToast(`Generated packaging using ${json.notice || "Configured Model"}!`, "success");
+    } catch (err: any) {
+      onToast(err.message || "Failed to generate packaging with AI", "error");
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
 
   const evaluateScores = async () => {
     if (!title.trim()) {
@@ -138,23 +170,116 @@ export const ScorecardView: React.FC<ScorecardViewProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center justify-between pt-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
           <div className="flex items-center gap-2 text-xs text-[#6B7280]">
             <Clock className="w-3.5 h-3.5" />
             <span>Target Duration: {Math.floor(durationSecs / 60)}m • Pacing Cleanup: -{deadAirPercent}%</span>
           </div>
 
-          <button
-            type="button"
-            onClick={evaluateScores}
-            disabled={isLoading}
-            className="px-6 py-2.5 bg-[#3B82F6] hover:bg-[#2563EB] disabled:bg-gray-300 text-white rounded-full text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-2"
-          >
-            <Zap className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
-            <span>{isLoading ? "Auditing Pattern Scores..." : "Audit Video Optimization Score →"}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleGenerateWithAI}
+              disabled={isGeneratingAI}
+              className="px-5 py-2.5 bg-[#EFF6FF] hover:bg-[#DBEAFE] text-[#2563EB] rounded-full text-xs font-bold transition cursor-pointer flex items-center gap-2 border border-[#BFDBFE]"
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${isGeneratingAI ? "animate-spin" : ""}`} />
+              <span>{isGeneratingAI ? "Generating with Configured Model..." : "✨ Generate with Configured Model"}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={evaluateScores}
+              disabled={isLoading}
+              className="px-6 py-2.5 bg-[#3B82F6] hover:bg-[#2563EB] disabled:bg-gray-300 text-white rounded-full text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-2"
+            >
+              <Zap className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
+              <span>{isLoading ? "Auditing Pattern Scores..." : "Audit Video Score →"}</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Generated AI Packaging Card */}
+      {generatedPackaging && (
+        <div className="bg-white rounded-[28px] border border-[#BFDBFE] p-6 shadow-xs space-y-5">
+          <div className="flex items-center justify-between border-b border-[#F0F2F5] pb-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#2563EB]" />
+              <h3 className="text-sm font-bold text-[#111827]">
+                AI-Generated Packaging ({generatedPackaging.model || "Configured Model"})
+              </h3>
+            </div>
+            <span className="text-[11px] font-bold text-[#2563EB] bg-[#EFF6FF] px-2.5 py-0.5 rounded-full">
+              {generatedPackaging.notice}
+            </span>
+          </div>
+
+          {/* Title Variations */}
+          <div className="space-y-2">
+            <span className="text-xs font-bold text-[#6B7280] uppercase tracking-wide block">
+              High-CTR Title Options (Click to select for audit)
+            </span>
+            <div className="grid grid-cols-1 gap-2">
+              {generatedPackaging.titles?.map((t: string, idx: number) => (
+                <div
+                  key={idx}
+                  onClick={() => {
+                    setTitle(t);
+                    onToast(`Selected title: "${t}"`, "info");
+                  }}
+                  className={`p-3 rounded-xl border text-xs font-medium cursor-pointer transition flex items-center justify-between gap-3 ${
+                    title === t
+                      ? "bg-[#EFF6FF] border-[#3B82F6] text-[#1E40AF]"
+                      : "bg-[#F9FAFB] hover:bg-[#F3F4F6] border-[#E5E7EB] text-[#1F2937]"
+                  }`}
+                >
+                  <span className="truncate">"{t}"</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] text-[#6B7280]">{t.length} chars</span>
+                    {title === t && (
+                      <span className="px-2 py-0.5 bg-[#3B82F6] text-white rounded-full text-[10px] font-bold">
+                        Active
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Thumbnail Concepts */}
+          {generatedPackaging.thumbnailConcepts?.length > 0 && (
+            <div className="space-y-2 pt-2">
+              <span className="text-xs font-bold text-[#6B7280] uppercase tracking-wide block">
+                Visual Thumbnail Concepts & Overlay Strategy
+              </span>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {generatedPackaging.thumbnailConcepts.map((th: any, idx: number) => (
+                  <div
+                    key={idx}
+                    className="p-4 bg-[#F9FAFB] rounded-2xl border border-[#E5E7EB] space-y-2 text-xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="px-2.5 py-0.5 bg-[#111827] text-white rounded-lg font-black text-xs tracking-wider">
+                        {th.headline}
+                      </span>
+                      <span className="text-[10px] text-[#6B7280]">Concept #{idx + 1}</span>
+                    </div>
+                    <p className="text-[#374151] font-medium leading-snug">
+                      {th.visualDescription}
+                    </p>
+                    <div className="pt-1 text-[11px] text-[#6B7280] space-y-1 border-t border-[#F0F2F5]">
+                      <div>Palette: <strong className="text-[#1F2937]">{th.colorPalette}</strong></div>
+                      <div>Strategy: {th.reason}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Scorecard Results */}
       {scorecard && (

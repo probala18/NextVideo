@@ -12,7 +12,7 @@ import { generateChapters } from "../skills/chapters";
 import { parseRetentionCsv, analyzeRetention } from "../skills/retention";
 import { rankOutliers } from "../skills/swipe";
 import { identifyShortCandidates, renderEditedVideo, extractKeyFrames } from "./processor";
-import { generateVideoWithAI } from "../openrouter";
+import { generateVideoWithAI, generatePackagingWithAI } from "../openrouter";
 import fs from "fs";
 
 export async function runAutonomousVideoWorkflow(params: {
@@ -62,26 +62,38 @@ export async function runAutonomousVideoWorkflow(params: {
 
   const titleAudit = checkTitle(currentTitle, currentThumb);
 
-  const alternativeTitles = [
-    `How I Learned ${topic} in 14 Days (Step-by-Step)`,
-    `The Only ${topic} Guide You Need in 2025`,
-    `Why 90% of ${topic} Beginners Fail at First`,
-  ];
+  // Generate Titles, Description, and Thumbnail Concepts using the configured AI model
+  const packagingAI = await generatePackagingWithAI({
+    topic,
+    currentTitle,
+    transcriptText: transcript.text,
+    durationSeconds: media.durationSeconds,
+  });
 
-  const thumbnailConcepts = [
-    {
-      headline: "FAST PATH",
-      visualDescription: "Split screen showing cluttered complex code vs 3-line clean implementation",
-      colorPalette: "Electric Blue (#2563EB) with high-contrast White typography",
-      reason: "Creates immediate visual curiosity without repeating title keywords",
-    },
-    {
-      headline: "90% QUIT",
-      visualDescription: "Frustrated creator looking at screen with red highlight bar on 0:15 timecode",
-      colorPalette: "Crimson Red (#EF4444) on Charcoal background",
-      reason: "Strong emotional stakes with concrete metric anchor",
-    },
-  ];
+  const alternativeTitles = packagingAI.titles.length > 0
+    ? packagingAI.titles
+    : [
+        `How I Learned ${topic} in 14 Days (Step-by-Step)`,
+        `The Only ${topic} Guide You Need in 2026`,
+        `Why 90% of ${topic} Beginners Fail at First`,
+      ];
+
+  const thumbnailConcepts = packagingAI.thumbnailConcepts.length > 0
+    ? packagingAI.thumbnailConcepts
+    : [
+        {
+          headline: "FAST PATH",
+          visualDescription: "Split screen showing cluttered complex code vs 3-line clean implementation",
+          colorPalette: "Electric Blue (#2563EB) with high-contrast White typography",
+          reason: "Creates immediate visual curiosity without repeating title keywords",
+        },
+        {
+          headline: "90% QUIT",
+          visualDescription: "Frustrated creator looking at screen with red highlight bar on 0:15 timecode",
+          colorPalette: "Crimson Red (#EF4444) on Charcoal background",
+          reason: "Strong emotional stakes with concrete metric anchor",
+        },
+      ];
 
   // 3. Edit Decision List (yt-edit)
   const edl = generateEdl(transcript.cues, 0.45);
@@ -121,23 +133,23 @@ export async function runAutonomousVideoWorkflow(params: {
     }
   }
 
-  // 8. SEO & Discovery (yt-seo)
+  // 8. SEO & Discovery (yt-seo + Configured LLM)
   const seo = {
     suggestedTitle: alternativeTitles[0],
-    description: [
-      `In this video, we break down ${topic} with a step-by-step framework to get real results.`,
-      "",
-      "TIMESTAMPS:",
-      chapters.formattedBlock || "0:00 Introduction\n0:30 Core Strategy\n2:00 Execution",
-      "",
-      `Learn how to streamline your workflow and avoid common beginner traps.`,
-    ].join("\n"),
-    tags: [topic.toLowerCase(), "tutorial", "guide", "workflow", "productivity"],
-    hashtags: [`#${topic.toLowerCase().replace(/[^a-z0-9]/g, "")}`, "#nextvideo", "#youtube"],
+    description: packagingAI.description.includes("0:00")
+      ? packagingAI.description
+      : [
+          packagingAI.description,
+          "",
+          "TIMESTAMPS:",
+          chapters.formattedBlock || "0:00 Introduction\n0:30 Core Strategy\n2:00 Execution",
+        ].join("\n"),
+    tags: packagingAI.tags,
+    hashtags: packagingAI.hashtags,
     searchQueryOpportunities: [
       `${topic.toLowerCase()} tutorial for beginners`,
       `how to learn ${topic.toLowerCase()} fast`,
-      `best ${topic.toLowerCase()} tips 2025`,
+      `best ${topic.toLowerCase()} tips 2026`,
     ],
   };
 

@@ -567,3 +567,221 @@ Produce 5 to 7 detailed scene breakdowns with exact teleprompter voiceover narra
     };
   }
 }
+
+export interface PackagingAIResult {
+  titles: string[];
+  suggestedTitle: string;
+  description: string;
+  tags: string[];
+  hashtags: string[];
+  thumbnailConcepts: Array<{
+    headline: string;
+    visualDescription: string;
+    colorPalette: string;
+    reason: string;
+  }>;
+  source: string;
+  model: string;
+  notice: string;
+}
+
+/**
+ * Generates high-CTR titles, full description with timestamps, tags, and visual thumbnail concepts
+ * using the user's configured LLM provider and model with a specialized system prompt.
+ */
+export async function generatePackagingWithAI(input: {
+  topic: string;
+  currentTitle?: string;
+  transcriptText?: string;
+  durationSeconds?: number;
+}): Promise<PackagingAIResult> {
+  const baseConfig = getLLMConfig();
+  const provider = baseConfig.provider;
+  const providerDef = LLM_PROVIDERS.find((p) => p.id === provider) || LLM_PROVIDERS[0];
+  const apiKey = baseConfig.apiKey;
+  const model = baseConfig.model;
+  const baseUrl = baseConfig.baseUrl || providerDef.defaultBaseUrl;
+
+  const isConfigured = provider === "custom" ? true : Boolean(apiKey && apiKey.length > 4);
+
+  // Fallback defaults
+  const cleanTopic = (input.topic || input.currentTitle || "YouTube Video").trim();
+  const fallbackResult: PackagingAIResult = {
+    titles: [
+      `How I Mastered ${cleanTopic} (Step-by-Step)`,
+      `The Only ${cleanTopic} Guide You Need in 2026`,
+      `Why 90% of Creators Fail at ${cleanTopic}`,
+      `I Tried ${cleanTopic} for 30 Days (Real Results)`,
+      `Stop Doing ${cleanTopic} the Hard Way`,
+    ],
+    suggestedTitle: `How I Mastered ${cleanTopic} (Step-by-Step)`,
+    description: `Complete walkthrough and practical insights on ${cleanTopic}.\n\n0:00 - Introduction & Hook\n0:30 - Core Pitfalls to Avoid\n2:15 - Practical Implementation\n5:00 - Key Takeaways & Results\n\n#${cleanTopic.replace(/[^a-z0-9]/gi, "").slice(0, 15)} #youtube #tutorial`,
+    tags: [cleanTopic.toLowerCase(), "tutorial", "guide", "walkthrough", "best practices", "how to"],
+    hashtags: [`#${cleanTopic.replace(/[^a-z0-9]/gi, "").slice(0, 15)}`, "#tutorial", "#youtube"],
+    thumbnailConcepts: [
+      {
+        headline: "FAST PATH",
+        visualDescription: `Side-by-side split screen showing confused creator vs clean ${cleanTopic} setup with green checkmark.`,
+        colorPalette: "Electric Blue (#2563EB) & Crisp White",
+        reason: "Instant visual contrast showing the solution without repeating title text.",
+      },
+      {
+        headline: "90% QUIT",
+        visualDescription: `High-contrast close up of creator pointing at dramatic metric spike or red highlight box.`,
+        colorPalette: "Crimson Red (#DC2626) on Deep Slate (#0F172A)",
+        reason: "High curiosity trigger and emotional stakes that stand out on mobile feeds.",
+      },
+      {
+        headline: "REAL RESULTS",
+        visualDescription: `Clean dashboard showing before/after results with bold glowing outcome indicator.`,
+        colorPalette: "Emerald Green (#059669) & Amber Gold (#F59E0B)",
+        reason: "Concrete proof-based packaging for audience seeking verified outcomes.",
+      },
+    ],
+    source: "template",
+    model,
+    notice: isConfigured ? "Using template fallback." : `Configure ${providerDef.name} API key in Settings for live AI packaging.`,
+  };
+
+  if (!isConfigured) {
+    return fallbackResult;
+  }
+
+  try {
+    const systemPrompt = `You are a world-class YouTube packaging engineer, algorithm growth strategist, and thumbnail art director.
+Your goal is to generate high-CTR titles, an SEO-optimized video description with chapter timestamps, search tags, and thumbnail concepts for a creator's video.
+
+STRICT PACKAGING RULES:
+1. TITLES:
+   - Generate 5 distinct, compelling title options.
+   - Use proven YouTube formulas: Curiosity Hook, Concrete Outcome, Direct Comparison, Beginner Guide.
+   - Every title MUST be under 60 characters so search results never truncate them.
+   - Front-load the most important keyword.
+   - Avoid cheap, misleading clickbait.
+
+2. DESCRIPTION:
+   - First 2 lines must hook the reader with the core value proposition.
+   - Include structured chapter timestamps (starting with 0:00).
+   - Include a clear call to action and relevant hashtags.
+
+3. THUMBNAILS:
+   - Provide 3 visual concepts.
+   - "headline": Short, punchy text overlay of 2 to 4 words MAX. CRITICAL: NEVER repeat words from the title!
+   - "visualDescription": Composition, focal point, facial reaction/expression, lighting, and visual contrast.
+   - "colorPalette": Specific high-contrast colors (e.g. Electric Blue #2563EB with Neon Yellow).
+   - "reason": Strategic explanation for small-screen mobile feed visibility.
+
+4. TAGS:
+   - 6 to 10 relevant search phrases.
+
+OUTPUT SCHEMA:
+Output ONLY a valid JSON object matching this schema:
+{
+  "titles": ["Title 1", "Title 2", "Title 3", "Title 4", "Title 5"],
+  "description": "Full description text with timestamps...",
+  "tags": ["keyword 1", "keyword 2", "keyword 3"],
+  "hashtags": ["#tag1", "#tag2", "#tag3"],
+  "thumbnailConcepts": [
+    {
+      "headline": "2-3 WORDS",
+      "visualDescription": "Visual composition and shot description",
+      "colorPalette": "Colors and hex codes",
+      "reason": "Strategic curiosity rationale"
+    }
+  ]
+}`;
+
+    const userPrompt = `Generate YouTube packaging for:
+Topic / Subject: "${cleanTopic}"
+Current Title Hint: "${input.currentTitle || cleanTopic}"
+Video Duration: ${input.durationSeconds ? `${Math.floor(input.durationSeconds / 60)} mins` : "Unknown"}
+Transcript Excerpt: "${(input.transcriptText || "").slice(0, 1500)}"`;
+
+    let rawContent = "";
+
+    if (provider === "anthropic") {
+      const res = await fetch(`${baseUrl.replace(/\/+$/, "")}/messages`, {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 2048,
+          system: systemPrompt,
+          messages: [{ role: "user", content: userPrompt }],
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Anthropic HTTP ${res.status}: ${err.slice(0, 120)}`);
+      }
+      const data = await res.json();
+      rawContent = data.content?.[0]?.text || "";
+    } else {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+      if (provider === "openrouter") {
+        headers["HTTP-Referer"] = "http://localhost:3000";
+        headers["X-Title"] = "NextVideo Creator Studio";
+      }
+
+      const res = await fetch(`${baseUrl.replace(/\/+$/, "")}/chat/completions`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          temperature: 0.7,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`${providerDef.name} HTTP ${res.status}: ${err.slice(0, 120)}`);
+      }
+      const data = await res.json();
+      rawContent = data.choices?.[0]?.message?.content || "";
+    }
+
+    const cleaned = rawContent
+      .replace(/^```json\s*/i, "")
+      .replace(/^```\s*/i, "")
+      .replace(/\s*```$/i, "")
+      .trim();
+
+    const parsed = JSON.parse(cleaned);
+
+    const titles: string[] = Array.isArray(parsed.titles) && parsed.titles.length > 0 ? parsed.titles : fallbackResult.titles;
+    const thumbnailConcepts = Array.isArray(parsed.thumbnailConcepts) && parsed.thumbnailConcepts.length > 0
+      ? parsed.thumbnailConcepts
+      : fallbackResult.thumbnailConcepts;
+
+    return {
+      titles,
+      suggestedTitle: titles[0] || fallbackResult.suggestedTitle,
+      description: typeof parsed.description === "string" ? parsed.description : fallbackResult.description,
+      tags: Array.isArray(parsed.tags) ? parsed.tags : fallbackResult.tags,
+      hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags : fallbackResult.hashtags,
+      thumbnailConcepts,
+      source: provider,
+      model,
+      notice: `Generated with ${providerDef.name} (${model})`,
+    };
+  } catch (err: any) {
+    console.error("Packaging AI generation fallback:", err.message);
+    return {
+      ...fallbackResult,
+      notice: `${providerDef.name} error (${err.message.slice(0, 80)}). Synthesized with verified packaging formulas.`,
+    };
+  }
+}
+
