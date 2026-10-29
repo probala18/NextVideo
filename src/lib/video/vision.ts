@@ -232,7 +232,7 @@ export async function analyzeVideoWithComputerVision(params: {
 
   // Check configured LLM capabilities
   const llmConfig = getLLMConfig();
-  const supportsVision = doesModelSupportVision(llmConfig.model);
+  const supportsVision = doesModelSupportVision(llmConfig.model) && llmConfig.provider !== "anthropic";
 
   const limitations: string[] = [];
   if (!supportsVision) {
@@ -244,21 +244,64 @@ export async function analyzeVideoWithComputerVision(params: {
     limitations.push("No video track detected; container appears to be audio-only.");
   }
 
+  let detectedSubjects: string[] = [];
+  let detectedEnvironments: string[] = [];
+  let onScreenTextCues: VisionAnalysisReport["onScreenTextCues"] = [];
+  if (supportsVision && llmConfig.isConfigured && llmConfig.apiKey) {
+    const framesWithImages = await Promise.all(deduplicatedFrames.map(async (frame) => {
+      const filename = path.basename(frame.framePath);
+      const imagePath = path.join(framesDir, filename);
+      if (!fs.existsSync(imagePath)) return null;
+      const data = await fs.promises.readFile(imagePath);
+      if (data.length > 4_000_000) return null;
+      return { frame, dataUrl: `data:image/jpeg;base64,${data.toString("base64")}` };
+    }));
+    const images = framesWithImages.filter(Boolean) as Array<{ frame: SampledFrame; dataUrl: string }>;
+    if (images.length) {
+      const provider = LLM_PROVIDERS.find((p: any) => p.id === llmConfig.provider) || LLM_PROVIDERS[0];
+      const content: any[] = [{ type: "text", text: "Analyze these timestamped frames from one video. Return JSON with frames [{timestampSeconds, description, subjects[], onScreenText[]}], overallSubjects[], environments[]. Only report visible evidence; use empty arrays when uncertain. Do not infer audio or unseen actions." }];
+      for (const { frame, dataUrl } of images) {
+        content.push({ type: "text", text: `Frame timestamp: ${frame.timestampSeconds}s` });
+        content.push({ type: "image_url", image_url: { url: dataUrl, detail: "high" } });
+      }
+      const response = await fetch(`${llmConfig.baseUrl.replace(/\/+$/, "")}/chat/completions`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${llmConfig.apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: llmConfig.model, temperature: 0, response_format: { type: "json_object" }, messages: [{ role: "user", content }] }),
+        signal: AbortSignal.timeout(45000),
+      });
+      if (!response.ok) throw new Error(`Configured vision model request failed (${response.status}).`);
+      const payload = await response.json();
+      const raw = payload.choices?.[0]?.message?.content;
+      if (typeof raw !== "string") throw new Error("Configured vision model returned no analysis.");
+      const parsed = JSON.parse(raw);
+      detectedSubjects = Array.isArray(parsed.overallSubjects) ? parsed.overallSubjects.filter((x: unknown) => typeof x === "string") : [];
+      detectedEnvironments = Array.isArray(parsed.environments) ? parsed.environments.filter((x: unknown) => typeof x === "string") : [];
+      const byTime = new Map((Array.isArray(parsed.frames) ? parsed.frames : []).map((f: any) => [Number(f.timestampSeconds), f]));
+      for (const image of images) {
+        const observation: any = byTime.get(image.frame.timestampSeconds);
+        if (!observation) continue;
+        image.frame.semanticDescription = typeof observation.description === "string" ? observation.description : undefined;
+        if (Array.isArray(observation.subjects)) detectedSubjects.push(...observation.subjects.filter((x: unknown) => typeof x === "string"));
+        if (Array.isArray(observation.onScreenText)) {
+          for (const text of observation.onScreenText.filter((x: unknown) => typeof x === "string")) onScreenTextCues.push({ timestampSeconds: image.frame.timestampSeconds, text, confidence: 0.7 });
+        }
+      }
+      deduplicatedFrames.forEach((f) => { f.dataUrl = undefined; });
+    }
+  } else if (supportsVision && !llmConfig.isConfigured) {
+    limitations.push("Vision-capable model is selected, but provider credentials are not configured; extracted frames were not analyzed.");
+  }
+
   return {
     sampledFrames: deduplicatedFrames,
-    detectedSubjects: [],
-    detectedEnvironments: [],
+    detectedSubjects: [...new Set(detectedSubjects)],
+    detectedEnvironments: [...new Set(detectedEnvironments)],
     visualPacing: media.durationSeconds > 600 ? "moderate" : "rapid",
-    onScreenTextCues: deduplicatedFrames.flatMap((f) =>
-      f.properties.detectedOnScreenText.map((t) => ({
-        timestampSeconds: f.timestampSeconds,
-        text: t,
-        confidence: 0.88,
-      }))
-    ),
+    onScreenTextCues,
     candidateThumbnailMoments,
     limitations,
-    confidenceScore: 0,
+    confidenceScore: detectedSubjects.length ? 65 : 0,
     modelUsed: llmConfig.model,
     supportsVision,
   };
