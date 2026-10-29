@@ -57,6 +57,10 @@ export interface VisionAnalysisReport {
 
 export interface VideoUnderstandingEvidence {
   actualTopic: string;
+  summary?: string;
+  isAdequatelyUnderstood?: boolean;
+  limitationNotice?: string;
+  detectedVisualSubjects?: string[];
   primaryValueProposition: string;
   narrativeClimaxSeconds: number;
   targetAudience: string;
@@ -85,7 +89,7 @@ export interface GeneratedThumbnail {
   aspectRatio: "16:9";
   format: "png" | "jpg";
   sizeBytes: number;
-  source: "vision_composite" | "ai_image_model";
+  source: "video_frame" | "frame_composition" | "vision_composite" | "ai_image_model";
   selected: boolean;
   promptUsed: string;
   colorPalette: string;
@@ -102,13 +106,26 @@ export interface PublishingEvidenceGrounding {
   confidence: number;
 }
 
+export interface TitleOption {
+  title: string;
+  formula: string;
+  characterCount: number;
+  isTruncated: boolean;
+  fitReason?: string;
+  evidenceSupport?: string;
+  scores?: {
+    contentRelevance: number;
+    specificity: number;
+    readability: number;
+    searchIntent: number;
+    comparablePatternSimilarity: number;
+    overallScore: number;
+  };
+  rankingExplanation?: string;
+}
+
 export interface FullPublishingPackage {
-  titles: Array<{
-    title: string;
-    formula: string;
-    characterCount: number;
-    isTruncated: boolean;
-  }>;
+  titles: TitleOption[];
   recommendedTitle: string;
   recommendedTitleReason: string;
   description: string;
@@ -129,4 +146,12 @@ export interface FullPublishingPackage {
   evidenceGrounding: PublishingEvidenceGrounding[];
   modelUsed: string;
   generatedAt: string;
+  summary?: string;
+  isAdequatelyUnderstood?: boolean;
+  limitationNotice?: string;
+  researchSummary?: {
+    isLiveApiData: boolean;
+    videosAnalyzedCount: number;
+    notice: string;
+  };
 }

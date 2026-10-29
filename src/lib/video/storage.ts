@@ -88,7 +88,7 @@ export async function saveUploadedVideo(
 
 export async function saveDerivedAsset(
   assetId: string,
-  subfolder: "cuts" | "shorts" | "frames" | "reports" | "transcripts",
+  subfolder: "cuts" | "shorts" | "frames" | "reports" | "transcripts" | "thumbnails",
   filename: string,
   data: Buffer | string
 ): Promise<{ filePath: string; fileUrl: string }> {

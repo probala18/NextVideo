@@ -32,7 +32,7 @@ export interface ResearchVideoItem {
   tags: string[];
   channelSubscribers?: number;
   multipleOfChannelMedian?: number;
-  source: "youtube_data_api_v3" | "curated_benchmark_dataset";
+  source: "youtube_data_api_v3" | "curated_benchmark_dataset" | "unavailable";
   collectedAt: string;
 }
 
@@ -51,8 +51,14 @@ export interface ResearchReport {
     longFormCount: number;
     topTags: { tag: string; count: number }[];
   };
+  recurringPatterns?: {
+    titleStructures: string[];
+    topFramings: string[];
+    outlierVideoIds: string[];
+  };
+  sourceVideoIds?: string[];
   isLiveApiData: boolean;
-  source: "youtube_data_api_v3" | "curated_benchmark_dataset";
+  source: "youtube_data_api_v3" | "curated_benchmark_dataset" | "unavailable";
   notes: string[];
 }
 
@@ -180,12 +186,21 @@ export async function collectNicheResearch(params: {
   competitorUrls?: string[];
   maxVideos?: number;
   apiKey?: string;
+  allowBenchmarkFallback?: boolean;
 }): Promise<ResearchReport> {
-  const { nicheOrTopic, competitorChannelIds = [], competitorUrls = [], maxVideos = 25 } = params;
+  const {
+    nicheOrTopic,
+    competitorChannelIds = [],
+    competitorUrls = [],
+    maxVideos = 25,
+    allowBenchmarkFallback = false,
+  } = params;
   const apiKey = (params.apiKey || process.env.YOUTUBE_API_KEY || "").trim();
 
   const collectedAt = new Date().toISOString();
-  const notes: string[] = [];
+  const notes: string[] = [
+    "Notice: Public view counts reflect historical audience interest and do not reveal YouTube's internal recommendation algorithms.",
+  ];
 
   let rawVideos: Array<{
     id: string;
@@ -273,27 +288,60 @@ export async function collectNicheResearch(params: {
                 tags: Array.isArray(s.tags) ? s.tags : [],
               });
             }
+
+            // 3. Retrieve channel statistics where feasible to obtain subscriber counts
+            const channelIds = Array.from(new Set(rawVideos.map((v) => v.channelId).filter(Boolean)));
+            if (channelIds.length > 0) {
+              try {
+                const chUrl = new URL("https://www.googleapis.com/youtube/v3/channels");
+                chUrl.searchParams.set("part", "statistics");
+                chUrl.searchParams.set("id", channelIds.slice(0, 50).join(","));
+                const chRes = await fetch(chUrl.toString(), {
+                  headers: { "X-Goog-Api-Key": apiKey },
+                  signal: AbortSignal.timeout(8000),
+                });
+                if (chRes.ok) {
+                  const chData = await chRes.json();
+                  const chMap = new Map<string, number>();
+                  for (const chItem of chData.items || []) {
+                    chMap.set(chItem.id, Number(chItem.statistics?.subscriberCount) || 0);
+                  }
+                  for (const v of rawVideos) {
+                    if (chMap.has(v.channelId)) {
+                      v.channelSubscribers = chMap.get(v.channelId);
+                    }
+                  }
+                }
+              } catch {
+                // Non-fatal if channel sub query times out
+              }
+            }
+
             isLiveApiData = rawVideos.length > 0;
-            notes.push(`Collected ${rawVideos.length} live videos from YouTube Data API for topic: "${nicheOrTopic}".`);
+            notes.push(`Collected ${rawVideos.length} live videos from YouTube Data API for subject: "${nicheOrTopic}".`);
           }
         }
       }
     } catch (err: any) {
-      notes.push(`YouTube API request notice (${err.message}). Using verified benchmark dataset for analysis.`);
+      notes.push(`YouTube API notice (${err.message}). Live research unavailable.`);
     }
   }
 
-  // Fallback to curated benchmark dataset if no live data was obtained
+  // Handle fallback or explicit unavailable reporting
   if (rawVideos.length === 0) {
-    notes.push("Operating in local benchmark dataset mode. Live API key not detected or quota limit reached.");
-    // Filter benchmark videos by topic relevance or include all
-    const lowerTopic = nicheOrTopic.toLowerCase();
-    const matches = BENCHMARK_VIDEOS.filter((v) =>
-      v.title.toLowerCase().includes(lowerTopic) ||
-      v.tags.some((t) => lowerTopic.includes(t.toLowerCase()))
-    );
-    const sourceData = matches.length >= 3 ? matches : BENCHMARK_VIDEOS;
-    rawVideos = sourceData.map((v) => ({ ...v }));
+    if (allowBenchmarkFallback) {
+      notes.push("Operating in benchmark dataset mode for offline testing/validation.");
+      const lowerTopic = nicheOrTopic.toLowerCase();
+      const matches = BENCHMARK_VIDEOS.filter((v) =>
+        v.title.toLowerCase().includes(lowerTopic) ||
+        v.tags.some((t) => lowerTopic.includes(t.toLowerCase()))
+      );
+      const sourceData = matches.length >= 3 ? matches : BENCHMARK_VIDEOS;
+      rawVideos = sourceData.map((v) => ({ ...v }));
+    } else {
+      notes.push("Live YouTube competitive research is unavailable: YOUTUBE_API_KEY is not configured or API quota was exhausted.");
+      notes.push("Asset recommendations are generated directly from video understanding without fabricated competitive metrics.");
+    }
   }
 
   // Calculate channel medians
@@ -338,13 +386,35 @@ export async function collectNicheResearch(params: {
       likeToViewRatio,
       commentToViewRatio,
       multipleOfChannelMedian: multiple,
-      source: isLiveApiData ? "youtube_data_api_v3" : "curated_benchmark_dataset",
+      source: isLiveApiData ? "youtube_data_api_v3" : (rawVideos.length > 0 ? "curated_benchmark_dataset" : "unavailable"),
       collectedAt,
     };
   });
 
   // Sort by multiple of median descending (top outliers first)
   videos.sort((a, b) => (b.multipleOfChannelMedian || 1) - (a.multipleOfChannelMedian || 1));
+
+  // Extract recurring structures and patterns
+  const titleStructureSet = new Set<string>();
+  const outlierVideoIds: string[] = [];
+  for (const v of videos) {
+    const lower = v.title.toLowerCase();
+    if (lower.startsWith("how to") || lower.includes("step by step")) {
+      titleStructureSet.add("How-To & Step-by-Step Walkthrough");
+    } else if (lower.includes("stop") || lower.includes("mistake") || lower.includes("don't") || lower.includes("avoid")) {
+      titleStructureSet.add("Mistake & Warning Framing");
+    } else if (lower.includes(" vs ") || lower.includes("comparison") || lower.includes("benchmark")) {
+      titleStructureSet.add("Direct Comparison & Benchmark");
+    } else if (lower.includes("why ") || lower.includes("truth about") || lower.includes("explained")) {
+      titleStructureSet.add("In-Depth Explanation & Curiosity");
+    } else if (/\b(in \d+ (?:mins?|minutes?|days?|hours?))\b/i.test(v.title)) {
+      titleStructureSet.add("Timeframe & Scope Specification");
+    }
+
+    if ((v.multipleOfChannelMedian || 1) >= 1.5) {
+      outlierVideoIds.push(v.id);
+    }
+  }
 
   // Summary statistics
   const allViews = videos.map((v) => v.viewCount).sort((a, b) => a - b);
@@ -374,8 +444,14 @@ export async function collectNicheResearch(params: {
       longFormCount: videos.filter((v) => v.format === "long-form").length,
       topTags,
     },
+    recurringPatterns: {
+      titleStructures: Array.from(titleStructureSet),
+      topFramings: Array.from(titleStructureSet).slice(0, 3),
+      outlierVideoIds,
+    },
+    sourceVideoIds: videos.map((v) => v.id),
     isLiveApiData,
-    source: isLiveApiData ? "youtube_data_api_v3" : "curated_benchmark_dataset",
+    source: isLiveApiData ? "youtube_data_api_v3" : (videos.length > 0 ? "curated_benchmark_dataset" : "unavailable"),
     notes,
   };
 }

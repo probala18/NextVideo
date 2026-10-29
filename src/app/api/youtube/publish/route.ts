@@ -32,9 +32,14 @@ export async function POST(req: NextRequest) {
     const {
       jobId,
       targetType = "original",
+      selectedAsset,
       privacyStatus,
+      privacy,
+      title,
       customTitle,
+      description,
       customDescription,
+      tags,
       customTags,
       selectedThumbnailId,
     } = body;
@@ -48,10 +53,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
+    const effectiveTargetType = selectedAsset || targetType || "original";
     let targetFilePath = job.localFilePath || "";
 
-    // If publishing edited cut
-    if (targetType === "edited") {
+    // If explicitly publishing edited cut
+    if (effectiveTargetType === "edited") {
       const cutPath = path.join(process.cwd(), "data", "uploads", job.assetId, "cuts", `edited_${job.assetId}.mp4`);
       if (fs.existsSync(cutPath)) {
         targetFilePath = cutPath;
@@ -65,23 +71,62 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Resolve thumbnail path if thumbnail chosen
-    let thumbnailPath: string | undefined = undefined;
-    const thumbnails = job.report?.publishingPackage?.thumbnails || [];
-    const matchedThumb = thumbnails.find((t) => t.id === selectedThumbnailId) || thumbnails[0];
-    if (matchedThumb?.imagePath && fs.existsSync(matchedThumb.imagePath)) {
-      thumbnailPath = matchedThumb.imagePath;
+    const finalTitle =
+      (title || customTitle || "").trim() ||
+      job.report?.publishingPackage?.recommendedTitle ||
+      job.report?.packaging?.alternativeTitles?.[0] ||
+      job.filename;
+
+    // Prevent duplicate publishing when a request is retried
+    if (isAlreadyPublished(job.id, finalTitle)) {
+      const history = getPublishHistory();
+      const existing = history.find((h) => h.jobId === job.id && h.status !== "failed");
+      return NextResponse.json({
+        success: true,
+        message: `This video has already been published to YouTube. Duplicate publication prevented.`,
+        record: existing,
+        videoUrl: existing?.youtubeUrl,
+        publishedUrl: existing?.youtubeUrl,
+        youtubeUrl: existing?.youtubeUrl,
+        videoId: existing?.youtubeVideoId,
+        isDuplicatePrevented: true,
+      });
     }
 
-    const finalTitle = customTitle || job.report?.packaging.alternativeTitles[0] || job.filename;
-    const finalDesc =
-      customDescription ||
-      job.report?.seo.description ||
-      `Uploaded with NextVideo Studio — Analyzed with YouTube Agent Skills`;
+    // Resolve thumbnail path strictly matching creator's selection (no silent substitution)
+    let thumbnailPath: string | undefined = undefined;
+    if (selectedThumbnailId) {
+      const thumbnails = [
+        ...(job.report?.publishingPackage?.thumbnails || []),
+        ...(job.derivedAssets?.generatedThumbnails || []),
+      ];
+      const matchedThumb = thumbnails.find((t) => t.id === selectedThumbnailId);
+      if (matchedThumb?.imagePath && fs.existsSync(matchedThumb.imagePath)) {
+        thumbnailPath = matchedThumb.imagePath;
+      } else {
+        const thumbDir = path.join(process.cwd(), "data", "uploads", job.assetId, "thumbnails");
+        if (fs.existsSync(thumbDir)) {
+          const files = fs.readdirSync(thumbDir);
+          const found = files.find((f) => f.includes(selectedThumbnailId));
+          if (found) {
+            thumbnailPath = path.join(thumbDir, found);
+          }
+        }
+      }
+    }
 
-    const finalTags = customTags
-      ? (Array.isArray(customTags) ? customTags : customTags.split(",").map((t: string) => t.trim()))
-      : job.report?.seo.tags || ["nextvideo"];
+    const finalDesc =
+      (description !== undefined ? description : customDescription) ||
+      job.report?.publishingPackage?.description ||
+      job.report?.seo?.description ||
+      `Uploaded with NextVideo Studio`;
+
+    const rawTags = tags !== undefined ? tags : customTags;
+    const finalTags = rawTags
+      ? (Array.isArray(rawTags) ? rawTags : String(rawTags).split(",").map((t: string) => t.trim()).filter(Boolean))
+      : job.report?.publishingPackage?.tags || job.report?.seo?.tags || ["nextvideo"];
+
+    const effectivePrivacy = privacyStatus || privacy || auth.privacyDefault || "private";
 
     const record = await publishVideoToYouTube({
       jobId: job.id,
@@ -90,7 +135,7 @@ export async function POST(req: NextRequest) {
       title: finalTitle,
       description: finalDesc,
       tags: finalTags,
-      privacyStatus: privacyStatus || auth.privacyDefault || "private",
+      privacyStatus: effectivePrivacy,
       thumbnailPath,
     });
 
@@ -98,6 +143,10 @@ export async function POST(req: NextRequest) {
       success: true,
       message: `Video successfully published to YouTube as ${record.privacyStatus}`,
       record,
+      videoUrl: record.youtubeUrl,
+      publishedUrl: record.youtubeUrl,
+      youtubeUrl: record.youtubeUrl,
+      videoId: record.youtubeVideoId,
     });
   } catch (err: any) {
     return NextResponse.json(

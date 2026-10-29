@@ -45,6 +45,21 @@ export async function POST(req: NextRequest) {
       retentionCsvPath = retSaved.filePath;
     }
 
+    // Save client-extracted video frame snapshots directly to frames subfolder
+    const frameKeys = ["frame_0", "frame_1", "frame_2"];
+    for (let i = 0; i < frameKeys.length; i++) {
+      const frameFile = formData.get(frameKeys[i]) as File | null;
+      if (frameFile) {
+        const frameBuf = Buffer.from(await frameFile.arrayBuffer());
+        await saveDerivedAsset(
+          stored.assetId,
+          "frames",
+          `frame_${i + 1}.jpg`,
+          frameBuf
+        );
+      }
+    }
+
     // Create durable processing job
     const job = createProcessingJob({
       assetId: stored.assetId,

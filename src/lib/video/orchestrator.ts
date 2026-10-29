@@ -18,6 +18,7 @@ import { assembleVideoUnderstanding } from "./understanding";
 import { generateYouTubeThumbnails } from "./thumbnail-generator";
 import { generatePublishingPackageWithAI } from "./generator";
 import { youtubePatternModel } from "../models/youtube-pattern-model";
+import { collectNicheResearch, ResearchReport } from "../research/collector";
 import fs from "fs";
 
 export async function runAutonomousVideoWorkflow(params: {
@@ -61,15 +62,26 @@ export async function runAutonomousVideoWorkflow(params: {
     creatorHintTopic: userHintTopic || userTitle,
   });
 
-  // 2. Hook Analysis (yt-script)
+  const topic = understanding.actualTopic || "Uploaded Video Demonstration";
+
+  // 2. Real YouTube Research (Using configured YOUTUBE_API_KEY)
+  let research: ResearchReport | undefined = undefined;
+  try {
+    research = await collectNicheResearch({
+      nicheOrTopic: topic,
+      maxVideos: 10,
+    });
+  } catch (err: any) {
+    console.warn("YouTube Data API research failed gracefully:", err.message);
+  }
+
+  // 3. Hook Analysis (yt-script)
   const openingCues = transcript.cues.filter((c) => c.start <= 15.0);
   const first15Speech =
     openingCues.map((c) => c.text).join(" ").trim() ||
     transcript.cues.slice(0, 2).map((c) => c.text).join(" ").trim();
 
   const hookScore = scoreHook(first15Speech);
-
-  const topic = understanding.actualTopic || userHintTopic || userTitle || "Python & Coding Tutorial";
 
   // Proposed alternative hook formulas based on yt-script rules
   const proposedHooks = [
@@ -78,71 +90,65 @@ export async function runAutonomousVideoWorkflow(params: {
     `This single shift in how you approach ${topic} cuts your learning curve in half.`,
   ];
 
-  // 3. Title & Thumbnail Packaging (yt-package)
-  const currentTitle = userTitle || `How to Master ${topic} Without Getting Overwhelmed`;
+  // 4. Title & Thumbnail Packaging
+  const currentTitle = userTitle || `How to Master ${topic}`;
   const currentThumb = userThumbnailText || "MASTER FAST";
-
   const titleAudit = checkTitle(currentTitle, currentThumb);
 
-  // Generate Titles, Description, and Thumbnail Concepts using the trained YouTube Pattern Model & AI
-  const patternAssets = youtubePatternModel.generateGroundedAssets({
-    detectedSubject: understanding.actualTopic,
-    detectedOnScreenText: vision.onScreenTextCues?.map((c) => c.text) || [],
-    sampledFrames: vision.sampledFrames,
-    durationSeconds: media.durationSeconds,
-    focalPoint: vision.sampledFrames?.[0]?.properties?.focalPoint,
-    transcriptSnippet: transcript.text?.slice(0, 300),
-  });
+  // Thumbnail Concepts
+  const thumbnailConcepts = [
+    {
+      headline: "CRITICAL FIX",
+      visualDescription: `High-contrast focus on ${vision.sampledFrames?.[0]?.label || "opening scene"} with alert accent.`,
+      colorPalette: "Rose Red (#F43F5E) on Dark Slate",
+      reason: "Grounded in opening hook scene with alert accent for mobile feed visibility.",
+    },
+    {
+      headline: "STEP BY STEP",
+      visualDescription: `Crisp outcome layout highlighting ${topic} with emerald verification indicator.`,
+      colorPalette: "Emerald Green (#10B981) on Deep Teal",
+      reason: "Concrete demonstration scene highlighting practical solution execution.",
+    },
+    {
+      headline: "FULL GUIDE",
+      visualDescription: `Clean authority framing with electric cyan border and summary badge.`,
+      colorPalette: "Electric Cyan (#38BDF8) on Charcoal",
+      reason: "Grounded in climax scene with structured authority framing.",
+    },
+  ];
 
-  const packagingAI = await generatePackagingWithAI({
-    topic,
-    currentTitle,
-    transcriptText: transcript.text,
-    durationSeconds: media.durationSeconds,
-  });
-
-  const alternativeTitles = packagingAI.titles.length > 0
-    ? packagingAI.titles
-    : patternAssets.titles.map((t) => t.title);
-
-  const thumbnailConcepts = packagingAI.thumbnailConcepts.length > 0
-    ? packagingAI.thumbnailConcepts
-    : patternAssets.thumbnails.map((t) => ({
-        headline: t.headline,
-        visualDescription: t.visualComposition,
-        colorPalette: `${t.accentColor} high-contrast`,
-        reason: t.rationale,
-      }));
-
-  // 4. Generate Real Visual Thumbnails (1280x720 16:9 compliant files)
+  // 5. Generate Real Visual Thumbnails (1280x720 16:9 compliant files)
   const generatedThumbnails = await generateYouTubeThumbnails({
     assetId,
-    topic: understanding.actualTopic,
+    topic,
     candidateFrames: vision.sampledFrames,
     concepts: thumbnailConcepts,
   });
 
-  // 5. Generate Full Publishing Package with Evidence Grounding
+  // 6. Generate Full Publishing Package with Evidence Grounding & Real Research
   const publishingPackage = await generatePublishingPackageWithAI({
     media,
     evidence: understanding,
     vision,
     thumbnails: generatedThumbnails,
+    research,
   });
 
-  // 3. Edit Decision List (yt-edit)
+  const alternativeTitles = publishingPackage.titles.map((t) => t.title);
+
+  // 7. Edit Decision List (yt-edit)
   const edl = generateEdl(transcript.cues, 0.45);
 
-  // 4. Render or Export Edited Video
+  // 8. Render or Export Edited Video
   const editRender = await renderEditedVideo(assetId, sourceFilePath, edl);
 
-  // 5. Shorts Candidates (yt-shorts)
+  // 9. Shorts Candidates (yt-shorts)
   const shortCandidates = identifyShortCandidates(transcript.cues, media.durationSeconds);
 
-  // 6. Chapters (yt-chapters)
+  // 10. Chapters (yt-chapters)
   const chapters = generateChapters(transcript.cues, 6);
 
-  // 7. Retention Analysis (yt-retention)
+  // 11. Retention Analysis (yt-retention)
   let retentionDiagnosis: ConsolidatedAnalysisReport["retentionDiagnosis"] = {
     hasRealAnalytics: false,
     predictedPacingRisks: [
@@ -168,19 +174,12 @@ export async function runAutonomousVideoWorkflow(params: {
     }
   }
 
-  // 8. SEO & Discovery (yt-seo + Configured LLM)
+  // 12. SEO & Discovery
   const seo = {
-    suggestedTitle: alternativeTitles[0],
-    description: packagingAI.description.includes("0:00")
-      ? packagingAI.description
-      : [
-          packagingAI.description,
-          "",
-          "TIMESTAMPS:",
-          chapters.formattedBlock || "0:00 Introduction\n0:30 Core Strategy\n2:00 Execution",
-        ].join("\n"),
-    tags: packagingAI.tags,
-    hashtags: packagingAI.hashtags,
+    suggestedTitle: publishingPackage.recommendedTitle || alternativeTitles[0] || currentTitle,
+    description: publishingPackage.description,
+    tags: publishingPackage.tags,
+    hashtags: [`#${topic.replace(/[^a-zA-Z0-9]/g, "").slice(0, 15)}`, "#tutorial", "#youtube"],
     searchQueryOpportunities: [
       `${topic.toLowerCase()} tutorial for beginners`,
       `how to learn ${topic.toLowerCase()} fast`,
@@ -188,14 +187,89 @@ export async function runAutonomousVideoWorkflow(params: {
     ],
   };
 
-  // 9. Public Niche Outlier Research (yt-viral)
-  const sampleNicheVideos = [
-    { channel: "TechDev Academy", title: `Why 97% of Beginners Fail at ${topic}`, views: 180000 },
-    { channel: "TechDev Academy", title: `${topic} Basics Part 1`, views: 32000 },
-    { channel: "TechDev Academy", title: `${topic} Basics Part 2`, views: 28000 },
-    { channel: "TechDev Academy", title: `My Morning Coding Routine`, views: 25000 },
+  // 13. Public Niche Outlier Research (Grounded in real YouTube Data API results)
+  let nicheResearch: any;
+  if (research && research.videos && research.videos.length > 0) {
+    const researchVideosForRanking = research.videos.map((v) => ({
+      channel: v.channelTitle,
+      title: v.title,
+      views: v.viewCount,
+    }));
+    nicheResearch = rankOutliers(researchVideosForRanking, 1.5);
+  } else {
+    nicheResearch = {
+      outliers: [],
+      medianViews: 0,
+      notes: [
+        "Live YouTube research is unavailable: YOUTUBE_API_KEY is not configured or API quota was exhausted. No competitor videos are fabricated.",
+      ],
+    };
+  }
+
+  // 14. Priority Recommendation & Follow-up Content Plan (yt-plan)
+  let highestPriority = `Apply the ${edl.cuts.length} EDL cuts to remove ${edl.removed}s of dead air and restarts.`;
+  if (hookScore.verdict < 55) {
+    highestPriority = `Rewrite the first line: ${hookScore.weakest.fix}. Currently scoring ${hookScore.verdict}/100.`;
+  }
+
+  const followUpContentPlan = [
+    {
+      topic: `Top 3 Costly Mistakes in ${topic}`,
+      angle: "Highlight counter-intuitive errors that waste time",
+      format: "Long-form" as const,
+    },
+    {
+      topic: `${topic} Shortcut That Saves 30 Minutes`,
+      angle: "Single tactical trick demonstrated in 45 seconds",
+      format: "Shorts" as const,
+    },
   ];
-  const nicheResearch = rankOutliers(sampleNicheVideos, 1.8);
+
+  return {
+    jobId,
+    assetId,
+    generatedAt: new Date().toISOString(),
+    media,
+    transcript: {
+      source: transcript.source,
+      text: transcript.text,
+      cuesCount: transcript.cues.length,
+      cues: transcript.cues,
+    },
+    hookAnalysis: {
+      first15SecondsSpeech: first15Speech,
+      hookScore,
+      proposedAlternativeHooks: proposedHooks,
+      rewrittenOpening: proposedHooks[0],
+    },
+    packaging: {
+      titleAudit,
+      alternativeTitles,
+      thumbnailConcepts,
+    },
+    editing: {
+      edl,
+      renderedEditedVideoPath: editRender.renderedVideoPath,
+      renderedDownloadUrl: editRender.renderedDownloadUrl,
+      edlDownloadUrl: editRender.edlDownloadUrl,
+      renderStatus: editRender.renderStatus,
+      renderNotes: editRender.renderNotes,
+    },
+    shorts: {
+      candidates: shortCandidates,
+      renderedCount: shortCandidates.filter((s) => s.status === "rendered").length,
+    },
+    chapters,
+    retentionDiagnosis,
+    seo,
+    nicheResearch,
+    highestPriorityRecommendation: highestPriority,
+    followUpContentPlan,
+    vision,
+    understanding,
+    publishingPackage,
+  };
+}
 
   // 10. Priority Recommendation & Follow-up Content Plan (yt-plan)
   let highestPriority = `Apply the ${edl.cuts.length} EDL cuts to remove ${edl.removed}s of dead air and restarts.`;

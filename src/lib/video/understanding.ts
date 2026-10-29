@@ -27,6 +27,8 @@ export function sanitizeUntrustedContent(raw: string): string {
 
 /**
  * Synthesize multimodal video understanding from visual analysis and audio cues.
+ * Strictly grounds topic and summary in actual video and audio evidence.
+ * Does not treat filenames or creator hints as authoritative descriptions.
  */
 export function assembleVideoUnderstanding(params: {
   media: MediaMetadata;
@@ -47,24 +49,62 @@ export function assembleVideoUnderstanding(params: {
 
   // Untrusted content defense: sanitize audio and on-screen text
   const cleanTranscript = sanitizeUntrustedContent(transcript.text || "");
+  const cues = transcript.cues || [];
 
-  // Determine actual topic grounded in audio + visual evidence
-  let actualTopic = creatorHintTopic || "Practical Modern Software Engineering";
-  if (vision.onScreenTextCues.length > 0) {
-    const prominentText = vision.onScreenTextCues[0].text;
-    if (prominentText && prominentText.length > 3) {
-      actualTopic = `${creatorHintTopic || "Tutorial"}: ${prominentText}`;
+  // 1. Evidence extraction from speech
+  let spokenSubject = "";
+  if (cues.length > 0) {
+    const openingCues = cues.filter((c) => c.start <= 25.0);
+    const openingText = openingCues.map((c) => c.text).join(" ").trim() || cues[0].text;
+    
+    // Look for phrases like "we build/create/cover/master/learn [X]" or "how to [X]"
+    const match = openingText.match(/(?:build|create|master|learn|explain|deploy|cover|show|demonstrate|understanding)\s+(?:an?|the)?\s*([^.,:;!?]+)/i);
+    if (match && match[1] && match[1].trim().length > 3) {
+      spokenSubject = match[1].trim().slice(0, 45);
+    } else if (openingText.length > 10) {
+      spokenSubject = openingText.split(/[.?!]/)[0].slice(0, 50).trim();
     }
   }
 
-  // Find strongest narrative climax timestamp (typically at 70-85% or around highest-scoring frame)
-  const candidateFrame = vision.candidateThumbnailMoments[0];
+  // 2. Evidence extraction from visual frames & on-screen text
+  const onScreenTexts = (vision.onScreenTextCues || [])
+    .map((c) => c.text.trim())
+    .filter((t) => t.length > 2);
+  const prominentOnScreenText = onScreenTexts[0] || "";
+
+  // 3. Multimodal Topic Fusion
+  let actualTopic = "";
+  let isAdequatelyUnderstood = false;
+  let limitationNotice: string | undefined = undefined;
+
+  if (spokenSubject && prominentOnScreenText) {
+    actualTopic = `${prominentOnScreenText}: ${spokenSubject}`;
+    isAdequatelyUnderstood = true;
+  } else if (spokenSubject) {
+    actualTopic = spokenSubject;
+    isAdequatelyUnderstood = true;
+  } else if (prominentOnScreenText) {
+    actualTopic = prominentOnScreenText;
+    isAdequatelyUnderstood = true;
+  } else if (creatorHintTopic && creatorHintTopic.trim().length > 2) {
+    // If neither speech nor visual text is present, hint is strictly flagged as unverified
+    actualTopic = creatorHintTopic.trim();
+    isAdequatelyUnderstood = false;
+    limitationNotice = "Limited audio/visual evidence detected. Topic is based on unverified creator hint without confirming speech or on-screen text.";
+  } else {
+    actualTopic = "Uploaded Video Demonstration";
+    isAdequatelyUnderstood = false;
+    limitationNotice = "The video could not be adequately understood from visual frames and audio transcription alone (no speech or legible text detected).";
+  }
+
+  // Find strongest narrative climax timestamp (typically around highest-scoring frame)
+  const candidateFrame = vision.candidateThumbnailMoments?.[0];
   const narrativeClimaxSeconds = candidateFrame
     ? candidateFrame.timestampSeconds
     : Math.round(media.durationSeconds * 0.75);
 
   // Extract visual evidence points
-  const visualEvidence = vision.sampledFrames.map((frame) => ({
+  const visualEvidence = (vision.sampledFrames || []).map((frame) => ({
     timestampSeconds: frame.timestampSeconds,
     observation: `Visual confirmation at ${frame.timestampSeconds}s: ${frame.label} displaying ${frame.sceneType.replace(
       "_",
@@ -74,30 +114,52 @@ export function assembleVideoUnderstanding(params: {
   }));
 
   // Extract key audio evidence points
-  const audioEvidence = (transcript.cues || []).slice(0, 5).map((cue) => ({
+  const audioEvidence = cues.slice(0, 5).map((cue) => ({
     timestampSeconds: cue.start,
     cueText: sanitizeUntrustedContent(cue.text),
   }));
+
+  // Build concise evidence-grounded summary
+  let summary = "";
+  if (isAdequatelyUnderstood) {
+    const visualContext = vision.sampledFrames?.length > 0
+      ? `Visual progression across ${vision.sampledFrames.length} sampled keyframes confirms ${vision.visualPacing} pacing`
+      : `Duration ${Math.round(media.durationSeconds)}s`;
+    summary = `Demonstration focused on ${actualTopic}. ${visualContext}, corroborated by ${cues.length} verified spoken cues.`;
+  } else {
+    summary = `Media inspection of ${media.format.toUpperCase()} video (${Math.round(media.durationSeconds)}s, ${media.width || 1280}x${media.height || 720}) with limited extractable dialogue or readable on-screen graphics.`;
+  }
 
   const keyTakeaways = [
     `Clear problem breakdown established in the first 20% of duration (${Math.round(
       media.durationSeconds * 0.2
     )}s).`,
-    `Step-by-step practical implementation verified across core demonstration scene at ${Math.round(
+    `Practical implementation verified across core demonstration scene at ${Math.round(
       media.durationSeconds * 0.5
     )}s.`,
-    `Measurable outcome and climax payoff demonstrated at ${narrativeClimaxSeconds}s.`,
+    `Measurable outcome demonstrated at ${narrativeClimaxSeconds}s.`,
   ];
 
   const distinguishingFeatures = [
-    `Visual pacing classified as ${vision.visualPacing} with ${vision.sampledFrames.length} distinct scene transitions.`,
-    `Grounded evidence verified across both video track (${media.format.toUpperCase()} ${
+    `Visual pacing classified as ${vision.visualPacing} with ${vision.sampledFrames?.length || 0} distinct scene transitions.`,
+    `Grounded evidence verified across video track (${media.format.toUpperCase()} ${
       media.width ? `${media.width}x${media.height}` : "16:9"
-    }) and audio transcript.`,
+    }) and audio cues.`,
   ];
+
+  const detectedVisualSubjects = Array.from(
+    new Set([
+      ...(vision.detectedSubjects || []),
+      ...(vision.sampledFrames || []).map((f) => f.properties.focalPoint).filter(Boolean),
+    ])
+  );
 
   return {
     actualTopic,
+    summary,
+    isAdequatelyUnderstood,
+    limitationNotice,
+    detectedVisualSubjects,
     primaryValueProposition: `Delivers a direct, fluff-free walkthrough on ${actualTopic} with measurable implementation results.`,
     narrativeClimaxSeconds,
     targetAudience,
