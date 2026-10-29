@@ -155,13 +155,25 @@ describe("YouTube Pattern Recognition & Optimization Engine", () => {
 
   describe("AI Content Generation Agent", () => {
     it("generates packaging (titles, description, thumbnail concepts) respecting constraints", async () => {
-      const packaging = await generatePackagingWithAI({
-        transcriptOrSummary: "In this tutorial we build an autonomous AI agent in Next.js that automates video editing and SEO optimization.",
-        niche: "AI & Tech",
-        targetAudience: "Developers & Creators",
-        winningFormulas: ["Curiosity Gap", "Ultimate Guide", "X vs Y"],
-        durationSeconds: 600,
-      });
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = (async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({
+        titles: ["Build a Next.js Video Agent", "How This Next.js Agent Works", "Automate Video Editing with Next.js", "Next.js Video SEO Workflow", "Create an AI Video Agent in Next.js"],
+        description: "A walkthrough of a Next.js AI agent for video editing and SEO, with the actual workflow and implementation shown.",
+        tags: ["Next.js", "AI video agent", "video editing automation"], hashtags: ["#NextJS", "#AIAgent"],
+        thumbnailConcepts: [{ headline: "VIDEO AGENT", visualDescription: "A frame from the demonstrated editor", colorPalette: "Blue and white", reason: "Represents the demonstrated workflow", focalPoint: "Editor" }],
+      }) } }] }), { status: 200, headers: { "Content-Type": "application/json" } })) as typeof fetch;
+      let packaging;
+      try {
+        packaging = await generatePackagingWithAI({
+          transcriptOrSummary: "In this tutorial we build an autonomous AI agent in Next.js that automates video editing and SEO optimization.",
+          niche: "AI & Tech",
+          targetAudience: "Developers & Creators",
+          winningFormulas: ["Curiosity Gap", "Ultimate Guide", "X vs Y"],
+          durationSeconds: 600,
+        });
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
 
       expect(packaging).toBeDefined();
       expect(packaging.titles.length).toBeGreaterThanOrEqual(3);
