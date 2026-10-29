@@ -1220,12 +1220,11 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       <YouTubeOAuthModal
         isOpen={isOAuthModalOpen}
         onClose={() => setIsOAuthModalOpen(false)}
-        onConnected={(channel) => {
-          setIsYoutubeConnected(true);
-          setChannelTitle(channel);
+        onSuccess={(authUrl) => {
           setIsOAuthModalOpen(false);
-          onToast(`Connected YouTube Channel: ${channel}!`, "success");
+          window.location.href = authUrl;
         }}
+        onToast={(msg, type) => onToast(msg, type)}
       />
     </div>
   );

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { publishVideoToYouTube, getStoredAuth, getPublishHistory } from "@/lib/youtube/publishing";
+import { publishVideoToYouTube, getStoredAuth, getPublishHistory, isAlreadyPublished } from "@/lib/youtube/publishing";
 import { getJobById } from "@/lib/video/jobs";
 import path from "path";
 import fs from "fs";
