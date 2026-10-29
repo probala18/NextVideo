@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import { getAssetPath } from "@/lib/video/storage";
+import { getAssetPath, getPersistedAsset } from "@/lib/video/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +20,12 @@ export async function GET(
 
     const fullPath = getAssetPath(assetId, subpath);
     if (!fullPath || !fs.existsSync(fullPath)) {
+      const persisted = await getPersistedAsset(assetId, subpath);
+      if (persisted?.stream) {
+        const ext = path.extname(subpath).toLowerCase();
+        const contentType = ext === ".mp4" ? "video/mp4" : ext === ".mov" ? "video/quicktime" : ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" : ext === ".png" ? "image/png" : ext === ".json" ? "application/json" : "application/octet-stream";
+        return new NextResponse(persisted.stream, { status: 200, headers: { "Content-Type": contentType, "Cache-Control": "private, no-store" } });
+      }
       return new NextResponse("Asset not found", { status: 404 });
     }
 

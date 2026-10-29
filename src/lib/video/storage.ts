@@ -45,6 +45,30 @@ export function ensureDirectory(dirPath: string): void {
   }
 }
 
+function blobPath(assetId: string, filename: string, folder?: string): string {
+  return ["nextvideo", assetId, folder, sanitizeFilename(filename)].filter(Boolean).join("/");
+}
+
+async function persistBlob(pathname: string, data: Buffer, contentType: string): Promise<void> {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    if (process.env.VERCEL) throw new Error("Persistent video storage is not configured. Add BLOB_READ_WRITE_TOKEN to the deployment environment.");
+    return;
+  }
+  const { put } = await import("@vercel/blob");
+  await put(pathname, data, { access: "private", addRandomSuffix: false, allowOverwrite: true, contentType });
+}
+
+export async function getPersistedAsset(assetId: string, subpath: string) {
+  if (!process.env.BLOB_READ_WRITE_TOKEN || !/^[a-zA-Z0-9_-]+$/.test(assetId)) return null;
+  const safePath = subpath.split(/[\\/]/).map(sanitizeFilename).join("/");
+  try {
+    const { get } = await import("@vercel/blob");
+    return await get(`nextvideo/${assetId}/${safePath}`, { access: "private" });
+  } catch {
+    return null;
+  }
+}
+
 export async function saveUploadedVideo(
   buffer: Buffer,
   originalFilename: string,
@@ -71,6 +95,7 @@ export async function saveUploadedVideo(
   const filePath = path.join(assetDir, sanitized);
 
   await fs.promises.writeFile(filePath, buffer);
+  await persistBlob(blobPath(assetId, sanitized), buffer, mimeType || "video/mp4");
 
   const fileUrl = `/api/video/assets/${assetId}/${encodeURIComponent(sanitized)}`;
 
@@ -100,8 +125,12 @@ export async function saveDerivedAsset(
 
   if (typeof data === "string") {
     await fs.promises.writeFile(filePath, data, "utf-8");
+    await persistBlob(blobPath(assetId, sanitized, subfolder), Buffer.from(data, "utf-8"), "text/plain; charset=utf-8");
   } else {
     await fs.promises.writeFile(filePath, data);
+    const extension = path.extname(sanitized).toLowerCase();
+    const contentType = extension === ".png" ? "image/png" : [".jpg", ".jpeg"].includes(extension) ? "image/jpeg" : "application/octet-stream";
+    await persistBlob(blobPath(assetId, sanitized, subfolder), data, contentType);
   }
 
   const fileUrl = `/api/video/assets/${assetId}/${subfolder}/${encodeURIComponent(sanitized)}`;
