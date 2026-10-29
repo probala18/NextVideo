@@ -69,6 +69,22 @@ export function isRealImageBuffer(buffer: Buffer): { isReal: boolean; format: "p
   return { isReal: false, format: "unknown" };
 }
 
+function readImageDimensions(buffer: Buffer, format: "png" | "jpg"): { width: number; height: number } | null {
+  if (format === "png" && buffer.length >= 24) return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+  if (format !== "jpg") return null;
+  let offset = 2;
+  while (offset + 9 < buffer.length) {
+    if (buffer[offset] !== 0xff) break;
+    const marker = buffer[offset + 1];
+    const length = buffer.readUInt16BE(offset + 2);
+    if ([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf].includes(marker)) {
+      return { height: buffer.readUInt16BE(offset + 5), width: buffer.readUInt16BE(offset + 7) };
+    }
+    offset += length + 2;
+  }
+  return null;
+}
+
 /**
  * Generate a genuine binary PNG image buffer (1280x720, 16:9) compliant with YouTube specifications.
  */
@@ -205,7 +221,8 @@ export async function generateYouTubeThumbnails(params: {
 
   // Never create a decorative placeholder and describe it as a video thumbnail.
   // A valid image file is not evidence of visual relevance.
-  if (!candidateFrames.some((frame) => frame.framePath)) return [];
+  const uniqueFrames = candidateFrames.filter((frame, index, all) => frame.framePath && all.findIndex((other) => other.timestampSeconds === frame.timestampSeconds) === index).slice(0, 3);
+  if (!uniqueFrames.length) return [];
 
   const targetDir = path.join(process.cwd(), "data", "uploads", assetId, "thumbnails");
   ensureDirectory(targetDir);
@@ -263,13 +280,9 @@ export async function generateYouTubeThumbnails(params: {
 
   const results: GeneratedThumbnail[] = [];
 
-  for (let i = 0; i < variationsConfig.length; i++) {
+  for (let i = 0; i < Math.min(variationsConfig.length, uniqueFrames.length); i++) {
     const cfg = variationsConfig[i];
-    const matchingFrame = candidateFrames.filter((frame) => frame.framePath)[i % candidateFrames.filter((frame) => frame.framePath).length];
-
-    let finalFormat: "png" | "jpg" = "png";
-    let imageBuffer: Buffer;
-    let actualSource: GeneratedThumbnail["source"] = "vision_composite";
+    const matchingFrame = uniqueFrames[i];
 
     // Check if an actual video frame file exists on disk
     let physicalFramePath: string | null = null;
@@ -294,43 +307,27 @@ export async function generateYouTubeThumbnails(params: {
     if (physicalFramePath && fs.existsSync(physicalFramePath)) {
       const frameBuf = await fs.promises.readFile(physicalFramePath);
       const check = isRealImageBuffer(frameBuf);
-      if (check.isReal) {
-        imageBuffer = frameBuf;
-        finalFormat = check.format === "jpg" ? "jpg" : "png";
-        actualSource = "video_frame";
-      } else {
-      continue;
+      if (check.isReal && check.format !== "unknown") {
+        const dimensions = readImageDimensions(frameBuf, check.format);
+        if (!dimensions || !validateYouTubeThumbnail(dimensions.width, dimensions.height, frameBuf.length, check.format).isValid) continue;
+        const actualDimensions = dimensions;
+        const finalFormat = check.format;
+        const filename = `thumbnail_v${i + 1}_${cfg.id}.${finalFormat}`;
+        const localPath = path.join(targetDir, filename);
+        await fs.promises.writeFile(localPath, frameBuf);
+        const stat = await fs.promises.stat(localPath);
+        const publicUrl = `/api/video/assets/${assetId}/thumbnails/${filename}`;
+        results.push({ id: cfg.id, variationName: cfg.variationName, headline: "", imagePath: localPath, imageUrl: publicUrl,
+          width: actualDimensions.width, height: actualDimensions.height, aspectRatio: "16:9", format: finalFormat,
+          sizeBytes: stat.size, source: "video_frame", selected: i === 0, promptUsed: "Original extracted video frame; no generated text or decoration.",
+          colorPalette: "Original frame colors", focalPoint: matchingFrame.semanticDescription || "Frame content not described",
+          rationale: `Frame extracted at ${matchingFrame.timestampSeconds}s.` });
+        continue;
       }
     } else {
       continue;
     }
 
-    const filename = `thumbnail_v${i + 1}_${cfg.id}.${finalFormat}`;
-    const localPath = path.join(targetDir, filename);
-    await fs.promises.writeFile(localPath, imageBuffer);
-
-    const stat = await fs.promises.stat(localPath);
-    const validation = validateYouTubeThumbnail(1280, 720, stat.size, finalFormat);
-    const publicUrl = `/api/video/assets/${assetId}/thumbnails/${filename}`;
-
-    results.push({
-      id: cfg.id,
-      variationName: cfg.variationName,
-      headline: cfg.headline,
-      imagePath: localPath,
-      imageUrl: publicUrl,
-      width: 1280,
-      height: 720,
-      aspectRatio: "16:9",
-      format: finalFormat,
-      sizeBytes: stat.size,
-      source: actualSource,
-      selected: i === 0, // First variation selected by default
-      promptUsed: `A compliant 1280x720 YouTube thumbnail graphic for "${cleanTopic}" with headline "${cfg.headline}", accent color ${cfg.accentHex}, grounded in video scene evidence.`,
-      colorPalette: `${cfg.accentHex} on dark background`,
-      focalPoint: cfg.focalPoint,
-      rationale: cfg.rationale,
-    });
   }
 
   return results;
