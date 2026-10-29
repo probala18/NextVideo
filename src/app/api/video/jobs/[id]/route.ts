@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getJobById, updateJobStatus } from "@/lib/video/jobs";
+import { deleteProcessingJob, getJobById, updateJobStatus } from "@/lib/video/jobs";
 import { deleteAsset } from "@/lib/video/storage";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +43,7 @@ export async function DELETE(
     if (job.assetId) {
       await deleteAsset(job.assetId);
     }
+    await deleteProcessingJob(params.id);
 
     return NextResponse.json({ success: true, message: "Job and media deleted" });
   } catch (err: any) {

@@ -175,6 +175,11 @@ export async function deleteAsset(assetId: string): Promise<boolean> {
   }
 
   const assetDir = path.join(UPLOAD_BASE_DIR, assetId);
+  if (process.env.VERCEL && process.env.BLOB_READ_WRITE_TOKEN) {
+    const { list, del } = await import("@vercel/blob");
+    const { blobs } = await list({ prefix: `nextvideo/${assetId}/` });
+    if (blobs.length) await del(blobs.map((blob) => blob.url));
+  }
   if (fs.existsSync(assetDir)) {
     await fs.promises.rm(assetDir, { recursive: true, force: true });
     return true;

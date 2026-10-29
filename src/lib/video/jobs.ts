@@ -66,6 +66,19 @@ export async function getJobById(jobId: string): Promise<VideoProcessingJob | nu
   return jobs.find((j) => j.id === jobId) || null;
 }
 
+export async function deleteProcessingJob(jobId: string): Promise<void> {
+  if (process.env.VERCEL) {
+    if (!/^[a-zA-Z0-9_-]+$/.test(jobId)) throw new Error("Invalid job ID.");
+    const { del, list } = await import("@vercel/blob");
+    const { blobs } = await list({ prefix: `nextvideo/jobs/${jobId}.json` });
+    const record = blobs.find((blob) => blob.pathname === `nextvideo/jobs/${jobId}.json`);
+    if (record) await del(record.url);
+    return;
+  }
+  const jobs = await getAllJobs();
+  await saveAllJobs(jobs.filter((job) => job.id !== jobId));
+}
+
 export async function createProcessingJob(params: {
   assetId: string;
   filename: string;
