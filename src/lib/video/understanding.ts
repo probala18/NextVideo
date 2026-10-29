@@ -48,8 +48,9 @@ export function assembleVideoUnderstanding(params: {
   } = params;
 
   // Untrusted content defense: sanitize audio and on-screen text
-  const cleanTranscript = sanitizeUntrustedContent(transcript.text || "");
-  const cues = transcript.cues || [];
+  const cues = (transcript.cues || [])
+    .map((cue) => ({ ...cue, text: sanitizeUntrustedContent(cue.text) }))
+    .filter((cue) => Number.isFinite(cue.start) && cue.start >= 0 && Number.isFinite(cue.end) && cue.end >= cue.start && cue.text.length > 0);
 
   // Only verified transcript/frame model observations may establish a subject.
   // Creator hints and synthetic frame labels are context, never evidence.
