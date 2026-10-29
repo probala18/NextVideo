@@ -671,14 +671,14 @@ export default function Home() {
                               Autonomous AI Agent
                             </span>
                             <span className="text-xs font-semibold text-[#2563EB]">
-                              11 YouTube Agent Skills Pipeline
+                              Video to YouTube Publishing
                             </span>
                           </div>
                           <h1 className="text-2xl font-bold text-[#111827] mt-1.5">
-                            Video Agent Analysis & Production
+                            Video Publishing Agent
                           </h1>
                           <p className="text-xs text-[#6B7280] mt-1 max-w-2xl">
-                            Upload raw video footage for instant media inspection, speech transcription, CMX 3600 EDL cuts, viral outlier research, Short extraction, validated chapters, and optional direct YouTube OAuth publishing.
+                            Upload your video to extract grounded understanding, research real YouTube competitor patterns, generate high-fit titles and thumbnails, and publish directly to YouTube.
                           </p>
                         </div>
                       </div>
