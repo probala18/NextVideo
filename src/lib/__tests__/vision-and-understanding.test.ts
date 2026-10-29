@@ -18,7 +18,7 @@ import {
   generateYouTubeThumbnails,
   validateYouTubeThumbnail,
 } from "../video/thumbnail-generator";
-import { buildTranscriptChapters, generatePublishingPackageWithAI } from "../video/generator";
+import { attachVerifiedChapters, buildTranscriptChapters, generatePublishingPackageWithAI } from "../video/generator";
 import { MediaMetadata } from "../types/videoWorkflow";
 
 describe("Computer Vision & Video Understanding Engine", () => {
@@ -204,6 +204,19 @@ describe("Computer Vision & Video Understanding Engine", () => {
       expect(chapters[1].timestampSeconds).toBe(70);
       expect(chapters.every((chapter) => chapter.timestampSeconds < 480)).toBe(true);
       expect(buildTranscriptChapters([{ timestampSeconds: 20, cueText: "Only one segment" }], 480)).toEqual([]);
+    });
+
+    it("removes model-invented chapter times and appends only verified chapters", () => {
+      const chapters = [
+        { timestampSeconds: 0, timecode: "0:00", title: "Opening explanation", visualSupport: "Cue at 2s" },
+        { timestampSeconds: 80, timecode: "1:20", title: "Project setup", visualSupport: "Cue at 80s" },
+        { timestampSeconds: 160, timecode: "2:40", title: "Testing the result", visualSupport: "Cue at 160s" },
+      ];
+      const result = attachVerifiedChapters("Specific intro.\n0:30 - Fake section\n\nTIMESTAMPS:\n2:00 - Another fake", chapters);
+      expect(result).toContain("0:00 - Opening explanation");
+      expect(result).toContain("1:20 - Project setup");
+      expect(result).not.toContain("0:30 - Fake section");
+      expect(result).not.toContain("2:00 - Another fake");
     });
 
     it("pauses generation when understanding evidence is inadequate", async () => {

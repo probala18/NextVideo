@@ -46,6 +46,17 @@ export function buildTranscriptChapters(
   });
 }
 
+export function attachVerifiedChapters(description: string, chapters: FullPublishingPackage["chapters"]): string {
+  const body = description
+    .replace(/^\s*(?:\d{1,2}:)?\d{1,2}:\d{2}\s*[-–—].*$/gm, "")
+    .replace(/^\s*(?:CHAPTERS|TIMESTAMPS)\s*:?\s*$/gim, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  if (!chapters.length) return body;
+  const verified = chapters.map((chapter) => `${chapter.timecode} - ${chapter.title}`).join("\n");
+  return `${body}\n\nChapters:\n${verified}`;
+}
+
 /**
  * Generate complete publishing package grounded in video evidence using configured AI model
  * and real YouTube research findings.
@@ -264,6 +275,7 @@ ${researchContext}`;
   }
 
   const suggestedCategory = { id: "28", name: "Science & Technology", rationale: "Default category suggestion; review before publishing." };
+  description = attachVerifiedChapters(description, chapters);
 
   const evidenceGrounding: PublishingEvidenceGrounding[] = [
     {
