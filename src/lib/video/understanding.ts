@@ -106,12 +106,9 @@ export function assembleVideoUnderstanding(params: {
     : Math.round(media.durationSeconds * 0.75);
 
   // Extract visual evidence points
-  const visualEvidence = (vision.sampledFrames || []).map((frame) => ({
+  const visualEvidence = (vision.sampledFrames || []).filter((frame) => frame.framePath).map((frame) => ({
     timestampSeconds: frame.timestampSeconds,
-    observation: `Visual confirmation at ${frame.timestampSeconds}s: ${frame.label} displaying ${frame.sceneType.replace(
-      "_",
-      " "
-    )} with ${frame.properties.focalPoint}.`,
+    observation: frame.semanticDescription || `Frame extracted at ${frame.timestampSeconds}s; visual content was not analyzed.`,
     framePath: frame.framePath,
   }));
 
@@ -146,7 +143,7 @@ export function assembleVideoUnderstanding(params: {
   const detectedVisualSubjects = Array.from(
     new Set([
       ...(vision.detectedSubjects || []),
-      ...(vision.sampledFrames || []).map((f) => f.properties.focalPoint).filter(Boolean),
+      ...(vision.sampledFrames || []).map((f) => f.semanticDescription).filter((value): value is string => Boolean(value)),
     ])
   );
 

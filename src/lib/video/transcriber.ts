@@ -1,14 +1,14 @@
 /**
  * src/lib/video/transcriber.ts
  * Real speech transcription pipeline with timestamped cues.
- * Supports OpenAI Whisper API, user-uploaded SRT/VTT/JSON, and graceful structured fallback.
+ * Supports OpenAI Whisper API and user-uploaded SRT/VTT/JSON.
  */
 
 import fs from "fs";
 import { TranscriptCue, loadCuesFromText } from "../skills/deadair";
 
 export interface TranscriptionResult {
-  source: "whisper_api" | "openrouter" | "user_upload" | "synthesized";
+  source: "whisper_api" | "openrouter" | "user_upload" | "unavailable";
   text: string;
   cues: TranscriptCue[];
   language?: string;
@@ -99,50 +99,13 @@ export async function transcribeMedia(
         }
       }
     } catch {
-      // Fall through to synthesized transcript
+      // Preserve the transcription failure as unavailable evidence.
     }
   }
 
-  // Option 3: Structured fallback with accurate timecodes
-  const topic = hintTopic || "YouTube Video Creation & Content Strategy";
-  const synthesizedCues: TranscriptCue[] = [
-    {
-      start: 0.0,
-      end: 4.8,
-      text: `97% of creators quit before video 30 because they make this critical pacing mistake in their first 15 seconds.`,
-    },
-    {
-      start: 5.2,
-      end: 9.6,
-      text: `In this complete breakdown, you will see how to fix audience retention and cut your editing time in half.`,
-    },
-    {
-      start: 10.5,
-      end: 18.2,
-      text: `First, let us look at the opening hook. When you don't confirm the title immediately, viewers drop off before 0:08.`,
-    },
-    {
-      start: 19.0,
-      end: 28.4,
-      text: `Um, so yeah, basically what we discovered across five channels was that cutting dead air gaps made an immediate difference.`,
-    },
-    {
-      start: 29.5,
-      end: 42.0,
-      text: `What we discovered across five channels was that cutting dead air gaps made an immediate 35% difference to retention curves.`,
-    },
-    {
-      start: 43.1,
-      end: 65.0,
-      text: `Next, let us dive into chapter structure, packaging, and thumbnail pairing to ensure the promise is kept throughout.`,
-    },
-  ];
-
   return {
-    source: "synthesized",
-    text: synthesizedCues.map((c) => c.text).join(" "),
-    cues: synthesizedCues,
-    language: "en",
-    durationSeconds: 65.0,
+    source: "unavailable",
+    text: "",
+    cues: [],
   };
 }

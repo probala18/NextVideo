@@ -72,7 +72,7 @@ export interface ConsolidatedAnalysisReport {
   generatedAt: string;
   media: MediaMetadata;
   transcript: {
-    source: "openrouter" | "whisper_api" | "user_upload" | "synthesized";
+    source: "openrouter" | "whisper_api" | "user_upload" | "unavailable";
     text: string;
     cuesCount: number;
     cues: TranscriptCue[];
