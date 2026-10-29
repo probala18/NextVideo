@@ -10,6 +10,7 @@ import { inspectMedia } from "./inspector";
 import { transcribeMedia } from "./transcriber";
 import { runAutonomousVideoWorkflow } from "./orchestrator";
 import { saveDerivedAsset } from "./storage";
+import { waitUntil } from "@vercel/functions";
 
 const JOBS_FILE_PATH = path.join(process.cwd(), "data", "video_jobs.json");
 
@@ -77,9 +78,11 @@ export function createProcessingJob(params: {
   saveAllJobs(jobs);
 
   // Kick off asynchronous processing
-  setImmediate(() => {
-    executeJobWorkflow(id).catch(() => {});
+  const processing = executeJobWorkflow(id).catch((error) => {
+    console.error("Video processing job failed:", error instanceof Error ? error.message : "Unknown error");
   });
+  if (process.env.VERCEL) waitUntil(processing);
+  else setImmediate(() => { void processing; });
 
   return newJob;
 }

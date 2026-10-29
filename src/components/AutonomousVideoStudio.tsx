@@ -25,6 +25,7 @@ import {
 import { VideoProcessingJob, ConsolidatedAnalysisReport } from "@/lib/types/videoWorkflow";
 import { TitleOption, GeneratedThumbnail } from "@/lib/types/visionWorkflow";
 import { YouTubeOAuthModal } from "./YouTubeOAuthModal";
+import { upload as uploadBlob } from "@vercel/blob/client";
 
 interface AutonomousVideoStudioProps {
   onSaveToPlanner?: (title: string, note: string, status?: string) => void;
@@ -285,31 +286,25 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
     }
 
     setIsUploading(true);
-    setUploadProgress(15);
+    setUploadProgress(0);
 
     try {
-      // Attempt client frame extraction to ground thumbnails in genuine frames
-      let frameBlobs: Blob[] = [];
-      try {
-        setUploadProgress(25);
-        frameBlobs = await captureVideoFrames(videoFile);
-      } catch {
-        // Fallback to server inspection
-      }
-
-      setUploadProgress(45);
-      const formData = new FormData();
-      formData.append("video", videoFile);
-
-      // Include extracted frame snapshots if captured
-      frameBlobs.forEach((blob, idx) => {
-        formData.append(`frame_${idx}`, blob, `frame_${idx + 1}.jpg`);
+      const assetId = crypto.randomUUID().replace(/-/g, "");
+      const extension = videoFile.name.includes(".") ? `.${videoFile.name.split(".").pop()!.toLowerCase()}` : ".mp4";
+      const safeName = `${videoFile.name.replace(/\.[^.]*$/, "").replace(/[^a-zA-Z0-9_-]/g, "_") || "video"}${extension}`;
+      const blob = await uploadBlob(`nextvideo/${assetId}/${safeName}`, videoFile, {
+        access: "private",
+        handleUploadUrl: "/api/video/upload/token",
+        clientPayload: JSON.stringify({ assetId, filename: videoFile.name, mimeType: videoFile.type }),
+        multipart: videoFile.size > 5 * 1024 * 1024,
+        onUploadProgress: ({ percentage }) => setUploadProgress(Math.min(90, Math.round(percentage * 0.85))),
       });
 
-      setUploadProgress(70);
-      const res = await fetch("/api/video/upload", {
+      setUploadProgress(93);
+      const res = await fetch("/api/video/upload/register", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assetId, filename: videoFile.name, mimeType: videoFile.type, filesizeBytes: videoFile.size }),
       });
 
       setUploadProgress(95);
@@ -319,6 +314,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       }
 
       const data = await res.json();
+      if (!blob.pathname.endsWith(safeName)) throw new Error("Uploaded object path did not match the registered video.");
       setUploadProgress(100);
       setCurrentJob(data.job || data);
       setIsPolling(true);
