@@ -300,7 +300,6 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       setUploadProgress(45);
       const formData = new FormData();
       formData.append("video", videoFile);
-      formData.append("file", videoFile);
 
       // Include extracted frame snapshots if captured
       frameBlobs.forEach((blob, idx) => {
