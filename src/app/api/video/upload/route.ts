@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Create durable processing job
-    const job = createProcessingJob({
+    const job = await createProcessingJob({
       assetId: stored.assetId,
       filename: stored.sanitizedFilename,
       filesizeBytes: stored.filesizeBytes,

@@ -9,7 +9,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const job = getJobById(params.id);
+    const job = await getJobById(params.id);
     if (!job) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
@@ -28,13 +28,13 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const job = getJobById(params.id);
+    const job = await getJobById(params.id);
     if (!job) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
     // Cancel job status
-    updateJobStatus(params.id, {
+    await updateJobStatus(params.id, {
       status: "cancelled",
       currentStage: "Cancelled and deleted by user",
     });

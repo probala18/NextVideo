@@ -22,7 +22,18 @@ function ensureJobsStore(): void {
   }
 }
 
-export function getAllJobs(): VideoProcessingJob[] {
+export async function getAllJobs(): Promise<VideoProcessingJob[]> {
+  if (process.env.VERCEL) {
+    if (!process.env.BLOB_READ_WRITE_TOKEN) throw new Error("Persistent job storage is not configured. Add BLOB_READ_WRITE_TOKEN.");
+    const { list, get } = await import("@vercel/blob");
+    const { blobs } = await list({ prefix: "nextvideo/jobs/" });
+    const jobs = await Promise.all(blobs.map(async (item) => {
+      const object = await get(item.pathname, { access: "private" });
+      if (!object) return null;
+      try { return JSON.parse(await new Response(object.stream).text()) as VideoProcessingJob; } catch { return null; }
+    }));
+    return jobs.filter((job): job is VideoProcessingJob => Boolean(job)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
   ensureJobsStore();
   try {
     const raw = fs.readFileSync(JOBS_FILE_PATH, "utf-8");
@@ -32,17 +43,30 @@ export function getAllJobs(): VideoProcessingJob[] {
   }
 }
 
-export function saveAllJobs(jobs: VideoProcessingJob[]): void {
+export async function saveAllJobs(jobs: VideoProcessingJob[]): Promise<void> {
+  if (process.env.VERCEL) {
+    if (!process.env.BLOB_READ_WRITE_TOKEN) throw new Error("Persistent job storage is not configured. Add BLOB_READ_WRITE_TOKEN.");
+    const { put } = await import("@vercel/blob");
+    await Promise.all(jobs.map((job) => put(`nextvideo/jobs/${job.id}.json`, JSON.stringify(job), { access: "private", addRandomSuffix: false, allowOverwrite: true, contentType: "application/json" })));
+    return;
+  }
   ensureJobsStore();
   fs.writeFileSync(JOBS_FILE_PATH, JSON.stringify(jobs, null, 2), "utf-8");
 }
 
-export function getJobById(jobId: string): VideoProcessingJob | null {
-  const jobs = getAllJobs();
+export async function getJobById(jobId: string): Promise<VideoProcessingJob | null> {
+  if (process.env.VERCEL) {
+    if (!/^[a-zA-Z0-9_-]+$/.test(jobId) || !process.env.BLOB_READ_WRITE_TOKEN) return null;
+    const { get } = await import("@vercel/blob");
+    const object = await get(`nextvideo/jobs/${jobId}.json`, { access: "private" });
+    if (!object) return null;
+    try { return JSON.parse(await new Response(object.stream).text()) as VideoProcessingJob; } catch { return null; }
+  }
+  const jobs = await getAllJobs();
   return jobs.find((j) => j.id === jobId) || null;
 }
 
-export function createProcessingJob(params: {
+export async function createProcessingJob(params: {
   assetId: string;
   filename: string;
   filesizeBytes: number;
@@ -51,8 +75,7 @@ export function createProcessingJob(params: {
   transcriptPath?: string;
   retentionCsvPath?: string;
   channelId?: string;
-}): VideoProcessingJob {
-  const jobs = getAllJobs();
+}): Promise<VideoProcessingJob> {
   const id = `job_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
   const newJob: VideoProcessingJob = {
@@ -74,8 +97,12 @@ export function createProcessingJob(params: {
     derivedAssets: {},
   };
 
-  jobs.unshift(newJob);
-  saveAllJobs(jobs);
+  if (process.env.VERCEL) await saveAllJobs([newJob]);
+  else {
+    const jobs = await getAllJobs();
+    jobs.unshift(newJob);
+    await saveAllJobs(jobs);
+  }
 
   // Kick off asynchronous processing
   const processing = executeJobWorkflow(id).catch((error) => {
@@ -87,11 +114,11 @@ export function createProcessingJob(params: {
   return newJob;
 }
 
-export function updateJobStatus(
+export async function updateJobStatus(
   jobId: string,
   updates: Partial<VideoProcessingJob>
-): VideoProcessingJob | null {
-  const jobs = getAllJobs();
+): Promise<VideoProcessingJob | null> {
+  const jobs = await getAllJobs();
   const index = jobs.findIndex((j) => j.id === jobId);
   if (index === -1) return null;
 
@@ -101,17 +128,18 @@ export function updateJobStatus(
     updatedAt: new Date().toISOString(),
   };
 
-  saveAllJobs(jobs);
+  if (process.env.VERCEL) await saveAllJobs([jobs[index]]);
+  else await saveAllJobs(jobs);
   return jobs[index];
 }
 
 export async function executeJobWorkflow(jobId: string): Promise<VideoProcessingJob | null> {
-  let job = getJobById(jobId);
+  let job = await getJobById(jobId);
   if (!job) return null;
 
   try {
     // Stage 1: Media Inspection
-    updateJobStatus(jobId, {
+    await updateJobStatus(jobId, {
       status: "queued",
       progressPercent: 15,
       currentStage: "Inspecting media streams & container format",
@@ -120,7 +148,7 @@ export async function executeJobWorkflow(jobId: string): Promise<VideoProcessing
     const media = await inspectMedia(job.localFilePath || "", job.filename);
 
     // Stage 2: Speech Transcription
-    updateJobStatus(jobId, {
+    await updateJobStatus(jobId, {
       status: "transcribing",
       progressPercent: 35,
       currentStage: "Transcribing speech and extracting cues",
@@ -134,7 +162,7 @@ export async function executeJobWorkflow(jobId: string): Promise<VideoProcessing
     );
 
     // Stage 3: Autonomous Analysis (Hooks, EDL, Chapters, Packaging)
-    updateJobStatus(jobId, {
+    await updateJobStatus(jobId, {
       status: "analyzing",
       progressPercent: 60,
       currentStage: "Running hook scoring, dead air EDL & chapter boundaries",
@@ -146,7 +174,7 @@ export async function executeJobWorkflow(jobId: string): Promise<VideoProcessing
     });
 
     // Stage 4: Outlier Research & Follow-up Planning
-    updateJobStatus(jobId, {
+    await updateJobStatus(jobId, {
       status: "researching",
       progressPercent: 80,
       currentStage: "Analyzing niche outliers and pacing benchmarks",
@@ -178,7 +206,7 @@ export async function executeJobWorkflow(jobId: string): Promise<VideoProcessing
     );
 
     // Stage 5: Completion
-    const completedJob = updateJobStatus(jobId, {
+    const completedJob = await updateJobStatus(jobId, {
       status: "completed",
       progressPercent: 100,
       currentStage: "Analysis & Production Workflow Completed",
@@ -204,7 +232,7 @@ export async function executeJobWorkflow(jobId: string): Promise<VideoProcessing
 
     return completedJob;
   } catch (err: any) {
-    const failedJob = updateJobStatus(jobId, {
+    const failedJob = await updateJobStatus(jobId, {
       status: "failed",
       errorMessage: err.message || "An unexpected error occurred during processing",
       currentStage: "Failed during execution",

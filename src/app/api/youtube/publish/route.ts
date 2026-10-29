@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing jobId in request body" }, { status: 400 });
     }
 
-    const job = getJobById(jobId);
+    const job = await getJobById(jobId);
     if (!job) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }

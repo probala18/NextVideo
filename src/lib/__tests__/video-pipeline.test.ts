@@ -101,8 +101,8 @@ describe("Video Processing Pipeline & Media Infrastructure", () => {
   });
 
   describe("5. Durable Job State Machine", () => {
-    test("creates, updates, and tracks video processing jobs", () => {
-      const job = createProcessingJob({
+    test("creates, updates, and tracks video processing jobs", async () => {
+      const job = await createProcessingJob({
         assetId: "test_asset_123",
         filename: "demo_video.mp4",
         filesizeBytes: 1024 * 500,
@@ -113,11 +113,11 @@ describe("Video Processing Pipeline & Media Infrastructure", () => {
       expect(job.id).toBeDefined();
       expect(job.status).toBe("uploaded");
 
-      const retrieved = getJobById(job.id);
+      const retrieved = await getJobById(job.id);
       expect(retrieved).not.toBeNull();
       expect(retrieved?.id).toBe(job.id);
 
-      const updated = updateJobStatus(job.id, {
+      const updated = await updateJobStatus(job.id, {
         status: "transcribing",
         progressPercent: 40,
         currentStage: "Transcribing audio tracks",

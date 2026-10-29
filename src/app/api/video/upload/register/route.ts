@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     if (Number.isFinite(filesizeBytes) && Math.abs(stored.filesizeBytes - Number(filesizeBytes)) > 1024) {
       return NextResponse.json({ error: "Uploaded object size did not match the completed upload." }, { status: 400 });
     }
-    const job = createProcessingJob({
+    const job = await createProcessingJob({
       assetId: stored.assetId,
       filename: stored.sanitizedFilename,
       filesizeBytes: stored.filesizeBytes,
