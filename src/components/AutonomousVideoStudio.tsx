@@ -786,15 +786,15 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#F3F4F6]">
             <div>
               <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#10B981] text-white uppercase tracking-wider">
-                  Video Understood
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white uppercase tracking-wider ${report.understanding?.isAdequatelyUnderstood ? "bg-[#10B981]" : "bg-[#D97706]"}`}>
+                  {report.understanding?.isAdequatelyUnderstood ? "Evidence reviewed" : "Limited evidence"}
                 </span>
                 <span className="text-xs text-[#6B7280]">
                   {Math.floor((report.media?.durationSeconds || 0) / 60)}m {Math.round((report.media?.durationSeconds || 0) % 60)}s • {report.media?.width || 1280}x{report.media?.height || 720}
                 </span>
               </div>
               <h2 className="text-xl font-bold text-[#111827] mt-1.5">
-                {report.understanding?.actualTopic || "Video Demonstration"}
+                {report.understanding?.actualTopic || "Subject not established"}
               </h2>
             </div>
             <div className="flex items-center gap-2">
@@ -822,8 +822,13 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
               <span>Grounded Video Evidence Summary</span>
             </div>
             <p className="text-xs text-[#475569] leading-relaxed">
-              {report.understanding?.summary || report.understanding?.primaryValueProposition || "Video content analyzed and grounded in visual progression and audio transcript."}
+              {report.understanding?.summary || report.understanding?.limitationNotice || "No verified video summary is available."}
             </p>
+            {report.understanding?.limitationNotice && (
+              <p className="text-xs text-[#92400E] bg-[#FFFBEB] border border-[#FDE68A] rounded-xl p-3">
+                {report.understanding.limitationNotice}
+              </p>
+            )}
 
             {/* Research Status Notice */}
             <div className="pt-2 border-t border-[#E2E8F0] flex flex-wrap items-center justify-between gap-2 text-[11px]">
@@ -882,6 +887,11 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
             </div>
 
             <div className="grid grid-cols-1 gap-3">
+              {titlesList.length === 0 && (
+                <p className="text-xs text-[#92400E] bg-[#FFFBEB] border border-[#FDE68A] rounded-xl p-4">
+                  {pkg?.limitationNotice || "No titles were generated. Confirm transcript or visual evidence and configure the selected model, then retry."}
+                </p>
+              )}
               {titlesList.map((item, idx) => {
                 const isSelected = selectedTitle === item.title || editableTitle === item.title;
                 const isMobileSafe = item.characterCount <= 60;
@@ -955,6 +965,11 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {thumbnailsList.length === 0 && (
+                <p className="text-xs text-[#92400E] bg-[#FFFBEB] border border-[#FDE68A] rounded-xl p-4 md:col-span-3">
+                  No thumbnail can be offered because no valid representative video frame is available. Reprocess the upload with frame extraction enabled.
+                </p>
+              )}
               {thumbnailsList.map((thumb) => {
                 const isSelected = selectedThumbnailId === thumb.id;
 
