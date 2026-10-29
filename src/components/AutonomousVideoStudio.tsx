@@ -960,7 +960,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
                 <span className="text-[11px] font-semibold text-[#6B7280]">(Grounded in uploaded footage)</span>
               </h3>
               <span className="text-[11px] text-[#059669] font-bold">
-                1280x720 • 16:9 compliant PNG/JPEG
+                Validated source frame • PNG/JPEG • under 2 MB
               </span>
             </div>
 
