@@ -51,7 +51,8 @@ export function assembleVideoUnderstanding(params: {
   const cleanTranscript = sanitizeUntrustedContent(transcript.text || "");
   const cues = transcript.cues || [];
 
-  // 1. Evidence extraction from speech
+  // Only verified transcript/frame model observations may establish a subject.
+  // Creator hints and synthetic frame labels are context, never evidence.
   let spokenSubject = "";
   if (cues.length > 0) {
     const openingCues = cues.filter((c) => c.start <= 25.0);
@@ -77,13 +78,14 @@ export function assembleVideoUnderstanding(params: {
   let isAdequatelyUnderstood = false;
   let limitationNotice: string | undefined = undefined;
 
-  if (spokenSubject && prominentOnScreenText) {
-    actualTopic = `${prominentOnScreenText}: ${spokenSubject}`;
+  const hasVisualEvidence = vision.supportsVision && (vision.detectedSubjects?.length || onScreenTexts.length);
+  if (spokenSubject && hasVisualEvidence) {
+    actualTopic = spokenSubject;
     isAdequatelyUnderstood = true;
   } else if (spokenSubject) {
     actualTopic = spokenSubject;
     isAdequatelyUnderstood = true;
-  } else if (prominentOnScreenText) {
+  } else if (prominentOnScreenText && vision.supportsVision) {
     actualTopic = prominentOnScreenText;
     isAdequatelyUnderstood = true;
   } else if (creatorHintTopic && creatorHintTopic.trim().length > 2) {
@@ -92,7 +94,7 @@ export function assembleVideoUnderstanding(params: {
     isAdequatelyUnderstood = false;
     limitationNotice = "Limited audio/visual evidence detected. Topic is based on unverified creator hint without confirming speech or on-screen text.";
   } else {
-    actualTopic = "Uploaded Video Demonstration";
+    actualTopic = "";
     isAdequatelyUnderstood = false;
     limitationNotice = "The video could not be adequately understood from visual frames and audio transcription alone (no speech or legible text detected).";
   }
@@ -125,19 +127,13 @@ export function assembleVideoUnderstanding(params: {
     const visualContext = vision.sampledFrames?.length > 0
       ? `Visual progression across ${vision.sampledFrames.length} sampled keyframes confirms ${vision.visualPacing} pacing`
       : `Duration ${Math.round(media.durationSeconds)}s`;
-    summary = `Demonstration focused on ${actualTopic}. ${visualContext}, corroborated by ${cues.length} verified spoken cues.`;
+    summary = `The available evidence identifies the video as about ${actualTopic}. ${vision.supportsVision ? `Visual analysis covers ${vision.sampledFrames?.length || 0} sampled frames` : "Visual analysis was unavailable"}; ${cues.length} timestamped transcript cues were available.`;
   } else {
     summary = `Media inspection of ${media.format.toUpperCase()} video (${Math.round(media.durationSeconds)}s, ${media.width || 1280}x${media.height || 720}) with limited extractable dialogue or readable on-screen graphics.`;
   }
 
   const keyTakeaways = [
-    `Clear problem breakdown established in the first 20% of duration (${Math.round(
-      media.durationSeconds * 0.2
-    )}s).`,
-    `Practical implementation verified across core demonstration scene at ${Math.round(
-      media.durationSeconds * 0.5
-    )}s.`,
-    `Measurable outcome demonstrated at ${narrativeClimaxSeconds}s.`,
+    ...cues.slice(0, 3).map((cue) => `${Math.round(cue.start)}s: ${sanitizeUntrustedContent(cue.text)}`),
   ];
 
   const distinguishingFeatures = [
@@ -160,7 +156,7 @@ export function assembleVideoUnderstanding(params: {
     isAdequatelyUnderstood,
     limitationNotice,
     detectedVisualSubjects,
-    primaryValueProposition: `Delivers a direct, fluff-free walkthrough on ${actualTopic} with measurable implementation results.`,
+    primaryValueProposition: isAdequatelyUnderstood ? `The available evidence identifies the subject as ${actualTopic}.` : "",
     narrativeClimaxSeconds,
     targetAudience,
     keyTakeaways,
