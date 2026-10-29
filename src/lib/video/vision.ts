@@ -232,7 +232,7 @@ export async function analyzeVideoWithComputerVision(params: {
 
   // Check configured LLM capabilities
   const llmConfig = getLLMConfig();
-  const supportsVision = doesModelSupportVision(llmConfig.model) && llmConfig.provider !== "anthropic";
+  const supportsVision = doesModelSupportVision(llmConfig.model);
 
   const limitations: string[] = [];
   if (!supportsVision) {
@@ -247,7 +247,7 @@ export async function analyzeVideoWithComputerVision(params: {
   let detectedSubjects: string[] = [];
   let detectedEnvironments: string[] = [];
   let onScreenTextCues: VisionAnalysisReport["onScreenTextCues"] = [];
-  if (supportsVision && llmConfig.isConfigured && llmConfig.apiKey) {
+  if (supportsVision && llmConfig.isConfigured && (llmConfig.apiKey || llmConfig.provider === "custom")) {
     const framesWithImages = await Promise.all(deduplicatedFrames.map(async (frame) => {
       const filename = path.basename(frame.framePath);
       const imagePath = path.join(framesDir, filename);
@@ -259,20 +259,40 @@ export async function analyzeVideoWithComputerVision(params: {
     const images = framesWithImages.filter(Boolean) as Array<{ frame: SampledFrame; dataUrl: string }>;
     if (images.length) {
       const provider = LLM_PROVIDERS.find((p: any) => p.id === llmConfig.provider) || LLM_PROVIDERS[0];
-      const content: any[] = [{ type: "text", text: "Analyze these timestamped frames from one video. Return JSON with frames [{timestampSeconds, description, subjects[], onScreenText[]}], overallSubjects[], environments[]. Only report visible evidence; use empty arrays when uncertain. Do not infer audio or unseen actions." }];
+      const instruction = "Analyze these timestamped frames from one video. Return JSON with frames [{timestampSeconds, description, subjects[], onScreenText[]}], overallSubjects[], environments[]. Only report visible evidence; use empty arrays when uncertain. Do not infer audio or unseen actions.";
+      const anthropic = llmConfig.provider === "anthropic";
+      const content: any[] = anthropic ? [] : [{ type: "text", text: instruction }];
       for (const { frame, dataUrl } of images) {
-        content.push({ type: "text", text: `Frame timestamp: ${frame.timestampSeconds}s` });
-        content.push({ type: "image_url", image_url: { url: dataUrl, detail: "high" } });
+        const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+        if (anthropic) {
+          content.push({ type: "text", text: `Frame timestamp: ${frame.timestampSeconds}s` });
+          content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64 } });
+        } else {
+          content.push({ type: "text", text: `Frame timestamp: ${frame.timestampSeconds}s` });
+          content.push({ type: "image_url", image_url: { url: dataUrl, detail: "high" } });
+        }
       }
-      const response = await fetch(`${llmConfig.baseUrl.replace(/\/+$/, "")}/chat/completions`, {
+      const endpoint = anthropic
+        ? `${llmConfig.baseUrl.replace(/\/+$/, "")}/messages`
+        : `${llmConfig.baseUrl.replace(/\/+$/, "")}/chat/completions`;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (llmConfig.apiKey) headers[anthropic ? "x-api-key" : "Authorization"] = anthropic ? llmConfig.apiKey : `Bearer ${llmConfig.apiKey}`;
+      if (anthropic) headers["anthropic-version"] = "2023-06-01";
+      if (llmConfig.provider === "openrouter") {
+        headers["HTTP-Referer"] = "http://localhost:3000";
+        headers["X-Title"] = "NextVideo Video Agent";
+      }
+      const response = await fetch(endpoint, {
         method: "POST",
-        headers: { Authorization: `Bearer ${llmConfig.apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: llmConfig.model, temperature: 0, response_format: { type: "json_object" }, messages: [{ role: "user", content }] }),
+        headers,
+        body: JSON.stringify(anthropic
+          ? { model: llmConfig.model, max_tokens: 3000, system: instruction, messages: [{ role: "user", content }] }
+          : { model: llmConfig.model, temperature: 0, messages: [{ role: "user", content }] }),
         signal: AbortSignal.timeout(45000),
       });
       if (!response.ok) throw new Error(`Configured vision model request failed (${response.status}).`);
       const payload = await response.json();
-      const raw = payload.choices?.[0]?.message?.content;
+      const raw = anthropic ? payload.content?.find((part: any) => part.type === "text")?.text : payload.choices?.[0]?.message?.content;
       if (typeof raw !== "string") throw new Error("Configured vision model returned no analysis.");
       const parsed = JSON.parse(raw);
       detectedSubjects = Array.isArray(parsed.overallSubjects) ? parsed.overallSubjects.filter((x: unknown) => typeof x === "string") : [];
