@@ -71,15 +71,9 @@ export function analyzeDeterministicFrameProperties(
   );
   const cueText = nearbyCues.map((c) => c.text).join(" ");
 
-  // Extract detected on-screen text / topic keywords from transcript & cue context
+  // This deterministic pass measures visual properties only. Transcript words
+  // and creator hints are not OCR and must never be reported as on-screen text.
   const detectedOnScreenText: string[] = [];
-  const words = cueText.split(/\s+/).filter((w) => w.length > 4);
-  const uniqueWords = Array.from(new Set(words)).slice(0, 3);
-  if (uniqueWords.length > 0) {
-    detectedOnScreenText.push(...uniqueWords.map((w) => w.replace(/[^a-zA-Z0-9]/g, "").toUpperCase()));
-  } else if (hintTopic) {
-    detectedOnScreenText.push(hintTopic.slice(0, 15).toUpperCase());
-  }
 
   // Derive palette based on scene progression
   const palettes = [
@@ -96,14 +90,7 @@ export function analyzeDeterministicFrameProperties(
   const complexityScore = Math.min(90, 50 + (frameIndex * 9) % 40);
 
   // Focal point
-  const focalPoints = [
-    "Subject face and high-contrast primary hook text",
-    "Screen demonstration center and diagram overlay",
-    "Active workflow workspace with highlighted output",
-    "Key metric spike and dramatic facial reaction",
-    "Summary checklist card with outcome badge",
-  ];
-  const focalPoint = focalPoints[frameIndex % focalPoints.length];
+  const focalPoint = "Unanalyzed frame; visual subject not identified";
 
   // Suitability for thumbnail (sharpness, clear focal point, contrast)
   const thumbnailSuitabilityScore = Math.min(
@@ -152,7 +139,7 @@ async function extractPhysicalFrame(
     const dir = path.dirname(outputFramePath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-    const cmd = `${binary} -ss ${timestampSeconds} -i "${sourceFilePath}" -frames:v 1 -q:v 2 -y "${outputFramePath}"`;
+    const cmd = `"${binary}" -ss ${timestampSeconds} -i "${sourceFilePath}" -frames:v 1 -q:v 2 -y "${outputFramePath}"`;
     await execAsync(cmd);
     return fs.existsSync(outputFramePath);
   } catch {
@@ -187,7 +174,7 @@ export async function analyzeVideoWithComputerVision(params: {
 
   const framesDir = path.join(process.cwd(), "data", "uploads", assetId, "frames");
 
-  for (let i = 0; i < samplePoints.length; i++) {
+  for (let i = 0; i < samplePoints.slice(0, samplingConfig?.maxFrames || 8).length; i++) {
     const relativePercent = Math.round(samplePoints[i] * 100);
     const timestampSeconds = Math.round(duration * samplePoints[i] * 10) / 10;
     const frameFilename = `cv_frame_${i + 1}_${Math.floor(timestampSeconds)}s.jpg`;
@@ -195,7 +182,7 @@ export async function analyzeVideoWithComputerVision(params: {
     const publicFrameUrl = `/api/video/assets/${assetId}/frames/${frameFilename}`;
 
     // Extract physical frame if video exists and ffmpeg available
-    await extractPhysicalFrame(sourceFilePath, timestampSeconds, localFramePath);
+    const extracted = await extractPhysicalFrame(sourceFilePath, timestampSeconds, localFramePath);
 
     const properties = analyzeDeterministicFrameProperties(
       i,
@@ -212,13 +199,11 @@ export async function analyzeVideoWithComputerVision(params: {
       index: i + 1,
       timestampSeconds,
       relativePercent,
-      framePath: publicFrameUrl,
-      label,
+      framePath: extracted ? publicFrameUrl : "",
+      label: extracted ? `Frame at ${timestampSeconds}s` : `Frame unavailable at ${timestampSeconds}s`,
       sceneType,
       properties,
-      semanticDescription: `${label} captured at ${timestampSeconds}s (${relativePercent}%). Dominant palette ${properties.dominantColors.join(
-        ", "
-      )}, focal point on ${properties.focalPoint}.`,
+      semanticDescription: extracted ? `Image extracted at ${timestampSeconds}s (${relativePercent}%). Visual content has not been analyzed.` : undefined,
     });
   }
 
@@ -231,17 +216,16 @@ export async function analyzeVideoWithComputerVision(params: {
   });
 
   // Candidate thumbnail moments (top 3 scoring frames)
-  const sortedCandidates = [...deduplicatedFrames].sort(
+  const sortedCandidates = [...deduplicatedFrames].filter((f) => f.framePath).sort(
     (a, b) => b.properties.thumbnailSuitabilityScore - a.properties.thumbnailSuitabilityScore
   );
 
   const candidateThumbnailMoments = sortedCandidates.slice(0, 3).map((frame, rank) => {
-    const headlines = ["GAME CHANGER", "CRITICAL STEP", "THE SECRET"];
     return {
       timestampSeconds: frame.timestampSeconds,
       frameIndex: frame.index,
-      headline: headlines[rank] || "MUST WATCH",
-      reason: `Frame at ${frame.timestampSeconds}s has ${frame.properties.contrastScore}% contrast, clear ${frame.properties.focalPoint}, and highest visual retention score.`,
+      headline: "",
+      reason: `Extracted video frame at ${frame.timestampSeconds}s; visual content is not analyzed.`,
       visualStrength: frame.properties.thumbnailSuitabilityScore,
     };
   });
@@ -253,7 +237,7 @@ export async function analyzeVideoWithComputerVision(params: {
   const limitations: string[] = [];
   if (!supportsVision) {
     limitations.push(
-      `Current model (${llmConfig.model}) is text-optimized. Deterministic computer vision heuristics were applied for color, contrast, and scene classification.`
+      `Configured model (${llmConfig.model}) has not been used for image analysis. Frame images were extracted, but visual semantics are unavailable.`
     );
   }
   if (!media.hasVideoTrack) {
@@ -262,15 +246,8 @@ export async function analyzeVideoWithComputerVision(params: {
 
   return {
     sampledFrames: deduplicatedFrames,
-    detectedSubjects: [
-      "Lead creator / presenter",
-      "Interactive code workspace & terminal",
-      "Diagrammatic architecture overlays",
-    ],
-    detectedEnvironments: [
-      "Modern studio desk setup",
-      "High-resolution development workspace",
-    ],
+    detectedSubjects: [],
+    detectedEnvironments: [],
     visualPacing: media.durationSeconds > 600 ? "moderate" : "rapid",
     onScreenTextCues: deduplicatedFrames.flatMap((f) =>
       f.properties.detectedOnScreenText.map((t) => ({
@@ -281,7 +258,7 @@ export async function analyzeVideoWithComputerVision(params: {
     ),
     candidateThumbnailMoments,
     limitations,
-    confidenceScore: supportsVision ? 94 : 86,
+    confidenceScore: 0,
     modelUsed: llmConfig.model,
     supportsVision,
   };
