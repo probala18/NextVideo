@@ -18,7 +18,7 @@ import {
   generateYouTubeThumbnails,
   validateYouTubeThumbnail,
 } from "../video/thumbnail-generator";
-import { generatePublishingPackageWithAI } from "../video/generator";
+import { buildTranscriptChapters, generatePublishingPackageWithAI } from "../video/generator";
 import { MediaMetadata } from "../types/videoWorkflow";
 
 describe("Computer Vision & Video Understanding Engine", () => {
@@ -191,6 +191,21 @@ describe("Computer Vision & Video Understanding Engine", () => {
   });
 
   describe("4. Configured AI Model Publishing Package & Grounding", () => {
+    it("creates chapters only from valid, spaced transcript timestamps", () => {
+      const chapters = buildTranscriptChapters([
+        { timestampSeconds: 2, cueText: "Introduction to the topic" },
+        { timestampSeconds: 70, cueText: "Now we configure the project" },
+        { timestampSeconds: 180, cueText: "Next we test the final behavior" },
+        { timestampSeconds: 999, cueText: "Past the end" },
+      ], 480);
+      expect(chapters.length).toBe(3);
+      expect(chapters[0].timestampSeconds).toBe(0);
+      expect(chapters[0].timecode).toBe("0:00");
+      expect(chapters[1].timestampSeconds).toBe(70);
+      expect(chapters.every((chapter) => chapter.timestampSeconds < 480)).toBe(true);
+      expect(buildTranscriptChapters([{ timestampSeconds: 20, cueText: "Only one segment" }], 480)).toEqual([]);
+    });
+
     it("pauses generation when understanding evidence is inadequate", async () => {
       const mockVision = {
         sampledFrames: [

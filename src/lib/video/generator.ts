@@ -26,6 +26,26 @@ export interface GeneratePublishingInput {
   research?: ResearchReport;
 }
 
+export function buildTranscriptChapters(
+  cues: VideoUnderstandingEvidence["audioEvidence"],
+  durationSeconds: number
+): FullPublishingPackage["chapters"] {
+  const valid = cues
+    .filter((cue) => Number.isFinite(cue.timestampSeconds) && cue.timestampSeconds >= 0 && cue.timestampSeconds < durationSeconds && cue.cueText.trim())
+    .sort((a, b) => a.timestampSeconds - b.timestampSeconds);
+  if (valid.length < 3 || !valid[0] || valid[0].timestampSeconds > 15 || durationSeconds < 90) return [];
+  const selected = [valid[0]];
+  for (const cue of valid.slice(1)) {
+    if (cue.timestampSeconds - selected[selected.length - 1].timestampSeconds >= 45 && selected.length < 8) selected.push(cue);
+  }
+  if (selected.length < 3) return [];
+  const chapterCues = [{ ...selected[0], timestampSeconds: 0 }, ...selected.slice(1)];
+  return chapterCues.map((cue) => {
+    const title = cue.cueText.replace(/\s+/g, " ").trim().split(/[.!?]/)[0].slice(0, 72).trim();
+    return { timestampSeconds: cue.timestampSeconds, timecode: formatTimecode(Math.floor(cue.timestampSeconds)), title, visualSupport: `Transcript cue at ${Math.round(cue.timestampSeconds)}s: ${cue.cueText.slice(0, 180)}` };
+  });
+}
+
 /**
  * Generate complete publishing package grounded in video evidence using configured AI model
  * and real YouTube research findings.
@@ -77,14 +97,8 @@ export async function generatePublishingPackageWithAI(
   }
 
   // Accurate chapters grounded in video duration and transcript
-  const chapters: Array<{
-    timecode: string;
-    timestampSeconds: number;
-    title: string;
-    visualSupport: string;
-  }> = [];
-
   const duration = Math.max(0, Math.round(media.durationSeconds));
+  const chapters = buildTranscriptChapters(evidence.audioEvidence || [], duration);
 
   // Fallback pattern assets grounded in video understanding
   const patternAssets = { titles: [] as any[] };
