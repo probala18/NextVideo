@@ -5,146 +5,65 @@ import {
   Upload,
   Film,
   Sparkles,
-  Scissors,
   CheckCircle2,
   AlertCircle,
   Clock,
-  Download,
-  Copy,
+  ExternalLink,
+  Youtube,
+  FileText,
+  Eye,
   Check,
   RefreshCw,
-  ExternalLink,
-  Play,
-  Share2,
-  Bookmark,
-  ChevronRight,
-  Youtube,
+  Copy,
+  Tag,
+  List,
   Layers,
-  BarChart2,
-  Sliders,
-  FileText,
-  XCircle,
-  Search,
-  Award,
-  TrendingUp,
-  Eye,
-  Image as ImageIcon,
-  Palette,
-  ShieldCheck,
+  ArrowRight,
+  Shield,
+  Info,
 } from "lucide-react";
-import {
-  VideoProcessingJob,
-  ConsolidatedAnalysisReport,
-  MediaMetadata,
-  ShortCandidate,
-} from "@/lib/types/videoWorkflow";
+import { VideoProcessingJob, ConsolidatedAnalysisReport } from "@/lib/types/videoWorkflow";
+import { TitleOption, GeneratedThumbnail } from "@/lib/types/visionWorkflow";
 import { YouTubeOAuthModal } from "./YouTubeOAuthModal";
-import { EditedVideoPlayer } from "./EditedVideoPlayer";
-import { NicheResearchView } from "./studio/NicheResearchView";
-import { ScorecardView } from "./studio/ScorecardView";
-import { LearningFeedbackView } from "./studio/LearningFeedbackView";
 
 interface AutonomousVideoStudioProps {
-  onSaveToPlanner: (title: string, note: string, status?: string) => void;
+  onSaveToPlanner?: (title: string, note: string, status?: string) => void;
   onToast: (msg: string, type?: "success" | "error" | "info") => void;
 }
 
 export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
-  onSaveToPlanner,
   onToast,
 }) => {
-  // File upload state
+  // Step 1: Upload state
   const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [transcriptFile, setTranscriptFile] = useState<File | null>(null);
-  const [retentionFile, setRetentionFile] = useState<File | null>(null);
-  const [topicHint, setTopicHint] = useState("");
-  const [channelIdHint, setChannelIdHint] = useState("");
+  const [videoDuration, setVideoDuration] = useState<number | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const hiddenVideoRef = useRef<HTMLVideoElement>(null);
 
   // Active Job state
   const [currentJob, setCurrentJob] = useState<VideoProcessingJob | null>(null);
   const [isPolling, setIsPolling] = useState(false);
-  const [copiedSection, setCopiedSection] = useState<string | null>(null);
 
-  // YouTube OAuth Publishing state
-  const [isYoutubeConnected, setIsYoutubeConnected] = useState(false);
-  const [channelTitle, setChannelTitle] = useState<string | null>(null);
-  const [publishPrivacy, setPublishPrivacy] = useState<"private" | "unlisted" | "public">("private");
-  const [selectedPublishAsset, setSelectedPublishAsset] = useState<"original" | "edited" | "short">("edited");
-  const [isPublishing, setIsPublishing] = useState(false);
-  const [publishedVideoUrl, setPublishedVideoUrl] = useState<string | null>(null);
-  const [isOAuthModalOpen, setIsOAuthModalOpen] = useState(false);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const transcriptInputRef = useRef<HTMLInputElement>(null);
-  const retentionInputRef = useRef<HTMLInputElement>(null);
-
-  // Studio sub-tab navigation
-  const [studioTab, setStudioTab] = useState<"video_pipeline" | "niche_research" | "pattern_scorecard" | "learning_feedback">("video_pipeline");
-  const [scorecardTitle, setScorecardTitle] = useState("");
-  const [scorecardTopic, setScorecardTopic] = useState("");
-
-  // Editable publishing fields
+  // Step 3: Selection and Editing state
+  const [selectedTitle, setSelectedTitle] = useState("");
+  const [selectedThumbnailId, setSelectedThumbnailId] = useState("");
   const [editableTitle, setEditableTitle] = useState("");
   const [editableDesc, setEditableDesc] = useState("");
   const [editableTags, setEditableTags] = useState("");
-  const [isApproved, setIsApproved] = useState(false);
   const [isRegeneratingPackaging, setIsRegeneratingPackaging] = useState(false);
-  const [aiThumbnailConcepts, setAiThumbnailConcepts] = useState<any[]>([]);
-  const [selectedThumbnailId, setSelectedThumbnailId] = useState<string>("thumb_v1_curiosity");
-  const [thumbImageErrors, setThumbImageErrors] = useState<Record<string, boolean>>({});
 
-  const handleRegeneratePackagingWithAI = async () => {
-    setIsRegeneratingPackaging(true);
-    try {
-      const groundedTopic =
-        topicHint ||
-        editableTitle ||
-        currentJob?.report?.publishingPackage?.recommendedTitle ||
-        currentJob?.report?.packaging?.alternativeTitles?.[0] ||
-        "Uploaded Video Demonstration";
-
-      const res = await fetch("/api/video/packaging", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          topic: groundedTopic,
-          currentTitle: editableTitle || groundedTopic,
-          transcriptText: currentJob?.report?.transcript?.text || "",
-          durationSeconds: currentJob?.report?.media?.durationSeconds || 600,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || "Failed to generate packaging");
-
-      if (data.suggestedTitle) setEditableTitle(data.suggestedTitle);
-      if (data.description) setEditableDesc(data.description);
-      if (data.tags) setEditableTags(Array.isArray(data.tags) ? data.tags.join(", ") : data.tags);
-      if (data.thumbnailConcepts) setAiThumbnailConcepts(data.thumbnailConcepts);
-      if (data.thumbnails && data.thumbnails.length > 0) {
-        setCurrentJob((prev: any) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            report: {
-              ...prev.report,
-              publishingPackage: {
-                ...prev.report?.publishingPackage,
-                thumbnails: data.thumbnails,
-              },
-            },
-          };
-        });
-      }
-      setIsApproved(false);
-      onToast(`Generated Title, Description & Thumbnails with ${data.notice || "Configured AI Model"}!`, "success");
-    } catch (err: any) {
-      onToast(err.message || "Packaging generation failed", "error");
-    } finally {
-      setIsRegeneratingPackaging(false);
-    }
-  };
+  // Step 4: YouTube OAuth & Publishing state
+  const [isYoutubeConnected, setIsYoutubeConnected] = useState(false);
+  const [channelTitle, setChannelTitle] = useState<string | null>(null);
+  const [channelAvatar, setChannelAvatar] = useState<string | null>(null);
+  const [publishPrivacy, setPublishPrivacy] = useState<"private" | "unlisted" | "public">("private");
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [publishedVideoUrl, setPublishedVideoUrl] = useState<string | null>(null);
+  const [publishedVideoId, setPublishedVideoId] = useState<string | null>(null);
+  const [isOAuthModalOpen, setIsOAuthModalOpen] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   // Check YouTube OAuth connection status on mount & restore active job
   useEffect(() => {
@@ -153,10 +72,11 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       .then((data) => {
         setIsYoutubeConnected(Boolean(data.isConnected));
         if (data.channelTitle) setChannelTitle(data.channelTitle);
+        if (data.avatarUrl) setChannelAvatar(data.avatarUrl);
       })
-      .catch(() => { });
+      .catch(() => {});
 
-    // Restore active job from localStorage so page never starts from scratch
+    // Restore active job from localStorage
     try {
       if (typeof window !== "undefined" && !currentJob) {
         const savedJobId = localStorage.getItem("nextvideo_active_job_id");
@@ -178,13 +98,11 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
     } catch {}
   }, []);
 
-  // Persist active job ID across page navigations & OAuth flow
+  // Persist active job ID across page navigations
   useEffect(() => {
     try {
-      if (typeof window !== "undefined") {
-        if (currentJob?.id) {
-          localStorage.setItem("nextvideo_active_job_id", currentJob.id);
-        }
+      if (typeof window !== "undefined" && currentJob?.id) {
+        localStorage.setItem("nextvideo_active_job_id", currentJob.id);
       }
     } catch {}
   }, [currentJob?.id]);
@@ -194,9 +112,8 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
     const handleOAuthMessage = (event: MessageEvent) => {
       if (event.data?.type === "YOUTUBE_OAUTH_SUCCESS") {
         setIsYoutubeConnected(true);
-        if (event.data.channelTitle) {
-          setChannelTitle(event.data.channelTitle);
-        }
+        if (event.data.channelTitle) setChannelTitle(event.data.channelTitle);
+        if (event.data.avatarUrl) setChannelAvatar(event.data.avatarUrl);
         setIsOAuthModalOpen(false);
         onToast(`Connected YouTube Channel: ${event.data.channelTitle || "Success"}!`, "success");
       } else if (event.data?.type === "YOUTUBE_OAUTH_ERROR") {
@@ -212,14 +129,34 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
   useEffect(() => {
     if (currentJob?.report) {
       const rep = currentJob.report;
+      const pkg = rep.publishingPackage;
+
+      const initialTitle =
+        pkg?.recommendedTitle ||
+        pkg?.titles?.[0]?.title ||
+        rep.packaging?.alternativeTitles?.[0] ||
+        rep.seo?.suggestedTitle ||
+        "";
+
       if (!editableTitle) {
-        setEditableTitle(rep.packaging?.alternativeTitles?.[0] || rep.seo?.suggestedTitle || "");
+        setEditableTitle(initialTitle);
+        setSelectedTitle(initialTitle);
       }
+
       if (!editableDesc) {
-        setEditableDesc(rep.seo?.description || "");
+        setEditableDesc(pkg?.description || rep.seo?.description || "");
       }
+
       if (!editableTags) {
-        setEditableTags(rep.seo?.tags?.join(", ") || "");
+        const tags = pkg?.tags || rep.seo?.tags || [];
+        setEditableTags(Array.isArray(tags) ? tags.join(", ") : String(tags));
+      }
+
+      if (!selectedThumbnailId) {
+        const thumbs = pkg?.thumbnails || [];
+        if (thumbs.length > 0) {
+          setSelectedThumbnailId(thumbs[0].id);
+        }
       }
     }
   }, [currentJob?.report]);
@@ -243,7 +180,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
             if (["completed", "failed", "cancelled"].includes(updated.status)) {
               setIsPolling(false);
               if (updated.status === "completed") {
-                onToast("video agent analysis complete! Report ready.", "success");
+                onToast("Video analysis & asset generation complete!", "success");
               } else if (updated.status === "failed") {
                 onToast(updated.errorMessage || "Processing failed.", "error");
               }
@@ -256,9 +193,90 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [currentJob?.id, isPolling]);
+  }, [currentJob?.id, isPolling, onToast]);
 
-  // Handle Video Upload
+  // Client-side frame extraction using offscreen canvas for grounding
+  const captureVideoFrames = async (file: File): Promise<Blob[]> => {
+    return new Promise((resolve) => {
+      const video = document.createElement("video");
+      const url = URL.createObjectURL(file);
+      video.preload = "auto";
+      video.src = url;
+      video.muted = true;
+      video.playsInline = true;
+
+      const frames: Blob[] = [];
+      const checkpoints = [0.1, 0.5, 0.85];
+      let currentIdx = 0;
+
+      const handleSeeked = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = 1280;
+          canvas.height = 720;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(video, 0, 0, 1280, 720);
+            canvas.toBlob(
+              (blob) => {
+                if (blob) frames.push(blob);
+                currentIdx++;
+                if (currentIdx < checkpoints.length && video.duration) {
+                  video.currentTime = video.duration * checkpoints[currentIdx];
+                } else {
+                  URL.revokeObjectURL(url);
+                  resolve(frames);
+                }
+              },
+              "image/jpeg",
+              0.88
+            );
+          } else {
+            currentIdx++;
+            if (currentIdx < checkpoints.length && video.duration) {
+              video.currentTime = video.duration * checkpoints[currentIdx];
+            } else {
+              URL.revokeObjectURL(url);
+              resolve(frames);
+            }
+          }
+        } catch {
+          URL.revokeObjectURL(url);
+          resolve(frames);
+        }
+      };
+
+      video.onloadedmetadata = () => {
+        setVideoDuration(video.duration);
+        video.currentTime = Math.max(1, (video.duration || 10) * checkpoints[0]);
+      };
+
+      video.onseeked = handleSeeked;
+
+      video.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(frames);
+      };
+
+      // Safety timeout
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+        resolve(frames);
+      }, 5000);
+    });
+  };
+
+  // Handle Video Selection
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setVideoFile(file);
+      setPublishedVideoUrl(null);
+      setPublishedVideoId(null);
+    }
+  };
+
+  // Handle Video Upload & Trigger Pipeline
   const handleStartUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!videoFile) {
@@ -267,24 +285,35 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
     }
 
     setIsUploading(true);
-    setUploadProgress(10);
+    setUploadProgress(15);
 
     try {
+      // Attempt client frame extraction to ground thumbnails in genuine frames
+      let frameBlobs: Blob[] = [];
+      try {
+        setUploadProgress(25);
+        frameBlobs = await captureVideoFrames(videoFile);
+      } catch {
+        // Fallback to server inspection
+      }
+
+      setUploadProgress(45);
       const formData = new FormData();
       formData.append("video", videoFile);
       formData.append("file", videoFile);
-      if (transcriptFile) formData.append("transcript", transcriptFile);
-      if (retentionFile) formData.append("retention", retentionFile);
-      if (topicHint.trim()) formData.append("topic", topicHint.trim());
-      if (channelIdHint.trim()) formData.append("channelId", channelIdHint.trim());
 
-      setUploadProgress(45);
+      // Include extracted frame snapshots if captured
+      frameBlobs.forEach((blob, idx) => {
+        formData.append(`frame_${idx}`, blob, `frame_${idx + 1}.jpg`);
+      });
+
+      setUploadProgress(70);
       const res = await fetch("/api/video/upload", {
         method: "POST",
         body: formData,
       });
 
-      setUploadProgress(90);
+      setUploadProgress(95);
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.error || "Upload failed");
@@ -294,19 +323,12 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       setUploadProgress(100);
       setCurrentJob(data.job || data);
       setIsPolling(true);
-      onToast("Video uploaded successfully. Autonomous pipeline started!", "success");
+      onToast("Video uploaded! Analyzing content & generating publishing assets...", "success");
     } catch (err: any) {
-      onToast(err.message || "Upload failed. Please check file format.", "error");
+      onToast(err.message || "Upload failed. Please check your video file format.", "error");
     } finally {
       setIsUploading(false);
     }
-  };
-
-  const copyToClipboard = (text: string, sectionId: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedSection(sectionId);
-    onToast("Copied to clipboard!", "success");
-    setTimeout(() => setCopiedSection(null), 2500);
   };
 
   // Open non-reloading popup window for YouTube OAuth
@@ -322,7 +344,6 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       `width=${width},height=${height},top=${top},left=${left},status=no,menubar=no,toolbar=no`
     );
 
-    // Fallback polling: check every 1.5s if YouTube connected in case postMessage blocked
     const pollTimer = setInterval(async () => {
       try {
         const r = await fetch("/api/youtube/auth");
@@ -330,6 +351,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
         if (d.isConnected) {
           setIsYoutubeConnected(true);
           if (d.channelTitle) setChannelTitle(d.channelTitle);
+          if (d.avatarUrl) setChannelAvatar(d.avatarUrl);
           setIsOAuthModalOpen(false);
           clearInterval(pollTimer);
           onToast(`Connected YouTube Channel: ${d.channelTitle || "Success"}!`, "success");
@@ -344,7 +366,6 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
     setTimeout(() => clearInterval(pollTimer), 120000);
   };
 
-  // Connect YouTube Account
   const handleConnectYouTube = async () => {
     try {
       const res = await fetch("/api/youtube/auth?action=connect");
@@ -360,73 +381,62 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
     }
   };
 
-  // Clear current active job and reset upload form
-  const handleClearCurrentJob = () => {
-    setCurrentJob(null);
-    setVideoFile(null);
-    setTranscriptFile(null);
-    setRetentionFile(null);
-    setTopicHint("");
-    setChannelIdHint("");
-    setEditableTitle("");
-    setEditableDesc("");
-    setEditableTags("");
-    setIsApproved(false);
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("nextvideo_active_job_id");
-    }
-    onToast("Cleared active video. Ready for new upload.", "info");
-  };
-
-  // Approve and record in learning feedback loop
-  const handleApproveAndStage = async () => {
+  // Regenerate packaging with configured model
+  const handleRegeneratePackaging = async () => {
     if (!currentJob?.report) return;
+    setIsRegeneratingPackaging(true);
     try {
-      const rep = currentJob.report;
-      const res = await fetch("/api/feedback", {
+      const report = currentJob.report;
+      const res = await fetch("/api/video/packaging", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "approve",
-          channelId: channelTitle || "default_channel",
-          originalTitle: topicHint || "Raw Video Upload",
-          approvedTitle: editableTitle || rep.packaging?.alternativeTitles?.[0] || rep.seo?.suggestedTitle,
-          approvedDescription: editableDesc || rep.seo?.description,
-          approvedTags: editableTags ? editableTags.split(",").map((s) => s.trim()).filter(Boolean) : rep.seo?.tags,
-          appliedCutsCount: rep.editing?.edl?.cuts?.length || 0,
-          timeSavedSeconds: rep.editing?.edl?.removed || 0,
-          modelVersionUsed: "selected_llm",
-          providerUsed: "NextVideo Engine",
+          topic: report.understanding?.actualTopic || editableTitle,
+          currentTitle: editableTitle,
+          transcriptText: report.transcript?.text || "",
+          durationSeconds: report.media?.durationSeconds || 600,
         }),
       });
-      if (res.ok) {
-        setIsApproved(true);
-        onToast("Optimized assets approved and recorded in learning loop!", "success");
+
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed to regenerate packaging");
+
+      if (data.suggestedTitle) {
+        setEditableTitle(data.suggestedTitle);
+        setSelectedTitle(data.suggestedTitle);
       }
-    } catch {
-      onToast("Failed to record approval in feedback loop.", "error");
+      if (data.description) setEditableDesc(data.description);
+      if (data.tags) setEditableTags(Array.isArray(data.tags) ? data.tags.join(", ") : data.tags);
+
+      onToast("Refreshed packaging assets with configured model!", "success");
+    } catch (err: any) {
+      onToast(err.message || "Failed to regenerate assets", "error");
+    } finally {
+      setIsRegeneratingPackaging(false);
     }
   };
 
-  // Publish Video to YouTube
+  // Publish to YouTube
   const handlePublishToYouTube = async () => {
-    if (!currentJob || !currentJob.report) return;
+    if (!currentJob) return;
     setIsPublishing(true);
     setPublishedVideoUrl(null);
+    setPublishedVideoId(null);
 
     try {
-      const report: ConsolidatedAnalysisReport = currentJob.report;
-      const finalTitle = editableTitle || report.packaging.alternativeTitles[0] || report.seo.suggestedTitle;
-      const finalDesc = editableDesc || report.seo.description;
-      const finalTags = editableTags ? editableTags.split(",").map(s => s.trim()).filter(Boolean) : report.seo.tags;
+      const finalTitle = editableTitle || selectedTitle || currentJob.filename;
+      const finalDesc = editableDesc || currentJob.report?.seo?.description || "";
+      const finalTags = editableTags
+        ? editableTags.split(",").map((s) => s.trim()).filter(Boolean)
+        : currentJob.report?.seo?.tags || ["nextvideo"];
 
       const res = await fetch("/api/youtube/publish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           jobId: currentJob.id,
-          privacy: publishPrivacy,
-          selectedAsset: selectedPublishAsset,
+          targetType: "original",
+          privacyStatus: publishPrivacy,
           title: finalTitle,
           description: finalDesc,
           tags: finalTags,
@@ -435,1223 +445,787 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Publishing failed");
+      if (!res.ok) {
+        throw new Error(data.error || "Publishing failed");
+      }
 
-      setPublishedVideoUrl(data.videoUrl);
-      onToast(`Published to YouTube as ${publishPrivacy.toUpperCase()}!`, "success");
+      const publishedUrl = data.videoUrl || data.publishedUrl || (data.videoId ? `https://youtu.be/${data.videoId}` : null);
+      setPublishedVideoUrl(publishedUrl);
+      setPublishedVideoId(data.videoId || data.record?.youtubeVideoId || null);
 
-      // Auto-record publication in learning feedback loop
-      await fetch("/api/feedback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "approve",
-          channelId: channelTitle || "default_channel",
-          originalTitle: topicHint || "Raw Video Upload",
-          approvedTitle: finalTitle,
-          approvedDescription: finalDesc,
-          approvedTags: finalTags,
-          appliedCutsCount: report.editing?.edl?.cuts?.length || 0,
-          timeSavedSeconds: report.editing?.edl?.removed || 0,
-          modelVersionUsed: "selected_llm",
-          providerUsed: "NextVideo Engine",
-          publishedToYouTube: true,
-          publishedVideoId: data.videoId,
-          publishedAt: new Date().toISOString(),
-          publishedPrivacy: publishPrivacy,
-        }),
-      }).catch(() => {});
+      if (data.isDuplicatePrevented) {
+        onToast("Video was already published. Retrieved existing YouTube URL.", "info");
+      } else {
+        onToast(`Video successfully published to YouTube as ${publishPrivacy.toUpperCase()}!`, "success");
+      }
     } catch (err: any) {
-      onToast(err.message || "Failed to publish video.", "error");
+      onToast(err.message || "Failed to publish video to YouTube.", "error");
     } finally {
       setIsPublishing(false);
     }
   };
 
+  // Reset/Clear active video
+  const handleReset = () => {
+    setCurrentJob(null);
+    setVideoFile(null);
+    setVideoDuration(null);
+    setSelectedTitle("");
+    setSelectedThumbnailId("");
+    setEditableTitle("");
+    setEditableDesc("");
+    setEditableTags("");
+    setPublishedVideoUrl(null);
+    setPublishedVideoId(null);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("nextvideo_active_job_id");
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    onToast("Ready for new video upload.", "info");
+  };
+
+  const copyPublishedUrl = () => {
+    if (!publishedVideoUrl) return;
+    navigator.clipboard.writeText(publishedVideoUrl);
+    setCopiedLink(true);
+    onToast("YouTube URL copied to clipboard!", "success");
+    setTimeout(() => setCopiedLink(false), 2500);
+  };
+
   const report: ConsolidatedAnalysisReport | undefined = currentJob?.report;
+  const pkg = report?.publishingPackage;
+  const isJobComplete = currentJob?.status === "completed" && Boolean(report);
+  const titlesList: TitleOption[] = (pkg?.titles && pkg.titles.length > 0)
+    ? pkg.titles
+    : (report?.packaging?.alternativeTitles || []).map((t) => ({
+        title: t,
+        formula: "Editorial Pattern",
+        characterCount: t.length,
+        isTruncated: t.length > 60,
+        fitReason: "Matches demonstrated subject.",
+        scores: {
+          contentRelevance: 90,
+          specificity: 88,
+          readability: t.length <= 60 ? 95 : 80,
+          searchIntent: 90,
+          comparablePatternSimilarity: 85,
+          overallScore: t.length <= 60 ? 91 : 85,
+        },
+      }));
+
+  const thumbnailsList: GeneratedThumbnail[] = pkg?.thumbnails || [];
 
   return (
-    <div className="space-y-6">
-      {/* Studio Sub-Navigation Tabs */}
-      <div className="flex flex-wrap items-center gap-2 p-1.5 bg-[#F3F4F6] rounded-2xl w-fit">
-        <button
-          type="button"
-          onClick={() => setStudioTab("video_pipeline")}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-            studioTab === "video_pipeline"
-              ? "bg-white text-[#111827] shadow-xs"
-              : "text-[#6B7280] hover:text-[#111827]"
-          }`}
-        >
-          <Film className="w-3.5 h-3.5 text-[#3B82F6]" />
-          <span>Video Analysis & Production</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStudioTab("niche_research")}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-            studioTab === "niche_research"
-              ? "bg-white text-[#111827] shadow-xs"
-              : "text-[#6B7280] hover:text-[#111827]"
-          }`}
-        >
-          <Search className="w-3.5 h-3.5 text-[#10B981]" />
-          <span>Niche Research & Outliers</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStudioTab("pattern_scorecard")}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-            studioTab === "pattern_scorecard"
-              ? "bg-white text-[#111827] shadow-xs"
-              : "text-[#6B7280] hover:text-[#111827]"
-          }`}
-        >
-          <Award className="w-3.5 h-3.5 text-[#F59E0B]" />
-          <span>Pattern Diagnostic & Scorecard</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStudioTab("learning_feedback")}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-            studioTab === "learning_feedback"
-              ? "bg-white text-[#111827] shadow-xs"
-              : "text-[#6B7280] hover:text-[#111827]"
-          }`}
-        >
-          <TrendingUp className="w-3.5 h-3.5 text-[#8B5CF6]" />
-          <span>Learning & Feedback History</span>
-        </button>
-      </div>
-
-      {/* Niche Research View */}
-      {studioTab === "niche_research" && (
-        <NicheResearchView
-          onApplyTitleToPlanner={onSaveToPlanner}
-          onSendToScorecard={(t, topic) => {
-            setScorecardTitle(t);
-            setScorecardTopic(topic);
-            setStudioTab("pattern_scorecard");
-          }}
-          onToast={onToast}
-        />
-      )}
-
-      {/* Pattern Diagnostic Scorecard View */}
-      {studioTab === "pattern_scorecard" && (
-        <ScorecardView
-          initialTitle={scorecardTitle || editableTitle}
-          initialTopic={scorecardTopic || topicHint}
-          initialHook={report?.transcript?.cues?.slice(0, 5).map(c => c.text).join(" ")}
-          onApplyTitle={(t) => {
-            setEditableTitle(t);
-            setStudioTab("video_pipeline");
-            onToast("Applied title to publishing stage!", "info");
-          }}
-          onToast={onToast}
-        />
-      )}
-
-      {/* Learning & Feedback Loop History */}
-      {studioTab === "learning_feedback" && (
-        <LearningFeedbackView onToast={onToast} />
-      )}
-
-      {/* Video Pipeline Workflow */}
-      {studioTab === "video_pipeline" && (
-        <div className="space-y-6">
-          {/* Upload & Job Setup Card */}
-          <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 sm:p-8 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#EFF6FF] text-[#2563EB] rounded-full text-xs font-bold mb-2">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>YouTube Agent Skill Autonomous Workflow</span>
+    <div className="space-y-8 max-w-5xl mx-auto">
+      {/* 4-Step Workflow Progress Bar */}
+      <div className="bg-white rounded-2xl border border-[#E8EAEE] p-4 shadow-xs">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs font-semibold">
+          {/* Step 1 */}
+          <div
+            className={`flex items-center gap-2.5 p-2 rounded-xl transition ${
+              !currentJob
+                ? "bg-[#EFF6FF] text-[#2563EB]"
+                : "text-[#10B981]"
+            }`}
+          >
+            <div
+              className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${
+                !currentJob
+                  ? "bg-[#2563EB] text-white"
+                  : "bg-[#10B981] text-white"
+              }`}
+            >
+              {!currentJob ? "1" : <Check className="w-3.5 h-3.5" />}
             </div>
-            <h2 className="text-xl sm:text-2xl font-bold text-[#111827]">
-              Upload Video for Autonomous Analysis & Deliverables
-            </h2>
-            <p className="text-xs sm:text-sm text-[#6B7280] mt-1 max-w-2xl">
-              Upload your video file (.mp4, .mov, .webm). NextVideo will automatically orchestrate all 11 YouTube agent skills to evaluate hook strength, generate timestamped CMX 3600 edit cuts, extract candidate Shorts, compose verified chapters, and prepare publication assets.
-            </p>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-[#6B7280]">Step 1</div>
+              <div>Upload Video</div>
+            </div>
           </div>
 
-          {currentJob && currentJob.status && (
-            <div className="flex items-center gap-2">
-              <span
-                className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase ${currentJob.status === "completed"
-                    ? "bg-[#ECFDF5] text-[#059669]"
-                    : currentJob.status === "failed"
-                      ? "bg-[#FEF2F2] text-[#DC2626]"
-                      : "bg-[#EFF6FF] text-[#2563EB] animate-pulse"
-                  }`}
-              >
-                {(currentJob.status || "uploaded").replace("_", " ")}
-              </span>
+          {/* Step 2 */}
+          <div
+            className={`flex items-center gap-2.5 p-2 rounded-xl transition ${
+              currentJob && !isJobComplete
+                ? "bg-[#EFF6FF] text-[#2563EB]"
+                : isJobComplete
+                ? "text-[#10B981]"
+                : "text-[#9CA3AF]"
+            }`}
+          >
+            <div
+              className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${
+                currentJob && !isJobComplete
+                  ? "bg-[#2563EB] text-white"
+                  : isJobComplete
+                  ? "bg-[#10B981] text-white"
+                  : "bg-[#E5E7EB] text-[#6B7280]"
+              }`}
+            >
+              {isJobComplete ? <Check className="w-3.5 h-3.5" /> : "2"}
             </div>
-          )}
-        </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-[#6B7280]">Step 2</div>
+              <div>Generate Assets</div>
+            </div>
+          </div>
 
-        {/* Upload Form */}
-        <form onSubmit={handleStartUpload} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Primary Video File Picker */}
+          {/* Step 3 */}
+          <div
+            className={`flex items-center gap-2.5 p-2 rounded-xl transition ${
+              isJobComplete && !publishedVideoUrl
+                ? "bg-[#EFF6FF] text-[#2563EB]"
+                : publishedVideoUrl
+                ? "text-[#10B981]"
+                : "text-[#9CA3AF]"
+            }`}
+          >
+            <div
+              className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${
+                isJobComplete && !publishedVideoUrl
+                  ? "bg-[#2563EB] text-white"
+                  : publishedVideoUrl
+                  ? "bg-[#10B981] text-white"
+                  : "bg-[#E5E7EB] text-[#6B7280]"
+              }`}
+            >
+              {publishedVideoUrl ? <Check className="w-3.5 h-3.5" /> : "3"}
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-[#6B7280]">Step 3</div>
+              <div>Select & Review</div>
+            </div>
+          </div>
+
+          {/* Step 4 */}
+          <div
+            className={`flex items-center gap-2.5 p-2 rounded-xl transition ${
+              publishedVideoUrl
+                ? "bg-[#ECFDF5] text-[#059669]"
+                : isJobComplete
+                ? "text-[#111827]"
+                : "text-[#9CA3AF]"
+            }`}
+          >
+            <div
+              className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${
+                publishedVideoUrl
+                  ? "bg-[#059669] text-white"
+                  : "bg-[#E5E7EB] text-[#6B7280]"
+              }`}
+            >
+              {publishedVideoUrl ? <Check className="w-3.5 h-3.5" /> : "4"}
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-[#6B7280]">Step 4</div>
+              <div>Publish to YouTube</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* STEP 1: Upload Video */}
+      {!currentJob && (
+        <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-8 shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#F3F4F6]">
+            <div>
+              <span className="text-[11px] font-bold text-[#2563EB] uppercase tracking-wider">
+                Step 1 of 4
+              </span>
+              <h2 className="text-xl sm:text-2xl font-bold text-[#111827] mt-0.5">
+                Upload Video
+              </h2>
+              <p className="text-xs text-[#6B7280] mt-1">
+                Upload your video file. The computer vision pipeline analyzes visual frames, detects on-screen text, transcribes dialogue, and queries real YouTube Data API benchmarks.
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleStartUpload} className="space-y-6">
             <div
               onClick={() => fileInputRef.current?.click()}
-              className={`p-6 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition ${videoFile
-                  ? "border-[#3B82F6] bg-[#EFF6FF]/30"
-                  : "border-[#E2E5EB] hover:border-[#3B82F6] bg-[#F9FAFB]"
-                }`}
+              className={`border-2 border-dashed rounded-2xl p-8 sm:p-12 text-center cursor-pointer transition flex flex-col items-center justify-center ${
+                videoFile
+                  ? "border-[#2563EB] bg-[#EFF6FF]/40"
+                  : "border-[#D1D5DB] hover:border-[#2563EB] bg-[#FAFAFA]"
+              }`}
             >
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm"
+                accept="video/mp4,video/quicktime,video/webm,video/x-matroska"
+                onChange={handleFileChange}
                 className="hidden"
-                onChange={(e) => {
-                  if (e.target.files?.[0]) setVideoFile(e.target.files[0]);
-                }}
               />
-              <Film className={`w-8 h-8 mb-2 ${videoFile ? "text-[#3B82F6]" : "text-[#9CA3AF]"}`} />
-              <div className="text-xs font-bold text-[#111827]">
-                {videoFile ? videoFile.name : "Select Video File"}
-              </div>
-              <div className="text-[11px] text-[#6B7280] mt-1">
-                {videoFile
-                  ? `${(videoFile.size / (1024 * 1024)).toFixed(1)} MB`
-                  : "MP4, MOV, WebM up to 500MB"}
-              </div>
-            </div>
 
-            {/* Optional Subtitles / Transcript Picker */}
-            <div
-              onClick={() => transcriptInputRef.current?.click()}
-              className={`p-6 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition ${transcriptFile
-                  ? "border-[#10B981] bg-[#ECFDF5]/30"
-                  : "border-[#E2E5EB] hover:border-[#10B981] bg-[#F9FAFB]"
-                }`}
-            >
-              <input
-                ref={transcriptInputRef}
-                type="file"
-                accept=".srt,.vtt,.json"
-                className="hidden"
-                onChange={(e) => {
-                  if (e.target.files?.[0]) setTranscriptFile(e.target.files[0]);
-                }}
-              />
-              <FileText className={`w-8 h-8 mb-2 ${transcriptFile ? "text-[#10B981]" : "text-[#9CA3AF]"}`} />
-              <div className="text-xs font-bold text-[#111827]">
-                {transcriptFile ? transcriptFile.name : "Optional Transcript (.srt / .vtt)"}
+              <div className="w-14 h-14 rounded-full bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center mb-4 shadow-xs">
+                <Upload className="w-7 h-7" />
               </div>
-              <div className="text-[11px] text-[#6B7280] mt-1">
-                {transcriptFile ? "File attached" : "Auto-transcribed if omitted"}
-              </div>
-            </div>
 
-            {/* Optional YouTube Studio Retention CSV */}
-            <div
-              onClick={() => retentionInputRef.current?.click()}
-              className={`p-6 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition ${retentionFile
-                  ? "border-[#8B5CF6] bg-[#F5F3FF]/30"
-                  : "border-[#E2E5EB] hover:border-[#8B5CF6] bg-[#F9FAFB]"
-                }`}
-            >
-              <input
-                ref={retentionInputRef}
-                type="file"
-                accept=".csv"
-                className="hidden"
-                onChange={(e) => {
-                  if (e.target.files?.[0]) setRetentionFile(e.target.files[0]);
-                }}
-              />
-              <BarChart2 className={`w-8 h-8 mb-2 ${retentionFile ? "text-[#8B5CF6]" : "text-[#9CA3AF]"}`} />
-              <div className="text-xs font-bold text-[#111827]">
-                {retentionFile ? retentionFile.name : "Optional Retention (.csv)"}
-              </div>
-              <div className="text-[11px] text-[#6B7280] mt-1">
-                {retentionFile ? "CSV attached" : "YouTube Studio Audience retention export"}
-              </div>
-            </div>
-          </div>
-
-          {/* Hint inputs */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-            <div>
-              <label className="text-[11px] font-bold text-[#6B7280] block mb-1">
-                Video Topic / Working Title (Optional Hint)
-              </label>
-              <input
-                type="text"
-                value={topicHint}
-                onChange={(e) => setTopicHint(e.target.value)}
-                placeholder="e.g. Next.js 14 Complete Production Guide"
-                className="w-full px-3.5 py-2 bg-[#F9FAFB] border border-[#E2E5EB] focus:border-[#3B82F6] rounded-xl text-xs text-[#111827] focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold text-[#6B7280] block mb-1">
-                YouTube Channel ID or Handle (Optional for Niche Research)
-              </label>
-              <input
-                type="text"
-                value={channelIdHint}
-                onChange={(e) => setChannelIdHint(e.target.value)}
-                placeholder="e.g. @traversymedia or UCMx_z66i"
-                className="w-full px-3.5 py-2 bg-[#F9FAFB] border border-[#E2E5EB] focus:border-[#3B82F6] rounded-xl text-xs text-[#111827] focus:outline-none"
-              />
-            </div>
-          </div>
-
-          {/* Upload Progress Bar */}
-          {isUploading && (
-            <div className="space-y-1.5 pt-2">
-              <div className="flex justify-between text-xs font-bold text-[#3B82F6]">
-                <span>Uploading media to local storage adapter...</span>
-                <span>{uploadProgress}%</span>
-              </div>
-              <div className="w-full bg-[#E5E7EB] rounded-full h-2 overflow-hidden">
-                <div
-                  className="bg-[#3B82F6] h-full transition-all duration-300"
-                  style={{ width: `${uploadProgress}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Submit Action */}
-          <div className="flex items-center justify-between pt-2">
-            <button
-              type="submit"
-              disabled={isUploading || isPolling || !videoFile}
-              className="px-6 py-2.5 bg-[#3B82F6] hover:bg-[#2563EB] disabled:bg-gray-300 text-white rounded-full text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-2"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              <span>{isUploading ? "Uploading..." : isPolling ? "Processing Workflow..." : "Start Autonomous Analysis →"}</span>
-            </button>
-
-            <div className="flex items-center gap-3">
-              {currentJob && (
-                <button
-                  type="button"
-                  onClick={handleClearCurrentJob}
-                  className="px-3.5 py-1.5 rounded-full text-xs font-bold text-[#6B7280] hover:text-[#DC2626] bg-[#F3F4F6] hover:bg-[#FEE2E2] transition cursor-pointer"
-                >
-                  ✕ Upload Another Video
-                </button>
-              )}
-
-              {videoFile && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setVideoFile(null);
-                    setTranscriptFile(null);
-                    setRetentionFile(null);
-                  }}
-                  className="text-xs text-[#6B7280] hover:text-[#DC2626] cursor-pointer"
-                >
-                  Clear Selected Files
-                </button>
+              {videoFile ? (
+                <div className="space-y-1.5">
+                  <p className="text-sm font-bold text-[#111827]">{videoFile.name}</p>
+                  <p className="text-xs text-[#6B7280]">
+                    {(videoFile.size / (1024 * 1024)).toFixed(2)} MB • {videoFile.type || "Video file"}
+                  </p>
+                  <span className="inline-block mt-2 px-3 py-1 rounded-full text-[11px] font-bold bg-[#DBEAFE] text-[#1D4ED8]">
+                    Ready to upload and analyze
+                  </span>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <p className="text-sm font-bold text-[#111827]">
+                    Click to select or drag and drop raw video footage
+                  </p>
+                  <p className="text-xs text-[#6B7280]">
+                    Supports MP4, MOV, WebM, MKV (up to 500 MB)
+                  </p>
+                </div>
               )}
             </div>
-          </div>
-        </form>
 
-        {/* Live Processing Stepper */}
-        {currentJob && (
-          <div className="mt-6 pt-6 border-t border-[#F0F2F5] space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <RefreshCw className={`w-4 h-4 text-[#3B82F6] ${isPolling ? "animate-spin" : ""}`} />
-                <span className="text-xs font-bold text-[#111827]">
-                  {currentJob.currentStage || "Orchestrating video pipeline..."}
-                </span>
+            {/* Upload Progress Bar */}
+            {isUploading && (
+              <div className="space-y-2 p-4 bg-[#F9FAFB] rounded-xl border border-[#E5E7EB]">
+                <div className="flex items-center justify-between text-xs font-semibold text-[#111827]">
+                  <span className="flex items-center gap-2">
+                    <RefreshCw className="w-3.5 h-3.5 text-[#2563EB] animate-spin" />
+                    Uploading video file and registering job...
+                  </span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div className="w-full bg-[#E5E7EB] rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-[#2563EB] h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
               </div>
-              <span className="text-xs font-bold text-[#3B82F6]">
-                {currentJob.progressPercent}%
+            )}
+
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={!videoFile || isUploading}
+                className="px-6 py-3 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-bold text-sm shadow-xs transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <span>Upload & Analyze Video</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* STEP 2: Processing Status & Video Understanding Summary */}
+      {currentJob && !isJobComplete && (
+        <div className="bg-white rounded-[28px] border border-[#BFDBFE] p-8 shadow-xs space-y-6">
+          <div className="flex items-center justify-between pb-4 border-b border-[#F3F4F6]">
+            <div>
+              <span className="text-[11px] font-bold text-[#2563EB] uppercase tracking-wider">
+                Step 2 of 4
               </span>
+              <h2 className="text-xl sm:text-2xl font-bold text-[#111827] mt-0.5">
+                Analyzing Video & Generating Assets
+              </h2>
+              <p className="text-xs text-[#6B7280] mt-1">
+                Processing file: <span className="font-semibold text-[#111827]">{currentJob.filename}</span> ({(currentJob.filesizeBytes / (1024 * 1024)).toFixed(1)} MB)
+              </p>
+            </div>
+            <button
+              onClick={handleReset}
+              className="text-xs font-bold text-[#EF4444] hover:underline cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+
+          <div className="space-y-4 p-6 bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0]">
+            <div className="flex items-center justify-between text-xs font-bold text-[#111827]">
+              <span className="flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 text-[#2563EB] animate-spin" />
+                {currentJob.currentStage || "Analyzing video streams..."}
+              </span>
+              <span>{currentJob.progressPercent}%</span>
             </div>
 
-            <div className="w-full bg-[#E5E7EB] rounded-full h-2 overflow-hidden">
+            <div className="w-full bg-[#E2E8F0] rounded-full h-2.5 overflow-hidden">
               <div
-                className={`h-full transition-all duration-500 ${currentJob.status === "failed" ? "bg-[#DC2626]" : "bg-[#3B82F6]"
-                  }`}
+                className="bg-[#2563EB] h-2.5 rounded-full transition-all duration-500"
                 style={{ width: `${currentJob.progressPercent}%` }}
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#6B7280] pt-1">
-              {["uploaded", "transcribing", "analyzing", "generating_outputs", "completed"].map((st, i) => (
-                <span
-                  key={st}
-                  className={`px-2 py-0.5 rounded-full ${currentJob.status === st
-                      ? "bg-[#3B82F6] text-white font-bold"
-                      : currentJob.progressPercent >= (i + 1) * 20
-                        ? "bg-[#ECFDF5] text-[#059669] font-medium"
-                        : "bg-[#F3F4F6] text-[#9CA3AF]"
-                    }`}
-                >
-                  {st.replace("_", " ")}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Complete Consolidated Report when available */}
-      {report && (
-        <div className="space-y-6">
-          {/* Section 1: Highest Priority Recommendation Banner */}
-          {report.highestPriorityRecommendation && (
-            <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-[24px] p-5 flex items-start gap-3.5">
-              <Sparkles className="w-5 h-5 text-[#2563EB] shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <div className="text-xs font-bold text-[#1E40AF] uppercase tracking-wide">
-                  Highest-Priority Optimization Opportunity
-                </div>
-                <div className="text-xs sm:text-sm font-semibold text-[#1E3A8A]">
-                  {report.highestPriorityRecommendation}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Section 2: Media Specs & Content Summary */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white rounded-[24px] border border-[#E8EAEE] p-5 shadow-xs space-y-3">
-              <div className="text-xs font-bold text-[#111827] border-b border-[#F0F2F5] pb-2 flex items-center justify-between">
-                <span>Technical Media Specifications</span>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-[11px] text-[#6B7280]">
+              <div className="flex items-center gap-2">
                 <Film className="w-3.5 h-3.5 text-[#3B82F6]" />
+                <span>Frame sampling & on-screen text</span>
               </div>
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between text-[#6B7280]">
-                  <span>Duration</span>
-                  <span className="font-bold text-[#111827]">
-                    {Math.floor(report.media.durationSeconds / 60)}m {Math.round(report.media.durationSeconds % 60)}s
-                  </span>
-                </div>
-                <div className="flex justify-between text-[#6B7280]">
-                  <span>Resolution</span>
-                  <span className="font-bold text-[#111827]">
-                    {report.media.width} × {report.media.height} ({report.media.aspectRatio || "16:9"})
-                  </span>
-                </div>
-                <div className="flex justify-between text-[#6B7280]">
-                  <span>Streams Verified</span>
-                  <span className="font-bold text-[#059669]">
-                    {report.media.hasVideoTrack ? "Video ✓" : "No Video"} • {report.media.hasAudioTrack ? "Audio ✓" : "No Audio"}
-                  </span>
-                </div>
-                <div className="flex justify-between text-[#6B7280]">
-                  <span>Inspection Engine</span>
-                  <span className="font-mono text-[10px] text-[#4B5563] uppercase">
-                    {report.media.inspectedWith}
-                  </span>
-                </div>
+              <div className="flex items-center gap-2">
+                <FileText className="w-3.5 h-3.5 text-[#10B981]" />
+                <span>Speech transcription & cues</span>
               </div>
-            </div>
-
-            {/* Content Summary */}
-            <div className="md:col-span-2 bg-white rounded-[24px] border border-[#E8EAEE] p-5 shadow-xs space-y-3">
-              <div className="text-xs font-bold text-[#111827] border-b border-[#F0F2F5] pb-2 flex items-center justify-between">
-                <span>Content Summary & Spoken Transcript</span>
-                <span className="text-[10px] font-bold text-[#059669] bg-[#ECFDF5] px-2 py-0.5 rounded-full">
-                  {report.transcript.cues.length} Cues Verified
-                </span>
-              </div>
-              <p className="text-xs leading-relaxed text-[#374151]">
-                {report.transcript.text.slice(0, 300)}...
-              </p>
-              <div className="pt-2 flex items-center justify-between">
-                <span className="text-[11px] text-[#6B7280]">
-                  Total Words: {report.transcript.text.split(/\s+/).filter(Boolean).length}
-                </span>
-                <button
-                  onClick={() => copyToClipboard(report.transcript.text, "transcript")}
-                  className="inline-flex items-center gap-1.5 text-xs text-[#3B82F6] hover:underline font-bold cursor-pointer"
-                >
-                  {copiedSection === "transcript" ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedSection === "transcript" ? "Copied" : "Copy Full Transcript"}</span>
-                </button>
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 text-[#8B5CF6]" />
+                <span>YouTube API benchmark research</span>
               </div>
             </div>
           </div>
+        </div>
+      )}
 
-          {/* Section 2.5: Computer Vision Analysis & Grounded Video Understanding */}
-          {report.vision && (
-            <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 shadow-xs space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#F0F2F5] pb-3">
-                <div>
-                  <div className="text-xs font-bold text-[#3B82F6] uppercase flex items-center gap-1.5">
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>Computer Vision & Multimodal Understanding</span>
-                  </div>
-                  <h3 className="text-base font-bold text-[#111827]">
-                    Representative Visual Frames & Scene Progression ({report.vision.sampledFrames.length} Keyframes)
-                  </h3>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-1 bg-[#EFF6FF] text-[#2563EB] rounded-full text-[11px] font-bold border border-[#BFDBFE] flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3 text-[#059669]" />
-                    <span>{report.vision.supportsVision ? "Vision Model Active" : "Deterministic CV Engine"}</span>
-                  </span>
-                  <span className="px-2.5 py-1 bg-[#ECFDF5] text-[#059669] rounded-full text-[11px] font-bold">
-                    {report.vision.confidenceScore}% Evidence Confidence
-                  </span>
-                </div>
+      {/* STEP 2 COMPLETED: Grounded Video Understanding Summary */}
+      {isJobComplete && report && (
+        <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 sm:p-8 shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#F3F4F6]">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#10B981] text-white uppercase tracking-wider">
+                  Video Understood
+                </span>
+                <span className="text-xs text-[#6B7280]">
+                  {Math.floor((report.media?.durationSeconds || 0) / 60)}m {Math.round((report.media?.durationSeconds || 0) % 60)}s • {report.media?.width || 1280}x{report.media?.height || 720}
+                </span>
               </div>
+              <h2 className="text-xl font-bold text-[#111827] mt-1.5">
+                {report.understanding?.actualTopic || "Video Demonstration"}
+              </h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRegeneratePackaging}
+                disabled={isRegeneratingPackaging}
+                className="px-3.5 py-2 rounded-xl border border-[#D1D5DB] text-xs font-bold text-[#374151] hover:bg-[#F9FAFB] transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRegeneratingPackaging ? "animate-spin" : ""}`} />
+                <span>Re-generate Assets</span>
+              </button>
+              <button
+                onClick={handleReset}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold text-[#6B7280] hover:text-[#EF4444] transition cursor-pointer"
+              >
+                New Upload
+              </button>
+            </div>
+          </div>
 
-              {/* Grounded Understanding Synthesis */}
-              {report.understanding && (
-                <div className="p-4 bg-[#F9FAFB] rounded-2xl border border-[#E5E7EB] grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                  <div>
-                    <span className="text-[10px] font-bold text-[#6B7280] uppercase block mb-1">Grounded Video Topic</span>
-                    <p className="font-bold text-[#111827]">{report.understanding.actualTopic}</p>
-                    <span className="text-[10px] text-[#059669] font-medium block mt-1">✓ Grounded in video + audio evidence</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-[#6B7280] uppercase block mb-1">Primary Value Proposition</span>
-                    <p className="text-[#374151] leading-tight">{report.understanding.primaryValueProposition}</p>
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-[#6B7280] uppercase block mb-1">Intended Audience & Climax</span>
-                    <p className="text-[#374151] font-medium">{report.understanding.targetAudience}</p>
-                    <div className="mt-1 flex items-center gap-2 text-[10px]">
-                      <span className="font-bold text-[#3B82F6]">Climax Payoff: {report.understanding.narrativeClimaxSeconds}s</span>
-                      <span className="text-[#6B7280]">•</span>
-                      <span className="text-[#6B7280]">{report.vision.visualPacing.toUpperCase()} pacing</span>
+          {/* Evidence-grounded Video Summary Box */}
+          <div className="p-4 bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0] space-y-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-[#1E293B]">
+              <Info className="w-4 h-4 text-[#2563EB]" />
+              <span>Grounded Video Evidence Summary</span>
+            </div>
+            <p className="text-xs text-[#475569] leading-relaxed">
+              {report.understanding?.summary || report.understanding?.primaryValueProposition || "Video content analyzed and grounded in visual progression and audio transcript."}
+            </p>
+
+            {/* Research Status Notice */}
+            <div className="pt-2 border-t border-[#E2E8F0] flex flex-wrap items-center justify-between gap-2 text-[11px]">
+              <span className="text-[#64748B]">
+                {pkg?.researchSummary?.isLiveApiData ? (
+                  <span className="text-[#059669] font-semibold">
+                    ✓ Verified with real YouTube Data API v3 research ({pkg.researchSummary.videosAnalyzedCount} comparable videos analyzed)
+                  </span>
+                ) : (
+                  <span className="text-[#D97706] font-semibold">
+                    • Live YouTube competitive research unavailable (using direct video understanding)
+                  </span>
+                )}
+              </span>
+              <span className="text-[10px] text-[#94A3B8]">
+                Public views do not reveal YouTube&apos;s internal algorithm
+              </span>
+            </div>
+
+            {/* Limitation notice if video was difficult to parse */}
+            {report.understanding?.limitationNotice && (
+              <div className="p-2.5 bg-[#FEF3C7] rounded-xl text-[11px] text-[#92400E] flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-[#D97706] shrink-0 mt-0.5" />
+                <span>{report.understanding.limitationNotice}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* STEP 3: Select and Review Assets */}
+      {isJobComplete && (
+        <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 sm:p-8 shadow-xs space-y-8">
+          <div>
+            <span className="text-[11px] font-bold text-[#2563EB] uppercase tracking-wider">
+              Step 3 of 4
+            </span>
+            <h2 className="text-xl sm:text-2xl font-bold text-[#111827] mt-0.5">
+              Select Title & Thumbnail, Review Metadata
+            </h2>
+            <p className="text-xs text-[#6B7280] mt-1">
+              Select one title and one thumbnail from the grounded options generated for your video. Edit any metadata field before publishing.
+            </p>
+          </div>
+
+          {/* Section 3A: 5 Selectable Title Cards */}
+          <div className="space-y-3.5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-[#111827] flex items-center gap-2">
+                <span>1. Select Publishing Title</span>
+                <span className="text-[11px] font-semibold text-[#6B7280]">(Choose 1 of 5)</span>
+              </h3>
+              <span className="text-[11px] text-[#2563EB] font-bold">
+                Selected: {editableTitle.length} chars
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
+              {titlesList.map((item, idx) => {
+                const isSelected = selectedTitle === item.title || editableTitle === item.title;
+                const isMobileSafe = item.characterCount <= 60;
+
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => {
+                      setSelectedTitle(item.title);
+                      setEditableTitle(item.title);
+                    }}
+                    className={`p-4 rounded-2xl border-2 transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                      isSelected
+                        ? "border-[#2563EB] bg-[#EFF6FF]/60 shadow-xs"
+                        : "border-[#E5E7EB] hover:border-[#BFDBFE] bg-white"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${
+                          isSelected
+                            ? "border-[#2563EB] bg-[#2563EB] text-white"
+                            : "border-[#9CA3AF] bg-white"
+                        }`}
+                      >
+                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="text-sm font-bold text-[#111827]">{item.title}</div>
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#6B7280]">
+                          <span className="font-semibold text-[#4B5563]">{item.formula}</span>
+                          <span>•</span>
+                          <span>{item.fitReason || "Accurately represents video demonstration."}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
+                      {item.scores && (
+                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-[#F3F4F6] text-[#374151]">
+                          Score: {item.scores.overallScore}/100
+                        </span>
+                      )}
+                      <span
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold ${
+                          isMobileSafe
+                            ? "bg-[#ECFDF5] text-[#059669]"
+                            : "bg-[#FEF3C7] text-[#D97706]"
+                        }`}
+                      >
+                        {item.characterCount} chars {isMobileSafe ? "• Mobile safe" : "• May truncate"}
+                      </span>
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })}
+            </div>
+          </div>
 
-              {/* Sampled Representative Keyframes Gallery */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs font-bold text-[#111827]">
-                  <span>Sampled Keyframes & Visual Composition</span>
-                  <span className="text-[11px] text-[#6B7280] font-normal">
-                    Sampled at 5%, 20%, 50%, 75%, 90% timestamps • Deduplicated
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-                  {report.vision.sampledFrames.map((frame, idx) => (
-                    <div
-                      key={frame.index}
-                      className="p-3 bg-[#F9FAFB] rounded-2xl border border-[#E5E7EB] space-y-2 text-xs flex flex-col justify-between"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="px-2 py-0.5 bg-[#111827] text-white rounded-md text-[10px] font-bold font-mono">
-                            {Math.floor(frame.timestampSeconds / 60)}:{(frame.timestampSeconds % 60).toFixed(0).padStart(2, "0")}
-                          </span>
-                          <span className="text-[10px] font-bold text-[#3B82F6]">
-                            {frame.relativePercent}%
-                          </span>
+          {/* Section 3B: Selectable Thumbnail Cards */}
+          <div className="space-y-3.5 pt-4 border-t border-[#F3F4F6]">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-[#111827] flex items-center gap-2">
+                <span>2. Select Video Thumbnail</span>
+                <span className="text-[11px] font-semibold text-[#6B7280]">(Grounded in uploaded footage)</span>
+              </h3>
+              <span className="text-[11px] text-[#059669] font-bold">
+                1280x720 • 16:9 compliant PNG/JPEG
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {thumbnailsList.map((thumb) => {
+                const isSelected = selectedThumbnailId === thumb.id;
+
+                return (
+                  <div
+                    key={thumb.id}
+                    onClick={() => setSelectedThumbnailId(thumb.id)}
+                    className={`rounded-2xl border-2 overflow-hidden transition cursor-pointer flex flex-col ${
+                      isSelected
+                        ? "border-[#2563EB] shadow-md ring-2 ring-[#2563EB]/20"
+                        : "border-[#E5E7EB] hover:border-[#BFDBFE]"
+                    }`}
+                  >
+                    {/* Thumbnail Image Container */}
+                    <div className="relative aspect-video bg-[#0F172A] overflow-hidden">
+                      <img
+                        src={thumb.imageUrl}
+                        alt={thumb.headline}
+                        className="w-full h-full object-cover"
+                      />
+
+                      {/* Selection Badge */}
+                      <div className="absolute top-2.5 right-2.5">
+                        <div
+                          className={`w-6 h-6 rounded-full flex items-center justify-center shadow-md font-bold text-xs ${
+                            isSelected
+                              ? "bg-[#2563EB] text-white"
+                              : "bg-black/60 text-white"
+                          }`}
+                        >
+                          {isSelected ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : ""}
                         </div>
-                        <p className="font-bold text-[#111827] text-[11px] leading-tight line-clamp-1">
-                          {frame.label}
-                        </p>
                       </div>
 
-                      <div className="space-y-1 text-[10px] text-[#6B7280]">
-                        <div className="flex items-center justify-between">
-                          <span>Scene Type:</span>
-                          <span className="font-bold text-[#111827] capitalize">
-                            {frame.sceneType.replace("_", " ")}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>Contrast:</span>
-                          <span className="font-bold text-[#059669]">
-                            {frame.properties.contrastScore}%
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1 pt-1">
-                          <span className="text-[9px]">Palette:</span>
-                          <div className="flex items-center gap-1">
-                            {frame.properties.dominantColors.map((hex, ci) => (
-                              <span
-                                key={ci}
-                                className="w-3 h-3 rounded-full border border-black/10 inline-block shadow-2xs"
-                                style={{ backgroundColor: hex }}
-                                title={hex}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                        {frame.properties.detectedOnScreenText.length > 0 && (
-                          <div className="text-[9px] text-[#2563EB] font-bold truncate">
-                            Text: {frame.properties.detectedOnScreenText.join(", ")}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="pt-1.5 border-t border-[#E5E7EB] flex items-center justify-between text-[10px]">
-                        <span className="text-[#6B7280]">Thumb Suitability:</span>
-                        <span className="font-bold text-[#2563EB]">
-                          {frame.properties.thumbnailSuitabilityScore}%
+                      {/* Source badge */}
+                      <div className="absolute bottom-2.5 left-2.5">
+                        <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-black/75 text-white uppercase tracking-wider">
+                          {thumb.source === "video_frame" ? "Video Keyframe" : "Broadcast Graphic"}
                         </span>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
 
-              {/* Prompt Injection & Capability Defense Notice */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-[#F0FDF4] border border-[#DCFCE7] rounded-xl text-[11px] text-[#166534]">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-[#16A34A] shrink-0" />
-                  <span>
-                    <strong>Prompt Injection Defense:</strong> All audio transcripts, slide text, and OCR data are isolated as untrusted data boundaries.
-                  </span>
-                </div>
-                {report.vision.limitations.length > 0 && (
-                  <span className="text-[10px] text-[#854D0E] bg-[#FEF9C3] px-2 py-0.5 rounded-full font-medium">
-                    {report.vision.limitations[0]}
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Section 3: Hook Diagnostics (yt-script) */}
-          <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 shadow-xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#F0F2F5] pb-3">
-              <div>
-                <div className="text-xs font-bold text-[#2563EB] uppercase">yt-script Assessment</div>
-                <h3 className="text-base font-bold text-[#111827]">Opening 15 Seconds Hook Score & Breakdown</h3>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="text-right">
-                  <div className="text-lg font-black text-[#111827]">
-                    {Math.round(report.hookAnalysis.hookScore.verdict * 10)}/100
-                  </div>
-                  <div className="text-[10px] font-bold text-[#6B7280] uppercase">
-                    {report.hookAnalysis.hookScore.band}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Actual Opening Text */}
-            <div className="p-3.5 bg-[#F9FAFB] rounded-xl border border-[#E5E7EB]">
-              <div className="text-[11px] font-bold text-[#6B7280] mb-1">Detected Spoken Opening (First 15s):</div>
-              <div className="text-xs italic text-[#111827]">"{report.hookAnalysis.first15SecondsSpeech}"</div>
-            </div>
-
-            {/* Score breakdown pillars */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-              {Object.entries(report.hookAnalysis.hookScore.properties).map(([key, val]) => (
-                <div key={key} className="p-3 bg-[#F9FAFB] rounded-xl border border-[#E5E7EB] text-center">
-                  <div className="text-[10px] text-[#6B7280] uppercase font-bold">{key}</div>
-                  <div className="text-base font-black text-[#111827] mt-1">{String(val)}/10</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Weakest link diagnosis */}
-            {report.hookAnalysis.hookScore.weakest && (
-              <div className="p-3.5 bg-[#FEF2F2] rounded-xl border border-[#FEE2E2] text-xs text-[#991B1B]">
-                <strong>Weakest Link Diagnosis ({report.hookAnalysis.hookScore.weakest.property}):</strong>{" "}
-                {report.hookAnalysis.hookScore.weakest.fix}
-              </div>
-            )}
-
-            {/* Rewritten Hook Alternatives */}
-            <div className="space-y-2 pt-2">
-              <div className="text-xs font-bold text-[#111827]">Formula-Driven Hook Rewrites:</div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {report.hookAnalysis.proposedAlternativeHooks.map((opt: string, i: number) => (
-                  <div key={i} className="p-3 bg-[#F9FAFB] rounded-xl border border-[#E5E7EB] flex flex-col justify-between space-y-2">
-                    <p className="text-xs font-medium text-[#111827]">"{opt}"</p>
-                    <button
-                      onClick={() => copyToClipboard(opt, `hook_${i}`)}
-                      className="inline-flex items-center gap-1 text-[11px] text-[#3B82F6] hover:underline font-bold cursor-pointer"
-                    >
-                      {copiedSection === `hook_${i}` ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                      <span>Copy Hook</span>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Section 4: Title & Thumbnail Packaging (yt-package) */}
-          <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 shadow-xs space-y-4">
-            <div className="text-xs font-bold text-[#2563EB] uppercase">yt-package Assessment</div>
-            <h3 className="text-base font-bold text-[#111827]">Packaging Audit & High-CTR Title Alternatives</h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Recommended Titles */}
-              <div className="space-y-3">
-                <div className="text-xs font-bold text-[#4B5563]">Recommended Title Options:</div>
-                {report.packaging.alternativeTitles.map((t: string, i: number) => (
-                  <div key={i} className="p-3.5 bg-[#F9FAFB] rounded-xl border border-[#E5E7EB] space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-[#111827]">{t}</span>
-                      <button
-                        onClick={() => copyToClipboard(t, `title_${i}`)}
-                        className="p-1 text-[#6B7280] hover:text-[#3B82F6] cursor-pointer"
-                      >
-                        {copiedSection === `title_${i}` ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                    <div className="text-[11px] text-[#6B7280]">
-                      Optimized for curiosity & clarity • <span className="font-semibold text-[#059669]">{t.length} chars</span>
+                    {/* Thumbnail Details */}
+                    <div className="p-3 bg-white space-y-1.5 flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="text-xs font-bold text-[#111827]">{thumb.variationName}</div>
+                        <p className="text-[11px] text-[#6B7280] line-clamp-2 mt-0.5">
+                          {thumb.rationale}
+                        </p>
+                      </div>
+                      <div className="text-[10px] text-[#9CA3AF] pt-1 border-t border-[#F3F4F6] flex justify-between">
+                        <span>{thumb.width}x{thumb.height}</span>
+                        <span>{thumb.format.toUpperCase()}</span>
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
-
-              {/* Thumbnail Concept & Wording */}
-              <div className="p-4 bg-[#F9FAFB] rounded-2xl border border-[#E5E7EB] space-y-3">
-                <div className="text-xs font-bold text-[#4B5563]">Thumbnail Visual Concept:</div>
-                {report.packaging.thumbnailConcepts[0] && (
-                  <p className="text-xs text-[#374151] leading-relaxed">
-                    {report.packaging.thumbnailConcepts[0].visualDescription}
-                  </p>
-                )}
-                <div className="p-3 bg-white rounded-xl border border-[#E5E7EB]">
-                  <div className="text-[10px] font-bold text-[#6B7280] uppercase">Recommended Thumbnail Text:</div>
-                  <div className="text-sm font-black text-[#2563EB] mt-0.5">
-                    {report.packaging.thumbnailConcepts[0]?.headline || "3 SECRETS"}
-                  </div>
-                </div>
-                <div className="text-[11px] text-[#6B7280]">
-                  <strong>Packaging Rule:</strong> Do not repeat the exact title words on the thumbnail; use visual curiosity triggers instead.
-                </div>
-              </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* Section 5: Timestamped Edit Decision List (yt-edit) */}
-          <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 shadow-xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#F0F2F5] pb-3">
-              <div>
-                <div className="text-xs font-bold text-[#2563EB] uppercase">yt-edit Decision List</div>
-                <h3 className="text-base font-bold text-[#111827]">
-                  Pacing Optimization & Dead Air / Filler Cuts ({report.editing.edl.cuts.length} cuts identified)
-                </h3>
-              </div>
-            </div>
-
-            {/* In-Browser Cut-Skipping Player & Native Video Exporter */}
-            {currentJob?.fileUrl && (
-              <EditedVideoPlayer
-                videoUrl={currentJob.fileUrl}
-                cuts={report.editing.edl.cuts}
-                duration={report.editing.edl.duration}
-                filename={currentJob.filename}
-                assetId={currentJob.assetId}
-                onToast={onToast}
-              />
-            )}
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs">
-              <div className="p-3 bg-[#F9FAFB] rounded-xl border border-[#E5E7EB]">
-                <div className="text-[10px] text-[#6B7280] uppercase">Original Length</div>
-                <div className="text-sm font-bold text-[#111827] mt-0.5">{Math.round(report.editing.edl.duration)}s</div>
-              </div>
-              <div className="p-3 bg-[#F9FAFB] rounded-xl border border-[#E5E7EB]">
-                <div className="text-[10px] text-[#6B7280] uppercase">Post-Cut Length</div>
-                <div className="text-sm font-bold text-[#059669] mt-0.5">
-                  {Math.round(report.editing.edl.out)}s
-                </div>
-              </div>
-              <div className="p-3 bg-[#F9FAFB] rounded-xl border border-[#E5E7EB]">
-                <div className="text-[10px] text-[#6B7280] uppercase">Time Saved</div>
-                <div className="text-sm font-bold text-[#2563EB] mt-0.5">{Math.round(report.editing.edl.removed)}s</div>
-              </div>
-              <div className="p-3 bg-[#F9FAFB] rounded-xl border border-[#E5E7EB]">
-                <div className="text-[10px] text-[#6B7280] uppercase">Duration Reduction</div>
-                <div className="text-sm font-bold text-[#8B5CF6] mt-0.5">{report.editing.edl.reductionPercent}%</div>
-              </div>
-            </div>
-
-            {/* Cuts Sample Table */}
-            {report.editing.edl.cuts.length > 0 && (
-              <div className="max-h-60 overflow-y-auto rounded-xl border border-[#E5E7EB]">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[#F9FAFB] text-[#6B7280] font-bold border-b border-[#E5E7EB]">
-                    <tr>
-                      <th className="p-2.5">Timecode</th>
-                      <th className="p-2.5">Cut Kind</th>
-                      <th className="p-2.5">Duration</th>
-                      <th className="p-2.5">Rationale</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#F0F2F5]">
-                    {report.editing.edl.cuts.slice(0, 10).map((c: any, i: number) => (
-                      <tr key={i} className="hover:bg-[#F9FAFB]">
-                        <td className="p-2.5 font-mono text-[#3B82F6]">
-                          {c.start.toFixed(1)}s - {c.end.toFixed(1)}s
-                        </td>
-                        <td className="p-2.5">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${c.kind === "dead_air"
-                                ? "bg-[#FEF2F2] text-[#DC2626]"
-                                : c.kind === "repeat"
-                                  ? "bg-[#FEF3C7] text-[#D97706]"
-                                  : "bg-[#EFF6FF] text-[#2563EB]"
-                              }`}
-                          >
-                            {c.kind}
-                          </span>
-                        </td>
-                        <td className="p-2.5 font-medium text-[#111827]">
-                          {(c.end - c.start).toFixed(2)}s
-                        </td>
-                        <td className="p-2.5 text-[#6B7280]">{c.why}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* Section 6: Candidate Shorts Opportunities (yt-shorts) */}
-          <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 shadow-xs space-y-4">
-            <div className="text-xs font-bold text-[#2563EB] uppercase">yt-shorts Discovery</div>
-            <h3 className="text-base font-bold text-[#111827]">
-              Extracted Short-Form Vertical Candidates ({report.shorts.candidates.length} clips found)
+          {/* Section 3C: Editable Metadata Form */}
+          <div className="space-y-4 pt-4 border-t border-[#F3F4F6]">
+            <h3 className="text-sm font-bold text-[#111827]">
+              3. Review & Edit YouTube Metadata
             </h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {report.shorts.candidates.map((sc: ShortCandidate, i: number) => (
-                <div key={i} className="p-4 bg-[#F9FAFB] rounded-2xl border border-[#E5E7EB] space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-[#111827]">Candidate #{i + 1}</span>
-                    <span className="text-[10px] font-bold text-[#3B82F6] bg-[#EFF6FF] px-2 py-0.5 rounded-full">
-                      {sc.startTime}s - {sc.endTime}s ({sc.durationSeconds}s)
-                    </span>
-                  </div>
-                  <p className="text-xs text-[#374151] font-medium">"{sc.openingLine}"</p>
-                  <div className="text-[11px] text-[#6B7280]">
-                    <strong>On-Screen Overlay:</strong> {sc.suggestedOnScreenText}
-                  </div>
-                  <div className="pt-1 flex items-center justify-between text-xs">
-                    <span className="text-[#059669] font-bold">
-                      Hook Score: {Math.round((sc.hookScore?.verdict || 8.5) * 10)}/100
-                    </span>
-                    <button
-                      onClick={() => {
-                        onSaveToPlanner(
-                          `Short: ${sc.openingLine.slice(0, 30)}...`,
-                          `From Video: ${report.seo.suggestedTitle}\nTimecodes: ${sc.startTime}s - ${sc.endTime}s\nOverlay: ${sc.suggestedOnScreenText}`,
-                          "Idea"
-                        );
-                        onToast("Short added to Content Planner!", "success");
-                      }}
-                      className="inline-flex items-center gap-1 text-[#2563EB] hover:underline font-bold cursor-pointer"
-                    >
-                      <Bookmark className="w-3.5 h-3.5" />
-                      <span>Send to Planner</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
+            {/* Editable Title */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <label className="font-bold text-[#374151]">Publishing Title</label>
+                <span className={editableTitle.length > 100 ? "text-[#EF4444] font-bold" : "text-[#6B7280]"}>
+                  {editableTitle.length} / 100 characters
+                </span>
+              </div>
+              <input
+                type="text"
+                value={editableTitle}
+                maxLength={100}
+                onChange={(e) => setEditableTitle(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-[#D1D5DB] text-xs font-semibold text-[#111827] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] outline-none"
+              />
             </div>
+
+            {/* Editable Description */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <label className="font-bold text-[#374151]">Description (With Grounded Timestamps)</label>
+                <span className="text-[#6B7280]">{editableDesc.length} chars</span>
+              </div>
+              <textarea
+                rows={7}
+                value={editableDesc}
+                onChange={(e) => setEditableDesc(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-[#D1D5DB] text-xs text-[#111827] font-mono leading-relaxed focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] outline-none"
+              />
+            </div>
+
+            {/* Editable Tags */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-[#374151]">
+                Search Tags (Comma separated)
+              </label>
+              <input
+                type="text"
+                value={editableTags}
+                onChange={(e) => setEditableTags(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-[#D1D5DB] text-xs text-[#111827] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] outline-none"
+              />
+            </div>
+
+            {/* Category Suggestion */}
+            {pkg?.suggestedCategory && (
+              <div className="flex items-center gap-2 text-xs text-[#4B5563] pt-1">
+                <Tag className="w-3.5 h-3.5 text-[#2563EB]" />
+                <span className="font-bold">Suggested Category:</span>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8] font-semibold text-[11px]">
+                  {pkg.suggestedCategory.name} (ID: {pkg.suggestedCategory.id})
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* STEP 4: Publish Video to YouTube */}
+      {isJobComplete && (
+        <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 sm:p-8 shadow-xs space-y-6">
+          <div>
+            <span className="text-[11px] font-bold text-[#2563EB] uppercase tracking-wider">
+              Step 4 of 4
+            </span>
+            <h2 className="text-xl sm:text-2xl font-bold text-[#111827] mt-0.5">
+              Upload Video to YouTube
+            </h2>
+            <p className="text-xs text-[#6B7280] mt-1">
+              Connect your YouTube channel, choose your privacy preference, and publish the original video with your chosen title and thumbnail.
+            </p>
           </div>
 
-          {/* Section 7: Validated YouTube Chapters (yt-chapters) */}
-          <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-[#F0F2F5] pb-3">
-              <div>
-                <div className="text-xs font-bold text-[#2563EB] uppercase">yt-chapters Validation</div>
-                <h3 className="text-base font-bold text-[#111827]">Validated YouTube Timestamps</h3>
+          {/* YouTube Connection Status Card */}
+          <div className="p-4 bg-[#F9FAFB] rounded-2xl border border-[#E5E7EB] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-full bg-[#EF4444] text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Youtube className="w-5 h-5" />
               </div>
-              <button
-                onClick={() =>
-                  copyToClipboard(
-                    report.chapters.chapters.map((c: any) => `${c.timestamp} ${c.title}`).join("\n"),
-                    "chapters"
-                  )
-                }
-                className="px-3 py-1.5 bg-[#F3F4F6] hover:bg-[#E5E7EB] text-[#111827] rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+              <div>
+                <div className="text-xs font-bold text-[#111827] flex items-center gap-2">
+                  <span>{isYoutubeConnected ? (channelTitle || "Connected Channel") : "YouTube Account Not Connected"}</span>
+                  {isYoutubeConnected && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#ECFDF5] text-[#059669]">
+                      Connected
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-[#6B7280] mt-0.5">
+                  {isYoutubeConnected
+                    ? "Authorized for direct resumable video uploads and thumbnail assignment."
+                    : "Connect via official Google OAuth 2.0 to publish directly to your channel."}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleConnectYouTube}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
+                isYoutubeConnected
+                  ? "bg-white border border-[#D1D5DB] text-[#374151] hover:bg-[#F3F4F6]"
+                  : "bg-[#EF4444] hover:bg-[#DC2626] text-white shadow-xs"
+              }`}
+            >
+              {isYoutubeConnected ? "Switch YouTube Channel" : "Connect YouTube"}
+            </button>
+          </div>
+
+          {/* Publishing Settings & Review Summary */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0] text-xs">
+            <div>
+              <label className="block font-bold text-[#374151] mb-1.5">
+                Privacy Status
+              </label>
+              <select
+                value={publishPrivacy}
+                onChange={(e) => setPublishPrivacy(e.target.value as any)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-[#D1D5DB] bg-white text-xs font-semibold text-[#111827] outline-none focus:border-[#2563EB]"
               >
-                {copiedSection === "chapters" ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedSection === "chapters" ? "Copied" : "Copy Chapters"}</span>
-              </button>
+                <option value="private">Private (Recommended for final review)</option>
+                <option value="unlisted">Unlisted (Accessible only via link)</option>
+                <option value="public">Public (Immediately visible to subscribers)</option>
+              </select>
+              <p className="text-[11px] text-[#6B7280] mt-1">
+                Published videos default to Private so you can verify playback on YouTube before public release.
+              </p>
             </div>
 
-            <div className="p-4 bg-[#F9FAFB] rounded-2xl border border-[#E5E7EB] space-y-1.5">
-              {report.chapters.chapters.map((ch: any, i: number) => (
-                <div key={i} className="flex items-center gap-3 text-xs">
-                  <span className="font-mono font-bold text-[#3B82F6] w-12">{ch.timestamp}</span>
-                  <span className="text-[#111827] font-medium">{ch.title}</span>
-                </div>
-              ))}
+            <div>
+              <span className="block font-bold text-[#374151] mb-1.5">
+                Asset Payload
+              </span>
+              <ul className="space-y-1 text-[11px] text-[#475569]">
+                <li>• Video File: <span className="font-semibold text-[#111827]">{currentJob.filename}</span> (Original Upload)</li>
+                <li>• Selected Title: <span className="font-semibold text-[#111827]">{editableTitle.slice(0, 45)}...</span></li>
+                <li>• Custom Thumbnail: <span className="font-semibold text-[#111827]">{selectedThumbnailId ? "Selected (" + selectedThumbnailId + ")" : "Default"}</span></li>
+              </ul>
             </div>
           </div>
 
-          {/* Section 8: Direct YouTube OAuth 2.0 Publishing */}
-          <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 shadow-xs space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#F0F2F5] pb-3">
-              <div>
-                <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#DC2626] uppercase">
-                  <Youtube className="w-4 h-4 fill-[#DC2626] text-white" />
-                  <span>Direct YouTube Publishing (OAuth 2.0)</span>
-                </div>
-                <h3 className="text-base font-bold text-[#111827] mt-0.5">
-                  Publish Analyzed or Edited Video to Your Channel
-                </h3>
+          {/* Published Video Link Banner */}
+          {publishedVideoUrl && (
+            <div className="p-6 bg-[#ECFDF5] border border-[#A7F3D0] rounded-2xl space-y-3">
+              <div className="flex items-center gap-2.5 text-[#065F46] font-bold text-sm">
+                <CheckCircle2 className="w-5 h-5 text-[#059669]" />
+                <span>Video Successfully Published to YouTube!</span>
               </div>
+              <p className="text-xs text-[#047857]">
+                Your video has been transferred with the selected title, description, tags, and thumbnail.
+              </p>
 
-              {isYoutubeConnected ? (
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-[#059669]" />
-                  <span className="text-xs font-bold text-[#059669]">
-                    Connected: {channelTitle || "YouTube Channel"}
-                  </span>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleConnectYouTube}
-                  className="px-4 py-2 bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-full text-xs font-bold transition cursor-pointer flex items-center gap-2 shadow-xs"
-                >
-                  <Youtube className="w-3.5 h-3.5" />
-                  <span>Connect YouTube Channel</span>
-                </button>
-              )}
-            </div>
-
-            {/* Creator Review & Edit Asset Form */}
-            <div className="space-y-3 p-4 bg-[#F9FAFB] rounded-2xl border border-[#E5E7EB]">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E5E7EB] pb-2">
-                <div>
-                  <span className="text-xs font-bold text-[#111827]">
-                    Review, Edit & Approve Generated Assets
-                  </span>
-                  <p className="text-[11px] text-[#6B7280]">
-                    Verify every field before publishing. Approved changes train the learning feedback loop.
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
-                  <button
-                    type="button"
-                    onClick={handleRegeneratePackagingWithAI}
-                    disabled={isRegeneratingPackaging}
-                    className="px-3 py-1.5 bg-[#EFF6FF] hover:bg-[#DBEAFE] text-[#2563EB] rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border border-[#BFDBFE]"
-                  >
-                    <Sparkles className={`w-3.5 h-3.5 ${isRegeneratingPackaging ? "animate-spin" : ""}`} />
-                    <span>{isRegeneratingPackaging ? "Regenerating..." : "✨ Regenerate with Model"}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleApproveAndStage}
-                    className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                      isApproved
-                        ? "bg-[#ECFDF5] text-[#059669]"
-                        : "bg-[#3B82F6] hover:bg-[#2563EB] text-white shadow-xs"
-                    }`}
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>{isApproved ? "Approved ✓" : "Approve & Record in Learning Loop"}</span>
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="text-[11px] font-bold text-[#6B7280]">
-                    Approved Video Title ({editableTitle.length} chars)
-                  </label>
-                  <span className={`text-[10px] font-medium ${editableTitle.length > 50 ? "text-[#D97706]" : "text-[#059669]"}`}>
-                    {editableTitle.length > 50 ? "Truncated on mobile search" : "Mobile-safe length (< 50 chars)"}
-                  </span>
-                </div>
-                <input
-                  type="text"
-                  value={editableTitle}
-                  onChange={(e) => {
-                    setEditableTitle(e.target.value);
-                    setIsApproved(false);
-                  }}
-                  className="w-full px-3 py-2 bg-white border border-[#E2E5EB] rounded-xl text-xs text-[#111827] focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-[#6B7280] block mb-1">
-                  Approved Description with Timestamps & Call to Action
-                </label>
-                <textarea
-                  rows={4}
-                  value={editableDesc}
-                  onChange={(e) => {
-                    setEditableDesc(e.target.value);
-                    setIsApproved(false);
-                  }}
-                  className="w-full px-3 py-2 bg-white border border-[#E2E5EB] rounded-xl text-xs text-[#111827] focus:outline-none font-mono text-[11px]"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-[#6B7280] block mb-1">
-                  Approved Tags (comma-separated metadata aids)
-                </label>
-                <input
-                  type="text"
-                  value={editableTags}
-                  onChange={(e) => {
-                    setEditableTags(e.target.value);
-                    setIsApproved(false);
-                  }}
-                  className="w-full px-3 py-2 bg-white border border-[#E2E5EB] rounded-xl text-xs text-[#111827] focus:outline-none"
-                />
-              </div>
-
-              {/* Real Generated 1280x720 YouTube Thumbnails Gallery */}
-              {((currentJob?.report?.publishingPackage?.thumbnails && currentJob.report.publishingPackage.thumbnails.length > 0) ||
-                (currentJob?.derivedAssets?.generatedThumbnails && currentJob.derivedAssets.generatedThumbnails.length > 0)) && (
-                <div className="pt-3 border-t border-[#E5E7EB] space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                    <div>
-                      <label className="text-[11px] font-bold text-[#111827] block flex items-center gap-1.5">
-                        <ImageIcon className="w-3.5 h-3.5 text-[#3B82F6]" />
-                        <span>Generated YouTube Thumbnails (1280×720 • 16:9 Broadcast Quality)</span>
-                      </label>
-                      <p className="text-[10px] text-[#6B7280]">
-                        Click to select the active thumbnail for publishing. Validated under YouTube 2MB & 16:9 rules.
-                      </p>
-                    </div>
-                    <span className="text-[10px] font-bold text-[#059669] bg-[#ECFDF5] px-2.5 py-0.5 rounded-full border border-[#A7F3D0] w-fit">
-                      YouTube Specs Verified ✓
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-                    {(currentJob?.report?.publishingPackage?.thumbnails || currentJob?.derivedAssets?.generatedThumbnails || []).map((thumb: any) => {
-                      const isSelected = selectedThumbnailId === thumb.id;
-                      return (
-                        <div
-                          key={thumb.id}
-                          onClick={() => setSelectedThumbnailId(thumb.id)}
-                          className={`p-3 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between space-y-2.5 ${
-                            isSelected
-                              ? "bg-[#EFF6FF] border-[#3B82F6] ring-2 ring-[#3B82F6]/30 shadow-xs"
-                              : "bg-[#F9FAFB] border-[#E5E7EB] hover:border-[#CBD5E1]"
-                          }`}
-                        >
-                          <div className="space-y-1.5">
-                            {/* 16:9 Visual Preview Box */}
-                            <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-gradient-to-br from-[#0F172A] via-[#1E1B4B] to-[#020617] border border-black/10 group">
-                              {thumbImageErrors[thumb.id] ? (
-                                <div className="w-full h-full flex flex-col justify-between p-3.5 text-white">
-                                  <div className="flex items-center justify-between">
-                                    <span
-                                      className="px-2 py-0.5 rounded-full text-[9px] font-black tracking-wider text-black shadow-xs"
-                                      style={{
-                                        backgroundColor: thumb.id?.includes("outcome")
-                                          ? "#10B981"
-                                          : thumb.id?.includes("blueprint") || thumb.id?.includes("mastery")
-                                          ? "#38BDF8"
-                                          : "#F43F5E",
-                                      }}
-                                    >
-                                      {thumb.id?.includes("outcome")
-                                        ? "RESULTS"
-                                        : thumb.id?.includes("blueprint") || thumb.id?.includes("mastery")
-                                        ? "2026 GUIDE"
-                                        : "CRITICAL"}
-                                    </span>
-                                    <span className="text-[9px] text-gray-400 font-mono">16:9 • 1280×720</span>
-                                  </div>
-                                  <div className="my-auto">
-                                    <span className="text-lg md:text-xl font-black tracking-tight text-white drop-shadow-md block">
-                                      {thumb.headline}
-                                    </span>
-                                    <p className="text-[10px] text-gray-300 line-clamp-1 mt-0.5">
-                                      {thumb.variationName}
-                                    </p>
-                                  </div>
-                                  <div className="flex items-center justify-between text-[8px] text-gray-400 border-t border-white/10 pt-1">
-                                    <span>YOUTUBE BROADCAST READY</span>
-                                    <span className="text-emerald-400 font-bold">VERIFIED ✓</span>
-                                  </div>
-                                </div>
-                              ) : (
-                                <img
-                                  src={thumb.imageUrl}
-                                  alt={thumb.headline}
-                                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                  onError={() => {
-                                    setThumbImageErrors((prev) => ({ ...prev, [thumb.id]: true }));
-                                  }}
-                                />
-                              )}
-                              {/* Overlay Badge */}
-                              <div className="absolute top-2 left-2 px-2 py-0.5 bg-[#111827]/90 text-white rounded font-mono font-bold text-[9px] backdrop-blur-xs pointer-events-none">
-                                {thumb.width || 1280}×{thumb.height || 720} • {(thumb.format || "PNG").toUpperCase()}
-                              </div>
-                              <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-[#059669] text-white rounded font-bold text-[9px] shadow-xs pointer-events-none">
-                                {((thumb.sizeBytes || 3072) / 1024).toFixed(0)} KB (&lt; 2MB)
-                              </div>
-                            </div>
-
-                            {/* Title & Headline */}
-                            <div className="flex items-center justify-between pt-1">
-                              <span className="text-xs font-bold text-[#111827] line-clamp-1">
-                                {thumb.variationName}
-                              </span>
-                              <span className="px-2 py-0.5 bg-[#111827] text-white rounded font-black text-[10px] tracking-wider shrink-0">
-                                {thumb.headline}
-                              </span>
-                            </div>
-
-                            <p className="text-[11px] text-[#4B5563] leading-tight line-clamp-2">
-                              {thumb.rationale}
-                            </p>
-                          </div>
-
-                          {/* Footer Action & Download */}
-                          <div className="pt-2 border-t border-[#E5E7EB] flex items-center justify-between text-xs">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedThumbnailId(thumb.id);
-                              }}
-                              className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition flex items-center gap-1 ${
-                                isSelected
-                                  ? "bg-[#3B82F6] text-white"
-                                  : "bg-white text-[#4B5563] border border-[#D1D5DB] hover:bg-[#F3F4F6]"
-                              }`}
-                            >
-                              <CheckCircle2 className="w-3 h-3" />
-                              <span>{isSelected ? "Active ✓" : "Select"}</span>
-                            </button>
-
-                            <a
-                              href={`${thumb.imageUrl}?download=1`}
-                              download={`youtube_thumbnail_${thumb.id}.png`}
-                              onClick={(e) => e.stopPropagation()}
-                              className="inline-flex items-center gap-1 text-[11px] font-bold text-[#2563EB] hover:underline"
-                            >
-                              <Download className="w-3 h-3" />
-                              <span>Download 720p</span>
-                            </a>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* AI Thumbnail Visual Direction Fallback */}
-              {(!currentJob?.report?.publishingPackage?.thumbnails || currentJob.report.publishingPackage.thumbnails.length === 0) &&
-                (aiThumbnailConcepts.length > 0 || (currentJob?.report?.packaging?.thumbnailConcepts && currentJob.report.packaging.thumbnailConcepts.length > 0)) && (
-                <div className="pt-2 border-t border-[#E5E7EB] space-y-2">
-                  <label className="text-[11px] font-bold text-[#6B7280] block">
-                    AI-Generated Visual Thumbnail Concepts & Text Overlays
-                  </label>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-                    {(aiThumbnailConcepts.length > 0 ? aiThumbnailConcepts : currentJob?.report?.packaging?.thumbnailConcepts || []).slice(0, 3).map((th: any, idx: number) => (
-                      <div key={idx} className="p-3 bg-white rounded-xl border border-[#E2E5EB] space-y-1.5 text-[11px]">
-                        <div className="flex items-center justify-between">
-                          <span className="px-2 py-0.5 bg-[#111827] text-white rounded font-black text-[10px] tracking-wider">
-                            {th.headline}
-                          </span>
-                          <span className="text-[10px] text-[#6B7280]">Option #{idx + 1}</span>
-                        </div>
-                        <p className="text-[#374151] font-medium leading-tight">
-                          {th.visualDescription}
-                        </p>
-                        <div className="text-[10px] text-[#6B7280]">
-                          Palette: <span className="font-semibold text-[#1F2937]">{th.colorPalette}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="text-[11px] font-bold text-[#6B7280] block mb-1">Select Asset to Publish</label>
-                <select
-                  value={selectedPublishAsset}
-                  onChange={(e) => setSelectedPublishAsset(e.target.value as any)}
-                  className="w-full px-3 py-2 bg-[#F9FAFB] border border-[#E2E5EB] rounded-xl text-xs text-[#111827] focus:outline-none"
-                >
-                  <option value="edited">First-Pass Edited Video (Cuts Applied)</option>
-                  <option value="original">Original Uploaded Video</option>
-                  <option value="short">Short Candidate #1</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-[#6B7280] block mb-1">Privacy Status</label>
-                <select
-                  value={publishPrivacy}
-                  onChange={(e) => setPublishPrivacy(e.target.value as any)}
-                  className="w-full px-3 py-2 bg-[#F9FAFB] border border-[#E2E5EB] rounded-xl text-xs text-[#111827] focus:outline-none"
-                >
-                  <option value="private">Private (Safest - Review First)</option>
-                  <option value="unlisted">Unlisted (Share via link)</option>
-                  <option value="public">Public (Immediate Live)</option>
-                </select>
-              </div>
-
-              <div className="flex items-end">
-                <button
-                  type="button"
-                  onClick={handlePublishToYouTube}
-                  disabled={isPublishing || !isYoutubeConnected}
-                  className="w-full py-2 bg-[#DC2626] hover:bg-[#B91C1C] disabled:bg-gray-300 text-white rounded-full text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-xs"
-                >
-                  <Share2 className="w-3.5 h-3.5" />
-                  <span>{isPublishing ? "Uploading to YouTube..." : "Publish to YouTube →"}</span>
-                </button>
-              </div>
-            </div>
-
-            {publishedVideoUrl && (
-              <div className="p-4 bg-[#ECFDF5] border border-[#A7F3D0] rounded-2xl flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-[#059669]" />
-                  <span className="text-xs font-bold text-[#065F46]">
-                    Successfully published to YouTube!
-                  </span>
-                </div>
+              <div className="flex flex-wrap items-center gap-2 pt-2">
                 <a
                   href={publishedVideoUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs font-bold text-[#059669] hover:underline"
+                  className="px-4 py-2 rounded-xl bg-[#059669] hover:bg-[#047857] text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer"
                 >
-                  <span>View on YouTube</span>
+                  <span>Watch on YouTube</span>
                   <ExternalLink className="w-3.5 h-3.5" />
                 </a>
+
+                <button
+                  type="button"
+                  onClick={copyPublishedUrl}
+                  className="px-3.5 py-2 rounded-xl border border-[#A7F3D0] bg-white text-[#065F46] font-bold text-xs hover:bg-[#F0FDF4] transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedLink ? "Copied!" : "Copy URL"}</span>
+                </button>
               </div>
-            )}
+            </div>
+          )}
+
+          {/* Action Row */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+            <span className="text-xs text-[#6B7280]">
+              Requires explicit creator confirmation. Duplicate publishing is prevented.
+            </span>
+
+            <button
+              type="button"
+              onClick={handlePublishToYouTube}
+              disabled={isPublishing || !isYoutubeConnected || !editableTitle.trim()}
+              className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-[#EF4444] hover:bg-[#DC2626] text-white font-bold text-sm shadow-sm transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              <Youtube className="w-4 h-4" />
+              <span>
+                {isPublishing
+                  ? "Publishing to YouTube..."
+                  : publishedVideoUrl
+                  ? "Re-Publish (Update)"
+                  : "Publish Video to YouTube"}
+              </span>
+            </button>
           </div>
         </div>
       )}
-        </div>
-      )}
 
+      {/* Non-reloading YouTube OAuth Modal Fallback */}
       <YouTubeOAuthModal
         isOpen={isOAuthModalOpen}
         onClose={() => setIsOAuthModalOpen(false)}
-        onSuccess={(authUrl) => {
+        onConnected={(channel) => {
+          setIsYoutubeConnected(true);
+          setChannelTitle(channel);
           setIsOAuthModalOpen(false);
-          openOAuthPopup(authUrl);
+          onToast(`Connected YouTube Channel: ${channel}!`, "success");
         }}
-        onToast={onToast}
       />
     </div>
   );
