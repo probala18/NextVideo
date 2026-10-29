@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { publishVideoToYouTube, getStoredAuth, getPublishHistory, isAlreadyPublished } from "@/lib/youtube/publishing";
 import { getJobById } from "@/lib/video/jobs";
+import { materializePrivateBlob } from "@/lib/video/storage";
 import path from "path";
 import fs from "fs";
 
@@ -64,6 +65,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (!fs.existsSync(targetFilePath) && effectiveTargetType !== "edited") {
+      try {
+        targetFilePath = (await materializePrivateBlob(job.assetId, job.filename, "video/mp4")).filePath;
+      } catch {
+        // Return the existing clear media-unavailable response below.
+      }
+    }
     if (!fs.existsSync(targetFilePath)) {
       return NextResponse.json(
         { error: `Media file does not exist on disk for publishing: ${targetFilePath}` },
