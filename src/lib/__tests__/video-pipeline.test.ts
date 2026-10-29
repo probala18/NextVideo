@@ -59,12 +59,11 @@ describe("Video Processing Pipeline & Media Infrastructure", () => {
   });
 
   describe("3. Speech Transcriber & Cues", () => {
-    test("generates structured cues with timestamped bounds", async () => {
+    test("reports transcription as unavailable instead of fabricating speech", async () => {
       const res = await transcribeMedia("non_existent_file.mp4", undefined, "NextJS 14 Complete Guide");
-      expect(res.cues.length).toBeGreaterThan(0);
-      expect(res.cues[0].start).toBe(0.0);
-      expect(res.cues[0].end).toBeGreaterThan(res.cues[0].start);
-      expect(res.text.length).toBeGreaterThan(20);
+      expect(res.source).toBe("unavailable");
+      expect(res.cues).toEqual([]);
+      expect(res.text).toBe("");
     });
   });
 

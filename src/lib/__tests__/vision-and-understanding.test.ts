@@ -68,7 +68,7 @@ describe("Computer Vision & Video Understanding Engine", () => {
       expect(props.contrastScore).toBeLessThanOrEqual(100);
       expect(props.focalPoint).toBeDefined();
       expect(props.thumbnailSuitabilityScore).toBeGreaterThanOrEqual(50);
-      expect(props.detectedOnScreenText.length).toBeGreaterThan(0);
+      expect(props.detectedOnScreenText).toEqual([]);
     });
 
     it("samples representative frames at regular checkpoints without crashes", async () => {
@@ -81,10 +81,10 @@ describe("Computer Vision & Video Understanding Engine", () => {
       });
 
       expect(vision.sampledFrames.length).toBeGreaterThanOrEqual(3);
-      expect(vision.candidateThumbnailMoments.length).toBeGreaterThanOrEqual(1);
-      expect(vision.confidenceScore).toBeGreaterThan(70);
-      expect(vision.detectedSubjects.length).toBeGreaterThan(0);
-      expect(vision.detectedEnvironments.length).toBeGreaterThan(0);
+      expect(vision.candidateThumbnailMoments).toEqual([]);
+      expect(vision.confidenceScore).toBe(0);
+      expect(vision.detectedSubjects).toEqual([]);
+      expect(vision.detectedEnvironments).toEqual([]);
     });
   });
 
@@ -148,7 +148,7 @@ describe("Computer Vision & Video Understanding Engine", () => {
       });
 
       expect(understanding.actualTopic).toBeDefined();
-      expect(understanding.primaryValueProposition).toContain("fluff-free");
+      expect(understanding.primaryValueProposition).toContain("subject");
       expect(understanding.keyTakeaways.length).toBeGreaterThanOrEqual(2);
       expect(understanding.visualEvidence.length).toBeGreaterThan(0);
       expect(understanding.audioEvidence.length).toBeGreaterThan(0);
@@ -204,7 +204,7 @@ describe("Computer Vision & Video Understanding Engine", () => {
   });
 
   describe("4. Configured AI Model Publishing Package & Grounding", () => {
-    it("generates 5 titles, recommended title, description, and evidence connections", async () => {
+    it("pauses generation when understanding evidence is inadequate", async () => {
       const mockVision = {
         sampledFrames: [
           {
@@ -240,6 +240,8 @@ describe("Computer Vision & Video Understanding Engine", () => {
 
       const mockEvidence = {
         actualTopic: "Next.js Autonomous AI Agents",
+        isAdequatelyUnderstood: false,
+        limitationNotice: "Transcript and vision evidence unavailable.",
         primaryValueProposition: "Complete walkthrough with zero fluff",
         narrativeClimaxSeconds: 380,
         targetAudience: "Developers",
@@ -263,14 +265,13 @@ describe("Computer Vision & Video Understanding Engine", () => {
         thumbnails: mockThumbs,
       });
 
-      expect(pkg.titles.length).toBe(5);
-      expect(pkg.recommendedTitle).toBeDefined();
-      expect(pkg.recommendedTitleReason).toBeDefined();
-      expect(pkg.description).toContain("TIMESTAMPS:");
-      expect(pkg.chapters.length).toBeGreaterThanOrEqual(3);
-      expect(pkg.suggestedCategory.id).toBe("28"); // Science & Technology
-      expect(pkg.evidenceGrounding.length).toBeGreaterThanOrEqual(3);
-      expect(pkg.thumbnails.length).toBe(3);
+      expect(pkg.titles).toEqual([]);
+      expect(pkg.recommendedTitle).toBe("");
+      expect(pkg.description).toContain("unavailable");
+      expect(pkg.chapters).toEqual([]);
+      expect(pkg.evidenceGrounding).toEqual([]);
+      expect(pkg.thumbnails).toEqual([]);
+      expect(pkg.isAdequatelyUnderstood).toBe(false);
     });
   });
 });

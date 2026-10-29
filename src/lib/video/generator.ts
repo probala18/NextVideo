@@ -63,6 +63,19 @@ export async function generatePublishingPackageWithAI(
     };
   }
 
+  if (!baseConfig.isConfigured || !baseConfig.apiKey) {
+    return {
+      titles: [], recommendedTitle: "", recommendedTitleReason: "The configured text model is unavailable; no publishing copy was fabricated.",
+      description: "Asset generation requires a configured text model.", tags: [],
+      suggestedCategory: { id: "", name: "Unspecified", rationale: "No model output is available to support a category." },
+      chapters: [], thumbnails: [], selectedThumbnailId: "", evidenceGrounding: [],
+      modelUsed: `${providerDef.name} (${model})`, generatedAt: new Date().toISOString(),
+      summary: evidence.summary, isAdequatelyUnderstood: true,
+      limitationNotice: "Configure the selected model and retry generation.",
+      researchSummary: { isLiveApiData: Boolean(research?.isLiveApiData), videosAnalyzedCount: research?.videos?.length || 0, notice: "Text model is not configured." },
+    };
+  }
+
   // Accurate chapters grounded in video duration and transcript
   const chapters: Array<{
     timecode: string;
@@ -94,8 +107,8 @@ export async function generatePublishingPackageWithAI(
     rankingExplanation: t.rankingExplanation || "Transparent evaluation based on content accuracy, specificity, and mobile viewport readability.",
   }));
 
-  let recommendedTitle = titles[0]?.title || `How to ${cleanTopic}`;
-  let recommendedTitleReason = titles[0]?.fitReason || "Best alignment with detected video subject and mobile readability.";
+  let recommendedTitle = titles[0]?.title || "";
+  let recommendedTitleReason = titles[0]?.fitReason || "";
   let description = `${evidence.primaryValueProposition || `Complete walkthrough on ${cleanTopic}.`}
 
 In this video:
@@ -184,6 +197,8 @@ ${researchContext}`;
         userPrompt,
       });
 
+      if (!aiResponse) throw new Error("Configured model returned an empty response.");
+
       if (aiResponse) {
         const cleaned = aiResponse
           .replace(/^```json\s*/i, "")
@@ -192,7 +207,7 @@ ${researchContext}`;
           .trim();
         const parsed = JSON.parse(cleaned);
 
-        if (Array.isArray(parsed.titles) && parsed.titles.length >= 3) {
+        if (Array.isArray(parsed.titles) && parsed.titles.length >= 5) {
           titles = parsed.titles.slice(0, 5).filter((t: any) => t?.title && t.title.length <= 100).map((t: any) => {
             const rawTitle = String(t.title || "").trim();
             const charCount = rawTitle.length;
@@ -225,6 +240,9 @@ ${researchContext}`;
         if (Array.isArray(parsed.tags) && parsed.tags.length > 0) {
           tags = parsed.tags.map((tg: any) => String(tg).trim().toLowerCase()).filter(Boolean);
         }
+      }
+      if (titles.length !== 5 || !description.trim() || !tags.length) {
+        throw new Error("Response must contain five titles, a description, and tags.");
       }
     } catch (err: any) {
       throw new Error(`Publishing asset generation failed for configured model ${model}: ${err.message}`);
