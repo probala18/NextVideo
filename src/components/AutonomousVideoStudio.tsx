@@ -430,11 +430,11 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
     setPublishedVideoId(null);
 
     try {
-      const finalTitle = editableTitle || selectedTitle || currentJob.filename;
+      const finalTitle = editableTitle.trim() || selectedTitle.trim();
       const finalDesc = editableDesc || currentJob.report?.seo?.description || "";
       const finalTags = editableTags
         ? editableTags.split(",").map((s) => s.trim()).filter(Boolean)
-        : currentJob.report?.seo?.tags || ["nextvideo"];
+        : currentJob.report?.seo?.tags || [];
 
       const res = await fetch("/api/youtube/publish", {
         method: "POST",
