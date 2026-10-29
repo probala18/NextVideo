@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { publishVideoToYouTube, getStoredAuth, getPublishHistory, isAlreadyPublished } from "@/lib/youtube/publishing";
 import { getJobById } from "@/lib/video/jobs";
-import { materializePrivateBlob } from "@/lib/video/storage";
+import { materializePrivateBlob, materializePrivateDerivedBlob } from "@/lib/video/storage";
 import path from "path";
 import fs from "fs";
 
@@ -115,8 +115,13 @@ export async function POST(req: NextRequest) {
       if (matchedThumb?.imagePath && fs.existsSync(matchedThumb.imagePath)) {
         thumbnailPath = matchedThumb.imagePath;
       } else {
+        if (matchedThumb?.imagePath) {
+          try {
+            thumbnailPath = await materializePrivateDerivedBlob(job.assetId, "thumbnails", path.basename(matchedThumb.imagePath));
+          } catch {}
+        }
         const thumbDir = path.join(process.cwd(), "data", "uploads", job.assetId, "thumbnails");
-        if (fs.existsSync(thumbDir)) {
+        if (!thumbnailPath && fs.existsSync(thumbDir)) {
           const files = fs.readdirSync(thumbDir);
           const found = files.find((f) => f.includes(selectedThumbnailId));
           if (found) {

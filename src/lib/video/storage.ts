@@ -142,6 +142,20 @@ export async function materializePrivateBlob(assetId: string, originalFilename: 
   };
 }
 
+export async function materializePrivateDerivedBlob(assetId: string, subfolder: "cuts" | "shorts" | "frames" | "reports" | "transcripts" | "thumbnails", filename: string): Promise<string> {
+  if (!/^[a-zA-Z0-9_-]+$/.test(assetId)) throw new Error("Invalid video asset ID.");
+  const safeName = sanitizeFilename(filename);
+  if (!process.env.BLOB_READ_WRITE_TOKEN) throw new Error("Persistent video storage is not configured.");
+  const { get } = await import("@vercel/blob");
+  const object = await get(blobPath(assetId, safeName, subfolder), { access: "private" });
+  if (!object) throw new Error("Selected derived asset was not found in private object storage.");
+  const directory = path.join(UPLOAD_BASE_DIR, assetId, subfolder);
+  ensureDirectory(directory);
+  const filePath = path.join(directory, safeName);
+  await pipeline(Readable.fromWeb(object.stream as any), createWriteStream(filePath));
+  return filePath;
+}
+
 export async function saveDerivedAsset(
   assetId: string,
   subfolder: "cuts" | "shorts" | "frames" | "reports" | "transcripts" | "thumbnails",

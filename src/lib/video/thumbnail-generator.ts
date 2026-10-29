@@ -12,7 +12,7 @@ import path from "path";
 import zlib from "zlib";
 import { GeneratedThumbnail, SampledFrame } from "../types/visionWorkflow";
 import { getLLMConfig } from "../openrouter";
-import { ensureDirectory } from "./storage";
+import { saveDerivedAsset } from "./storage";
 
 export interface ThumbnailConceptInput {
   headline: string;
@@ -224,9 +224,6 @@ export async function generateYouTubeThumbnails(params: {
   const uniqueFrames = candidateFrames.filter((frame, index, all) => frame.framePath && all.findIndex((other) => other.timestampSeconds === frame.timestampSeconds) === index).slice(0, 3);
   if (!uniqueFrames.length) return [];
 
-  const targetDir = path.join(process.cwd(), "data", "uploads", assetId, "thumbnails");
-  ensureDirectory(targetDir);
-
   const cleanTopic = topic.trim().slice(0, 30);
 
   // Define 3 high-contrast, distinct packaging variations
@@ -313,11 +310,9 @@ export async function generateYouTubeThumbnails(params: {
         const actualDimensions = dimensions;
         const finalFormat = check.format;
         const filename = `thumbnail_v${i + 1}_${cfg.id}.${finalFormat}`;
-        const localPath = path.join(targetDir, filename);
-        await fs.promises.writeFile(localPath, frameBuf);
-        const stat = await fs.promises.stat(localPath);
-        const publicUrl = `/api/video/assets/${assetId}/thumbnails/${filename}`;
-        results.push({ id: cfg.id, variationName: cfg.variationName, headline: "", imagePath: localPath, imageUrl: publicUrl,
+        const saved = await saveDerivedAsset(assetId, "thumbnails", filename, frameBuf);
+        const stat = await fs.promises.stat(saved.filePath);
+        results.push({ id: cfg.id, variationName: cfg.variationName, headline: "", imagePath: saved.filePath, imageUrl: saved.fileUrl,
           width: actualDimensions.width, height: actualDimensions.height, aspectRatio: "16:9", format: finalFormat,
           sizeBytes: stat.size, source: "video_frame", selected: i === 0, promptUsed: "Original extracted video frame; no generated text or decoration.",
           colorPalette: "Original frame colors", focalPoint: matchingFrame.semanticDescription || "Frame content not described",
