@@ -195,7 +195,7 @@ export async function collectNicheResearch(params: {
     maxVideos = 25,
     allowBenchmarkFallback = false,
   } = params;
-  const apiKey = (params.apiKey || process.env.YOUTUBE_API_KEY || "").trim();
+  const apiKey = (params.apiKey !== undefined ? params.apiKey : (process.env.YOUTUBE_API_KEY || "")).trim();
 
   const collectedAt = new Date().toISOString();
   const notes: string[] = [
