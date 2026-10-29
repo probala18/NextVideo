@@ -179,27 +179,14 @@ describe("Computer Vision & Video Understanding Engine", () => {
       expect(square.issues.some((i) => i.includes("deviates from required 16:9"))).toBe(true);
     });
 
-    it("generates 3 distinct broadcast-grade thumbnail image variations on disk", async () => {
+    it("does not fabricate thumbnails when representative frames are unavailable", async () => {
       const thumbnails = await generateYouTubeThumbnails({
         assetId: "test_thumb_asset_01",
         topic: "Autonomous AI Agents in Next.js",
         candidateFrames: [],
       });
 
-      expect(thumbnails.length).toBe(3);
-
-      for (const thumb of thumbnails) {
-        expect(thumb.width).toBe(1280);
-        expect(thumb.height).toBe(720);
-        expect(thumb.aspectRatio).toBe("16:9");
-        expect(thumb.format).toBe("png");
-        expect(thumb.sizeBytes).toBeLessThan(2 * 1024 * 1024); // Under 2MB YouTube limit
-        expect(thumb.headline.split(/\s+/).length).toBeLessThanOrEqual(4); // Punchy 2-4 words
-        expect(thumb.imageUrl).toContain("/thumbnails/");
-      }
-
-      // First variation should be selected by default
-      expect(thumbnails[0].selected).toBe(true);
+      expect(thumbnails).toEqual([]);
     });
   });
 

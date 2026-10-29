@@ -203,6 +203,10 @@ export async function generateYouTubeThumbnails(params: {
 }): Promise<GeneratedThumbnail[]> {
   const { assetId, topic, candidateFrames = [], concepts = [] } = params;
 
+  // Never create a decorative placeholder and describe it as a video thumbnail.
+  // A valid image file is not evidence of visual relevance.
+  if (!candidateFrames.some((frame) => frame.framePath)) return [];
+
   const targetDir = path.join(process.cwd(), "data", "uploads", assetId, "thumbnails");
   ensureDirectory(targetDir);
 
@@ -261,7 +265,7 @@ export async function generateYouTubeThumbnails(params: {
 
   for (let i = 0; i < variationsConfig.length; i++) {
     const cfg = variationsConfig[i];
-    const matchingFrame = candidateFrames[i % Math.max(1, candidateFrames.length)];
+    const matchingFrame = candidateFrames.filter((frame) => frame.framePath)[i % candidateFrames.filter((frame) => frame.framePath).length];
 
     let finalFormat: "png" | "jpg" = "png";
     let imageBuffer: Buffer;
@@ -295,26 +299,10 @@ export async function generateYouTubeThumbnails(params: {
         finalFormat = check.format === "jpg" ? "jpg" : "png";
         actualSource = "video_frame";
       } else {
-        imageBuffer = generateCompliantBinaryPng(1280, 720, {
-          bgR: cfg.bgR,
-          bgG: cfg.bgG,
-          bgB: cfg.bgB,
-          accentR: cfg.accentR,
-          accentG: cfg.accentG,
-          accentB: cfg.accentB,
-          variationIndex: i,
-        });
+      continue;
       }
     } else {
-      imageBuffer = generateCompliantBinaryPng(1280, 720, {
-        bgR: cfg.bgR,
-        bgG: cfg.bgG,
-        bgB: cfg.bgB,
-        accentR: cfg.accentR,
-        accentG: cfg.accentG,
-        accentB: cfg.accentB,
-        variationIndex: i,
-      });
+      continue;
     }
 
     const filename = `thumbnail_v${i + 1}_${cfg.id}.${finalFormat}`;

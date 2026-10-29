@@ -223,7 +223,7 @@ describe("Focused Video Agent Publishing Flow", () => {
       expect(check.isReal).toBe(false);
     });
 
-    it("generates durable thumbnail options on disk with working urls", async () => {
+    it("returns no thumbnail options when no frame evidence exists", async () => {
       const assetId = `test_dur_${Date.now()}`;
       const thumbs = await generateYouTubeThumbnails({
         assetId,
@@ -231,17 +231,7 @@ describe("Focused Video Agent Publishing Flow", () => {
         candidateFrames: [],
       });
 
-      expect(thumbs.length).toBe(3);
-      for (const t of thumbs) {
-        expect(fs.existsSync(t.imagePath)).toBe(true);
-        expect(t.imageUrl).toContain(`/api/video/assets/${assetId}/thumbnails/`);
-        expect(t.width).toBe(1280);
-        expect(t.height).toBe(720);
-        expect(["png", "jpg"]).toContain(t.format);
-
-        const stat = fs.statSync(t.imagePath);
-        expect(stat.size).toBeLessThan(2 * 1024 * 1024); // < 2MB
-      }
+      expect(thumbs).toEqual([]);
 
       // Cleanup
       const assetDir = path.join(process.cwd(), "data", "uploads", assetId);

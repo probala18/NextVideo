@@ -15,7 +15,7 @@ import { identifyShortCandidates, renderEditedVideo, extractKeyFrames } from "./
 import { generateVideoWithAI, generatePackagingWithAI } from "../openrouter";
 import { analyzeVideoWithComputerVision } from "./vision";
 import { assembleVideoUnderstanding } from "./understanding";
-import { generateYouTubeThumbnails } from "./thumbnail-generator";
+import { generateYouTubeThumbnails, ThumbnailConceptInput } from "./thumbnail-generator";
 import { generatePublishingPackageWithAI } from "./generator";
 import { youtubePatternModel } from "../models/youtube-pattern-model";
 import { collectNicheResearch, ResearchReport } from "../research/collector";
@@ -62,11 +62,12 @@ export async function runAutonomousVideoWorkflow(params: {
     creatorHintTopic: userHintTopic || userTitle,
   });
 
-  const topic = understanding.actualTopic || "Uploaded Video Demonstration";
+  const topic = understanding.actualTopic;
 
   // 2. Real YouTube Research (Using configured YOUTUBE_API_KEY)
   let research: ResearchReport | undefined = undefined;
   try {
+    if (!topic || !understanding.isAdequatelyUnderstood) throw new Error("Video evidence is insufficient for relevant research.");
     research = await collectNicheResearch({
       nicheOrTopic: topic,
       maxVideos: 10,
@@ -84,43 +85,20 @@ export async function runAutonomousVideoWorkflow(params: {
   const hookScore = scoreHook(first15Speech);
 
   // Proposed alternative hook formulas based on yt-script rules
-  const proposedHooks = [
-    `97% of people learning ${topic} quit before week four. Here is how to avoid that mistake.`,
-    `Stop following generic ${topic} advice before you waste another 20 hours.`,
-    `This single shift in how you approach ${topic} cuts your learning curve in half.`,
-  ];
+  const proposedHooks = [] as string[];
 
   // 4. Title & Thumbnail Packaging
-  const currentTitle = userTitle || `How to Master ${topic}`;
-  const currentThumb = userThumbnailText || "MASTER FAST";
+  const currentTitle = userTitle || (understanding.isAdequatelyUnderstood ? topic : "");
+  const currentThumb = userThumbnailText || "";
   const titleAudit = checkTitle(currentTitle, currentThumb);
 
   // Thumbnail Concepts
-  const thumbnailConcepts = [
-    {
-      headline: "CRITICAL FIX",
-      visualDescription: `High-contrast focus on ${vision.sampledFrames?.[0]?.label || "opening scene"} with alert accent.`,
-      colorPalette: "Rose Red (#F43F5E) on Dark Slate",
-      reason: "Grounded in opening hook scene with alert accent for mobile feed visibility.",
-    },
-    {
-      headline: "STEP BY STEP",
-      visualDescription: `Crisp outcome layout highlighting ${topic} with emerald verification indicator.`,
-      colorPalette: "Emerald Green (#10B981) on Deep Teal",
-      reason: "Concrete demonstration scene highlighting practical solution execution.",
-    },
-    {
-      headline: "FULL GUIDE",
-      visualDescription: `Clean authority framing with electric cyan border and summary badge.`,
-      colorPalette: "Electric Cyan (#38BDF8) on Charcoal",
-      reason: "Grounded in climax scene with structured authority framing.",
-    },
-  ];
+  const thumbnailConcepts: ThumbnailConceptInput[] = [];
 
   // 5. Generate Real Visual Thumbnails (1280x720 16:9 compliant files)
   const generatedThumbnails = await generateYouTubeThumbnails({
     assetId,
-    topic,
+    topic: topic || "",
     candidateFrames: vision.sampledFrames,
     concepts: thumbnailConcepts,
   });
