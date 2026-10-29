@@ -378,6 +378,10 @@ export async function generateVideoWithAI(
   const isConfigured = provider === "custom" ? true : Boolean(apiKey && apiKey.length > 4);
 
   if (!isConfigured) {
+    throw new Error(`Configure ${providerDef.name} credentials before generating video packaging.`);
+  }
+
+  if (!isConfigured) {
     return synthesizeLocally(input, model);
   }
 
@@ -782,7 +786,7 @@ Transcript Excerpt: "${(input.transcriptText || "").slice(0, 1500)}"`;
 
     const parsed = JSON.parse(cleaned);
 
-    const titles: string[] = Array.isArray(parsed.titles) && parsed.titles.length > 0 ? parsed.titles : fallbackResult.titles;
+    const titles: string[] = Array.isArray(parsed.titles) ? parsed.titles.filter((title: unknown) => typeof title === "string" && title.trim().length > 0 && title.length <= 100) : [];
     const thumbnailConcepts = Array.isArray(parsed.thumbnailConcepts) && parsed.thumbnailConcepts.length > 0
       ? parsed.thumbnailConcepts.map((c: any) => ({
           headline: c.headline || c.textOverlay || "WATCH THIS",
@@ -793,25 +797,25 @@ Transcript Excerpt: "${(input.transcriptText || "").slice(0, 1500)}"`;
           colorPalette: c.colorPalette || "High contrast",
           reason: c.reason || "",
         }))
-      : fallbackResult.thumbnailConcepts;
+      : [];
+
+    if (titles.length !== 5 || typeof parsed.description !== "string" || parsed.description.trim().length < 30 || !Array.isArray(parsed.tags) || parsed.tags.length === 0) {
+      throw new Error("Configured model response did not provide five titles, a useful description, and relevant tags.");
+    }
 
     return {
       titles,
-      suggestedTitle: titles[0] || fallbackResult.suggestedTitle,
-      description: typeof parsed.description === "string" ? parsed.description : fallbackResult.description,
-      tags: Array.isArray(parsed.tags) ? parsed.tags : fallbackResult.tags,
-      hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags : fallbackResult.hashtags,
+      suggestedTitle: titles[0],
+      description: parsed.description,
+      tags: parsed.tags,
+      hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags : [],
       thumbnailConcepts,
       source: provider,
       model,
       notice: `Generated with ${providerDef.name} (${model})`,
     };
   } catch (err: any) {
-    console.error("Packaging AI generation fallback:", err.message);
-    return {
-      ...fallbackResult,
-      notice: `${providerDef.name} error (${err.message.slice(0, 80)}). Synthesized with verified packaging formulas.`,
-    };
+    throw new Error(`Packaging generation failed for ${providerDef.name} (${model}): ${err.message}`);
   }
 }
 

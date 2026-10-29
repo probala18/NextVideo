@@ -395,6 +395,12 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
           currentTitle: editableTitle,
           transcriptText: report.transcript?.text || "",
           durationSeconds: report.media?.durationSeconds || 600,
+          understanding: report.understanding,
+          visualEvidence: report.vision?.sampledFrames?.map((frame) => ({
+            timestampSeconds: frame.timestampSeconds,
+            description: frame.semanticDescription,
+            framePath: frame.framePath,
+          })) || [],
         }),
       });
 
