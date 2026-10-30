@@ -28,7 +28,7 @@ export interface VisionSamplingConfig {
   deduplicationThreshold?: number;
 }
 
-const DEFAULT_SAMPLE_POINTS = [0.05, 0.20, 0.50, 0.75, 0.90];
+const DEFAULT_SAMPLE_POINTS = [0.03, 0.12, 0.25, 0.40, 0.55, 0.70, 0.84, 0.95];
 const DEFAULT_LABELS = [
   "Opening Hook & First Impression",
   "Problem Setup & Context",
@@ -282,19 +282,21 @@ export async function analyzeVideoWithComputerVision(params: {
         headers["HTTP-Referer"] = "http://localhost:3000";
         headers["X-Title"] = "NextVideo Video Agent";
       }
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(anthropic
-          ? { model: llmConfig.model, max_tokens: 3000, system: instruction, messages: [{ role: "user", content }] }
-          : { model: llmConfig.model, temperature: 0, messages: [{ role: "user", content }] }),
-        signal: AbortSignal.timeout(45000),
-      });
-      if (!response.ok) throw new Error(`Configured vision model request failed (${response.status}).`);
-      const payload = await response.json();
-      const raw = anthropic ? payload.content?.find((part: any) => part.type === "text")?.text : payload.choices?.[0]?.message?.content;
-      if (typeof raw !== "string") throw new Error("Configured vision model returned no analysis.");
-      const parsed = JSON.parse(raw);
+      try {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(anthropic
+            ? { model: llmConfig.model, max_tokens: 3000, system: instruction, messages: [{ role: "user", content }] }
+            : { model: llmConfig.model, temperature: 0, messages: [{ role: "user", content }] }),
+          signal: AbortSignal.timeout(45000),
+        });
+        if (!response.ok) throw new Error(`Configured vision model request failed (${response.status}).`);
+        const payload = await response.json();
+        const raw = anthropic ? payload.content?.find((part: any) => part.type === "text")?.text : payload.choices?.[0]?.message?.content;
+        if (typeof raw !== "string") throw new Error("Configured vision model returned no analysis.");
+        const cleaned = raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+        const parsed = JSON.parse(cleaned);
       detectedSubjects = Array.isArray(parsed.overallSubjects) ? parsed.overallSubjects.filter((x: unknown) => typeof x === "string") : [];
       detectedEnvironments = Array.isArray(parsed.environments) ? parsed.environments.filter((x: unknown) => typeof x === "string") : [];
       const byTime = new Map((Array.isArray(parsed.frames) ? parsed.frames : []).map((f: any) => [Number(f.timestampSeconds), f]));
@@ -308,6 +310,9 @@ export async function analyzeVideoWithComputerVision(params: {
         }
       }
       deduplicatedFrames.forEach((f) => { f.dataUrl = undefined; });
+      } catch (error) {
+        limitations.push(error instanceof Error ? error.message : "Configured vision model analysis failed.");
+      }
     }
   } else if (supportsVision && !llmConfig.isConfigured) {
     limitations.push("Vision-capable model is selected, but provider credentials are not configured; extracted frames were not analyzed.");
