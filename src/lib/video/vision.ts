@@ -183,6 +183,13 @@ export async function analyzeVideoWithComputerVision(params: {
 
     // Extract physical frame if video exists and ffmpeg available
     const extracted = await extractPhysicalFrame(sourceFilePath, timestampSeconds, localFramePath);
+    const clientFrameNumber = i === 0 ? 1 : i === 3 ? 2 : i === 6 ? 3 : 0;
+    const clientFrameFilename = clientFrameNumber ? `frame_${clientFrameNumber}.jpg` : "";
+    const clientFramePath = clientFrameFilename
+      ? path.join(framesDir, clientFrameFilename)
+      : "";
+    const hasClientFrame = !extracted && Boolean(clientFramePath) && fs.existsSync(clientFramePath);
+    const frameAvailable = extracted || hasClientFrame;
 
     const properties = analyzeDeterministicFrameProperties(
       i,
@@ -199,11 +206,17 @@ export async function analyzeVideoWithComputerVision(params: {
       index: i + 1,
       timestampSeconds,
       relativePercent,
-      framePath: extracted ? publicFrameUrl : "",
-      label: extracted ? `Frame at ${timestampSeconds}s` : `Frame unavailable at ${timestampSeconds}s`,
+      framePath: frameAvailable
+        ? extracted
+          ? publicFrameUrl
+          : `/api/video/assets/${assetId}/frames/${clientFrameFilename}`
+        : "",
+      label: frameAvailable ? `Frame at ${timestampSeconds}s` : `Frame unavailable at ${timestampSeconds}s`,
       sceneType,
       properties,
-      semanticDescription: extracted ? `Image extracted at ${timestampSeconds}s (${relativePercent}%). Visual content has not been analyzed.` : undefined,
+      semanticDescription: frameAvailable
+        ? `${extracted ? "Image extracted" : "Client-captured image"} at ${timestampSeconds}s (${relativePercent}%). Visual content has not been analyzed.`
+        : undefined,
     });
   }
 
@@ -225,7 +238,7 @@ export async function analyzeVideoWithComputerVision(params: {
       timestampSeconds: frame.timestampSeconds,
       frameIndex: frame.index,
       headline: "",
-      reason: `Extracted video frame at ${frame.timestampSeconds}s; visual content is not analyzed.`,
+      reason: `${frame.semanticDescription?.startsWith("Client-captured") ? "Client-captured" : "Extracted"} video frame at ${frame.timestampSeconds}s; visual content is not analyzed.`,
       visualStrength: frame.properties.thumbnailSuitabilityScore,
     };
   });
