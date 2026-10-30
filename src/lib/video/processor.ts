@@ -23,8 +23,13 @@ export async function isFfmpegAvailable(): Promise<boolean> {
     ffmpegCached = fs.existsSync(process.env.FFMPEG_PATH);
     return ffmpegCached;
   }
-  ffmpegCached = false;
-  return false;
+  try {
+    await execAsync("ffmpeg -version");
+    ffmpegCached = true;
+  } catch {
+    ffmpegCached = false;
+  }
+  return ffmpegCached;
 }
 
 /**
