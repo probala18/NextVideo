@@ -294,6 +294,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       const safeName = `${videoFile.name.replace(/\.[^.]*$/, "").replace(/[^a-zA-Z0-9_-]/g, "_") || "video"}${extension}`;
       let blobPath: string | null = null;
       let job: VideoProcessingJob | null = null;
+      const capturedFrames = await captureVideoFrames(videoFile);
       try {
         const blob = await uploadBlob(`nextvideo/${assetId}/${safeName}`, videoFile, {
           access: "private",
@@ -320,6 +321,9 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
         setUploadProgress(20);
         const formData = new FormData();
         formData.append("video", videoFile);
+        capturedFrames.forEach((frame, index) => {
+          formData.append(`frame_${index}`, frame, `frame_${index + 1}.jpg`);
+        });
         const localRes = await fetch("/api/video/upload", { method: "POST", body: formData });
         const localData = await localRes.json();
         if (!localRes.ok) {
