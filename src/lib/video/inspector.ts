@@ -19,8 +19,13 @@ export async function isFfprobeAvailable(): Promise<boolean> {
     ffprobeCached = fs.existsSync(process.env.FFPROBE_PATH);
     return ffprobeCached;
   }
-  ffprobeCached = false;
-  return false;
+  try {
+    await execAsync("ffprobe -version");
+    ffprobeCached = true;
+  } catch {
+    ffprobeCached = false;
+  }
+  return ffprobeCached;
 }
 
 export async function inspectMedia(filePath: string, originalFilename?: string): Promise<MediaMetadata> {
