@@ -292,31 +292,49 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       const assetId = crypto.randomUUID().replace(/-/g, "");
       const extension = videoFile.name.includes(".") ? `.${videoFile.name.split(".").pop()!.toLowerCase()}` : ".mp4";
       const safeName = `${videoFile.name.replace(/\.[^.]*$/, "").replace(/[^a-zA-Z0-9_-]/g, "_") || "video"}${extension}`;
-      const blob = await uploadBlob(`nextvideo/${assetId}/${safeName}`, videoFile, {
-        access: "private",
-        handleUploadUrl: "/api/video/upload/token",
-        clientPayload: JSON.stringify({ assetId, filename: videoFile.name, mimeType: videoFile.type }),
-        multipart: videoFile.size > 5 * 1024 * 1024,
-        onUploadProgress: ({ percentage }) => setUploadProgress(Math.min(90, Math.round(percentage * 0.85))),
-      });
+      let blobPath: string | null = null;
+      let job: VideoProcessingJob | null = null;
+      try {
+        const blob = await uploadBlob(`nextvideo/${assetId}/${safeName}`, videoFile, {
+          access: "private",
+          handleUploadUrl: "/api/video/upload/token",
+          clientPayload: JSON.stringify({ assetId, filename: videoFile.name, mimeType: videoFile.type }),
+          multipart: videoFile.size > 5 * 1024 * 1024,
+          onUploadProgress: ({ percentage }) => setUploadProgress(Math.min(90, Math.round(percentage * 0.85))),
+        });
+        blobPath = blob.pathname;
 
-      setUploadProgress(93);
-      const res = await fetch("/api/video/upload/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assetId, filename: videoFile.name, mimeType: videoFile.type, filesizeBytes: videoFile.size }),
-      });
-
-      setUploadProgress(95);
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Upload failed");
+        setUploadProgress(93);
+        const res = await fetch("/api/video/upload/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assetId, filename: videoFile.name, mimeType: videoFile.type, filesizeBytes: videoFile.size }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Upload registration failed");
+        }
+        const responseData = await res.json();
+        job = responseData.job;
+      } catch (blobError) {
+        setUploadProgress(20);
+        const formData = new FormData();
+        formData.append("video", videoFile);
+        const localRes = await fetch("/api/video/upload", { method: "POST", body: formData });
+        const localData = await localRes.json();
+        if (!localRes.ok) {
+          throw new Error(
+            localData.error ||
+              (blobError instanceof Error ? blobError.message : "Upload failed")
+          );
+        }
+        job = localData.job;
       }
 
-      const data = await res.json();
-      if (!blob.pathname.endsWith(safeName)) throw new Error("Uploaded object path did not match the registered video.");
       setUploadProgress(100);
-      setCurrentJob(data.job || data);
+      if (blobPath && !blobPath.endsWith(safeName)) throw new Error("Uploaded object path did not match the registered video.");
+      if (!job) throw new Error("Upload completed but no processing job was returned.");
+      setCurrentJob(job);
       setIsPolling(true);
       onToast("Video uploaded! Analyzing content & generating publishing assets...", "success");
     } catch (err: any) {
