@@ -320,7 +320,13 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       setIsPolling(true);
       onToast("Video uploaded! Analyzing content & generating publishing assets...", "success");
     } catch (err: any) {
-      onToast(err.message || "Upload failed. Please check your video file format.", "error");
+      const message = err instanceof Error ? err.message : "";
+      onToast(
+        message.includes("client token") || message.includes("BLOB_STORAGE_NOT_CONFIGURED")
+          ? "Video upload storage is not configured. Add BLOB_READ_WRITE_TOKEN in Vercel Project Settings > Environment Variables, then redeploy."
+          : message || "Upload failed. Please check your video file format.",
+        "error"
+      );
     } finally {
       setIsUploading(false);
     }

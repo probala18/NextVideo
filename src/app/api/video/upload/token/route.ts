@@ -7,6 +7,17 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return NextResponse.json(
+        {
+          error:
+            "Video upload storage is not configured. Add BLOB_READ_WRITE_TOKEN to the server environment and redeploy.",
+          code: "BLOB_STORAGE_NOT_CONFIGURED",
+        },
+        { status: 503 }
+      );
+    }
+
     const body = await request.json();
     const result = await handleUpload({
       request,
