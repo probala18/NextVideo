@@ -56,16 +56,20 @@ export function assembleVideoUnderstanding(params: {
   // Creator hints and synthetic frame labels are context, never evidence.
   let spokenSubject = "";
   if (cues.length > 0) {
-    const openingCues = cues.filter((c) => c.start <= 25.0);
-    const openingText = openingCues.map((c) => c.text).join(" ").trim() || cues[0].text;
-    
-    // Look for phrases like "we build/create/cover/master/learn [X]" or "how to [X]"
-    const match = openingText.match(/(?:build|create|master|learn|explain|deploy|cover|show|demonstrate|understanding)\s+(?:an?|the)?\s*([^.,:;!?]+)/i);
-    if (match && match[1] && match[1].trim().length > 3) {
-      spokenSubject = match[1].trim().slice(0, 45);
-    } else if (openingText.length > 10) {
-      spokenSubject = openingText.split(/[.?!]/)[0].slice(0, 50).trim();
-    }
+    const transcriptText = cues.map((cue) => cue.text).join(" ").trim();
+    const subjectCandidates = transcriptText
+      .split(/[.!?]/)
+      .map((sentence) => sentence.trim())
+      .filter((sentence) => sentence.length >= 20)
+      .sort((a, b) => {
+        const score = (value: string) =>
+          (/(?:build|create|explain|teach|show|demonstrat|review|compare|test|configure|deploy)/i.test(value) ? 3 : 0) +
+          Math.min(3, value.split(/\s+/).length / 8);
+        return score(b) - score(a);
+      });
+    const candidate = subjectCandidates[0] || transcriptText.slice(0, 120);
+    const match = candidate.match(/(?:build|create|explain|teach|show|demonstrat|review|compare|test|configure|deploy)\w*\s+(?:an?|the)?\s*([^,;:]+)/i);
+    spokenSubject = (match?.[1] || candidate).trim().slice(0, 80);
   }
 
   // 2. Evidence extraction from visual frames & on-screen text
@@ -88,6 +92,9 @@ export function assembleVideoUnderstanding(params: {
     isAdequatelyUnderstood = true;
   } else if (prominentOnScreenText && vision.supportsVision) {
     actualTopic = prominentOnScreenText;
+    isAdequatelyUnderstood = true;
+  } else if (vision.supportsVision && vision.detectedSubjects?.length) {
+    actualTopic = vision.detectedSubjects.slice(0, 3).join(", ");
     isAdequatelyUnderstood = true;
   } else if (creatorHintTopic && creatorHintTopic.trim().length > 2) {
     // If neither speech nor visual text is present, hint is strictly flagged as unverified
@@ -147,9 +154,34 @@ export function assembleVideoUnderstanding(params: {
       ...(vision.sampledFrames || []).map((f) => f.semanticDescription).filter((value): value is string => Boolean(value)),
     ])
   );
+  const importantScenes = (vision.sampledFrames || [])
+    .filter((frame) => frame.semanticDescription)
+    .map((frame) => ({ timestampSeconds: frame.timestampSeconds, description: frame.semanticDescription as string }));
+  const lowerTranscript = cues.map((cue) => cue.text).join(" ").toLowerCase();
+  const contentType: VideoUnderstandingEvidence["contentType"] =
+    /review|reviewing|pros and cons|unbox/i.test(lowerTranscript) ? "review" :
+    /compare|versus|\bvs\.?\b|benchmark/i.test(lowerTranscript) ? "comparison" :
+    /interview|conversation|ask me/i.test(lowerTranscript) ? "interview" :
+    /teach|tutorial|lesson|how to|step by step/i.test(lowerTranscript) ? "teaching" :
+    /build|create|configure|deploy|demonstrat|show you/i.test(lowerTranscript) ? "demonstration" :
+    "unknown";
+  const confidence = Math.min(100, Math.round(
+    (spokenSubject ? 45 : 0) +
+    (vision.supportsVision && importantScenes.length ? 30 : 0) +
+    (cues.length >= 3 ? 20 : cues.length ? 10 : 0) +
+    (onScreenTexts.length ? 5 : 0)
+  ));
 
   return {
     actualTopic,
+    videoSubject: actualTopic,
+    videoPurpose: contentType === "unknown" ? undefined : contentType,
+    contentType,
+    primaryActions: cues.slice(0, 5).map((cue) => cue.text.split(/[.!?]/)[0]).filter(Boolean),
+    demonstratedTechnologies: detectedVisualSubjects.filter((subject) => /(?:js|react|next|python|java|swift|sql|api|code|app|software|browser|terminal)/i.test(subject)),
+    importantScenes,
+    demonstratedOutcomes: cues.filter((cue) => /result|achiev|works|完成|success|deployed|built/i.test(cue.text)).map((cue) => cue.text),
+    confidence,
     summary,
     isAdequatelyUnderstood,
     limitationNotice,

@@ -57,6 +57,14 @@ export interface VisionAnalysisReport {
 
 export interface VideoUnderstandingEvidence {
   actualTopic: string;
+  videoSubject?: string;
+  videoPurpose?: string;
+  contentType?: "teaching" | "demonstration" | "review" | "comparison" | "interview" | "presentation" | "narrative" | "unknown";
+  primaryActions?: string[];
+  demonstratedTechnologies?: string[];
+  importantScenes?: Array<{ timestampSeconds: number; description: string }>;
+  demonstratedOutcomes?: string[];
+  confidence?: number;
   summary?: string;
   isAdequatelyUnderstood?: boolean;
   limitationNotice?: string;
