@@ -225,13 +225,20 @@ export async function generateYouTubeThumbnails(params: {
   if (!uniqueFrames.length) return [];
 
   const cleanTopic = topic.trim().slice(0, 30);
+  const topicHeadline = cleanTopic
+    .replace(/[^\w\s-]/g, "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 4)
+    .join(" ")
+    .toUpperCase() || "VIDEO HIGHLIGHT";
 
   // Define 3 high-contrast, distinct packaging variations
   const variationsConfig = [
     {
       id: "thumb_v1_hook",
       variationName: "Opening Hook Frame & Alert",
-      headline: concepts?.[0]?.headline || "CRITICAL FIX",
+      headline: concepts?.[0]?.headline || topicHeadline,
       badge: "HOOK",
       bgR: 30,
       bgG: 27,
@@ -246,7 +253,7 @@ export async function generateYouTubeThumbnails(params: {
     {
       id: "thumb_v2_outcome",
       variationName: "Demonstration & Outcome Proof",
-      headline: concepts?.[1]?.headline || "STEP BY STEP",
+      headline: concepts?.[1]?.headline || topicHeadline,
       badge: "SOLUTION",
       bgR: 2,
       bgG: 44,
@@ -261,7 +268,7 @@ export async function generateYouTubeThumbnails(params: {
     {
       id: "thumb_v3_mastery",
       variationName: "Climax & Blueprint Walkthrough",
-      headline: concepts?.[2]?.headline || "FULL GUIDE",
+      headline: concepts?.[2]?.headline || topicHeadline,
       badge: "2026",
       bgR: 15,
       bgG: 23,
@@ -312,9 +319,9 @@ export async function generateYouTubeThumbnails(params: {
         const filename = `thumbnail_v${i + 1}_${cfg.id}.${finalFormat}`;
         const saved = await saveDerivedAsset(assetId, "thumbnails", filename, frameBuf);
         const stat = await fs.promises.stat(saved.filePath);
-        results.push({ id: cfg.id, variationName: cfg.variationName, headline: "", imagePath: saved.filePath, imageUrl: saved.fileUrl,
+        results.push({ id: cfg.id, variationName: cfg.variationName, headline: cfg.headline, imagePath: saved.filePath, imageUrl: saved.fileUrl,
           width: actualDimensions.width, height: actualDimensions.height, aspectRatio: "16:9", format: finalFormat,
-          sizeBytes: stat.size, source: "video_frame", selected: i === 0, promptUsed: "Original extracted video frame; no generated text or decoration.",
+          sizeBytes: stat.size, source: "video_frame", selected: i === 0, promptUsed: `Original extracted video frame at ${matchingFrame.timestampSeconds}s; headline metadata: ${cfg.headline}.`,
           colorPalette: "Original frame colors", focalPoint: matchingFrame.semanticDescription || "Frame content not described",
           rationale: `Frame extracted at ${matchingFrame.timestampSeconds}s.` });
         continue;
