@@ -402,18 +402,8 @@ export function assembleVideoUnderstanding(params: {
     }
   }
 
-  // Calculate evidence confidence score (0-100)
-  const confidence = Math.min(
-    100,
-    Math.round(
-      (hasSpokenEvidence ? (cleanCues.length >= 8 ? 40 : 25) : 0) +
-      (hasVisualEvidence ? 25 : 0) +
-      (isMusicOrStatus ? 20 : 0) +
-      (entities.technologies.length > 0 ? 15 : 0) +
-      (entities.actions.length > 0 ? 10 : 0) +
-      (importantScenes.length > 0 ? 10 : 0)
-    )
-  );
+  // Confidence is not calibrated; leave it unavailable instead of inventing a score.
+  const confidence: number | null = null;
 
   // Construct structured, specific evidence-grounded summary (no generic tech filler)
   let summary = "";
