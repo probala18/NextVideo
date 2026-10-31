@@ -92,7 +92,6 @@ export function analyzeDeterministicFrameProperties(
  * Classify scene type deterministically.
  */
 function classifySceneType(_frameIndex: number, _properties: SampledFrameProperties): SampledFrame["sceneType"] { return "unknown"; }
-}
 
 /**
  * Extract physical keyframe images using FFmpeg when available.
