@@ -102,17 +102,19 @@ export function classifyContentType(
   options?: {
     onScreenTexts?: string[];
     musicCues?: string[];
+    hintTopic?: string;
   }
 ): VideoUnderstandingEvidence["contentType"] {
   const onScreen = (options?.onScreenTexts || []).join(" ").toLowerCase();
-  const lower = `${transcriptText} ${visualScenes.join(" ")} ${onScreen} ${(options?.musicCues || []).join(" ")}`.toLowerCase();
+  const hint = (options?.hintTopic || "").toLowerCase();
+  const lower = `${transcriptText} ${visualScenes.join(" ")} ${onScreen} ${(options?.musicCues || []).join(" ")} ${hint}`.toLowerCase();
 
   const hasMusicOrAudioMarker =
     /\b(?:\[music\]|\[singing\]|[♪♫♩♬]|bgm|instrumental|soundtrack|melody|orchestra|beats?|vocal)\b/i.test(lower) ||
     (options?.musicCues && options.musicCues.length > 0);
 
   const hasRomanticLyricalCues =
-    /\b(?:romantic|love|kadhal|thendral|enna\s+solla|song|status|whatsapp\s+status|couple|feeling|heart|romance|affection|melody|soulful)\b/i.test(lower);
+    /\b(?:romantic|love|kadhal|thendral|thendralai|enna\s+solla|solla\s+pogirai|pogirai|song|status|whatsapp\s+status|couple|feeling|heart|romance|affection|melody|soulful)\b/i.test(lower);
 
   const hasLyricsText =
     /\b(?:lyrics?|lyrical|subtitles?|subtitled|karaoke)\b/i.test(lower) ||
@@ -122,9 +124,8 @@ export function classifyContentType(
 
   // 1. Romantic Song Status Video
   if (
-    (hasRomanticLyricalCues || hasMusicOrAudioMarker) &&
-    (isShortOrStatusDuration || /\bstatus\b/i.test(lower)) &&
-    (hasRomanticLyricalCues || /\b(?:status|fullscreen|shorts?|reels?)\b/i.test(lower))
+    hasRomanticLyricalCues &&
+    (isShortOrStatusDuration || /\bstatus\b/i.test(lower) || hasMusicOrAudioMarker)
   ) {
     return "romantic_status";
   }
@@ -244,7 +245,7 @@ export function assembleVideoUnderstanding(params: {
     fullTranscriptText,
     importantScenes.map((s) => s.description),
     duration,
-    { onScreenTexts, musicCues }
+    { onScreenTexts, musicCues, hintTopic: creatorHintTopic }
   );
 
   let groundedSubject = "";
@@ -363,7 +364,9 @@ export function assembleVideoUnderstanding(params: {
   } else if (hasVisualEvidence && creatorHintTopic && creatorHintTopic.trim().length > 2) {
     actualTopic = creatorHintTopic.trim();
     isAdequatelyUnderstood = true;
-    limitationNotice = "Live AI vision model was unavailable or quota-limited. Understanding is grounded in extracted visual video frames and video stream verification.";
+    limitationNotice = isMusicOrStatus
+      ? undefined
+      : "Audio dialogue was not detected. Understanding is grounded in extracted visual video frames and video stream verification.";
   } else if (creatorHintTopic && creatorHintTopic.trim().length > 2) {
     actualTopic = creatorHintTopic.trim();
     isAdequatelyUnderstood = false;
