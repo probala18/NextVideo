@@ -267,10 +267,9 @@ export function assembleVideoUnderstanding(params: {
         groundedSubject = lyricLine.text.split(/[.!?]/)[0].slice(0, 50).trim();
         topicCandidateReason = `Derived from transcript vocal cue: "${groundedSubject}".`;
       }
-    } else if (creatorHintTopic && creatorHintTopic.trim().length > 2) {
-      // Use clean hint topic without fabricating unverified lyrics or artists
-      groundedSubject = creatorHintTopic.trim().slice(0, 60);
-      topicCandidateReason = `Grounded in verified audio/music status format with topic hint "${groundedSubject}".`;
+    } else {
+      groundedSubject = contentType === "romantic_status" ? "Romantic Song Status" : "Music Video Clip";
+      topicCandidateReason = `Derived from audio-visual musical cues (${contentType} format); exact subject not identified.`;
     } else {
       groundedSubject = contentType === "romantic_status" ? "Romantic Song Status" : "Music Video Clip";
       topicCandidateReason = `Derived from audio-visual musical cues (${contentType} format).`;
@@ -361,16 +360,10 @@ export function assembleVideoUnderstanding(params: {
     } else {
       limitationNotice = "Audio dialogue was not detected. Understanding is grounded in visual frame analysis and on-screen text.";
     }
-  } else if (hasVisualEvidence && creatorHintTopic && creatorHintTopic.trim().length > 2) {
-    actualTopic = creatorHintTopic.trim();
-    isAdequatelyUnderstood = true;
-    limitationNotice = isMusicOrStatus
-      ? undefined
-      : "Audio dialogue was not detected. Understanding is grounded in extracted visual video frames and video stream verification.";
   } else if (creatorHintTopic && creatorHintTopic.trim().length > 2) {
-    actualTopic = creatorHintTopic.trim();
+    actualTopic = "";
     isAdequatelyUnderstood = false;
-    limitationNotice = "Limited audio/visual evidence detected. Topic is based on unverified creator hint without confirming speech or on-screen text.";
+    limitationNotice = "The creator hint was not used as video evidence. Audio/visual analysis did not establish the subject; regenerate with a vision-capable model or provide clearer transcript/OCR evidence.";
   } else {
     actualTopic = "";
     isAdequatelyUnderstood = false;
