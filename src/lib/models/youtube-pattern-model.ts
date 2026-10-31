@@ -301,7 +301,7 @@ export class YouTubePatternModel {
     }
 
     return {
-      subject: "This Feature",
+      subject: vision.contentType === "romantic_status" || vision.contentType === "music_video" || vision.contentType === "lyrics_video" ? "Romantic music status" : "Video content",
     };
   }
 
@@ -399,19 +399,19 @@ export class YouTubePatternModel {
         if (/\b(?:tutorial|how\s+to\s+build|architecture|implementation|code|coding|software|api|next\.?js|react)\b/i.test(generatedTitle)) {
           relevanceScore = 15;
         } else {
-          relevanceScore = 96 - idx * 2;
+          relevanceScore = 70;
         }
       } else {
         if (/\b(?:romantic\s+status|love\s+status|whatsapp\s+status)\b/i.test(generatedTitle)) {
           relevanceScore = 20;
         } else {
-          relevanceScore = 95 - idx * 2;
+          relevanceScore = 50;
         }
       }
 
-      const specificityScore = specificDetail ? 95 : 85;
+      const specificityScore = specificDetail ? 70 : 40;
       const readabilityScore = isMobileSafe ? 94 : 78;
-      const searchIntentScore = 90;
+      const searchIntentScore = 50;
       const overallScore = Math.round(
         relevanceScore * 0.35 + specificityScore * 0.25 + readabilityScore * 0.25 + searchIntentScore * 0.15
       );
@@ -426,14 +426,14 @@ export class YouTubePatternModel {
           ? `Directly frames "${subject}" as an aesthetic romantic status video with ${formula.name.toLowerCase()}.`
           : `Directly reflects "${subject}" demonstrated in the video with ${formula.name.toLowerCase()} framing.`,
         evidenceSupport: isRomanticOrMusic
-          ? `Grounded in music cues and emotional visual moments around ${Math.round((vision.durationSeconds || 60) * 0.4)}s.`
-          : `Corresponds to demonstration scenes observed around ${Math.round((vision.durationSeconds || 300) * 0.4)}s.`,
+          ? `Evidence available: ${vision.contentType || "unclassified content"}${vision.transcriptSnippet ? "; transcript present" : ""}${vision.visualSceneDescription ? "; visual description present" : ""}.`
+          : `Evidence available: ${vision.contentType || "unclassified content"}${vision.transcriptSnippet ? "; transcript present" : ""}${vision.visualSceneDescription ? "; visual description present" : ""}.`,
         scores: {
           contentRelevance: relevanceScore,
           specificity: specificityScore,
           readability: readabilityScore,
           searchIntent: searchIntentScore,
-          comparablePatternSimilarity: 90,
+          comparablePatternSimilarity: 0,
           overallScore,
         },
         rankingExplanation: `Transparent score ${overallScore}/100 based on content relevance (${relevanceScore}), readability (${readabilityScore}), and mobile safety.`,
