@@ -135,8 +135,6 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       const initialTitle =
         pkg?.recommendedTitle ||
         pkg?.titles?.[0]?.title ||
-        rep.packaging?.alternativeTitles?.[0] ||
-        rep.seo?.suggestedTitle ||
         "";
 
       if (!editableTitle) {
@@ -145,11 +143,11 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       }
 
       if (!editableDesc) {
-        setEditableDesc(pkg?.description || rep.seo?.description || "");
+        setEditableDesc(pkg?.description || "");
       }
 
       if (!editableTags) {
-        const tags = pkg?.tags || rep.seo?.tags || [];
+        const tags = pkg?.tags || [];
         setEditableTags(Array.isArray(tags) ? tags.join(", ") : String(tags));
       }
 
@@ -501,10 +499,10 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
         setIsPublishing(false);
         return;
       }
-      const finalDesc = editableDesc || currentJob.report?.seo?.description || "";
+      const finalDesc = editableDesc.trim();
       const finalTags = editableTags
         ? editableTags.split(",").map((s) => s.trim()).filter(Boolean)
-        : currentJob.report?.seo?.tags || [];
+        : [];
 
       const res = await fetch("/api/youtube/publish", {
         method: "POST",
