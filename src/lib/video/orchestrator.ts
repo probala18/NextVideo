@@ -51,7 +51,6 @@ export async function runAutonomousVideoWorkflow(params: {
     sourceFilePath,
     media,
     transcriptCues: transcript.cues,
-    hintTopic: userHintTopic || userTitle,
   });
 
   // 1. Video Understanding & Evidence Assembly (Grounded topic, multimodal fusion & injection defense)
@@ -59,7 +58,6 @@ export async function runAutonomousVideoWorkflow(params: {
     media,
     vision,
     transcript,
-    creatorHintTopic: userHintTopic || userTitle,
   });
 
   const topic = understanding.actualTopic;
@@ -176,7 +174,7 @@ export async function runAutonomousVideoWorkflow(params: {
       ];
 
   const seo = {
-    suggestedTitle: publishingPackage.recommendedTitle || alternativeTitles[0] || currentTitle,
+    suggestedTitle: publishingPackage.recommendedTitle || "",
     description: publishingPackage.description,
     tags: publishingPackage.tags,
     hashtags,
