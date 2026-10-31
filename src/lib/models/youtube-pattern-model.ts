@@ -61,7 +61,7 @@ export interface ModelGeneratedAssets {
   titles: Array<{
     title: string;
     formula: string;
-    predictedMultiple: number;
+    predictedMultiple: number | null;
     characterCount: number;
     isMobileSafe: boolean;
   }>;
