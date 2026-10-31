@@ -12,8 +12,8 @@
 import {
   VisionAnalysisReport,
   VideoUnderstandingEvidence,
-  MediaMetadata,
 } from "../types/visionWorkflow";
+import { MediaMetadata } from "../types/videoWorkflow";
 import { TranscriptionResult } from "./transcriber";
 import { TranscriptCue } from "../skills/deadair";
 

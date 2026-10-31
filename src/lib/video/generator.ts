@@ -227,13 +227,13 @@ export async function generatePublishingPackageWithAI(
   let recommendedTitle = titles[0]?.title || "";
   let recommendedTitleReason = titles[0]?.fitReason || "";
 
-  const defaultActions = evidence.primaryActions.length > 0
+  const defaultActions = (evidence.primaryActions && evidence.primaryActions.length > 0)
     ? evidence.primaryActions.slice(0, 5).map((a) => `• ${a}`)
     : [`• Step-by-step walkthrough of ${cleanTopic}`];
-  const defaultTech = evidence.demonstratedTechnologies.length > 0
+  const defaultTech = (evidence.demonstratedTechnologies && evidence.demonstratedTechnologies.length > 0)
     ? [`• Technologies demonstrated: ${evidence.demonstratedTechnologies.join(", ")}`]
     : [];
-  const defaultTakeaways = evidence.keyTakeaways.length > 0
+  const defaultTakeaways = (evidence.keyTakeaways && evidence.keyTakeaways.length > 0)
     ? evidence.keyTakeaways.slice(0, 4).map((k) => `• ${k}`)
     : [`• Key implementation patterns for ${cleanTopic}`];
 
@@ -248,12 +248,12 @@ export async function generatePublishingPackageWithAI(
     ...defaultTakeaways,
     "",
     ...(chapters.length > 0 ? ["TIMESTAMPS:", ...chapters.map((c) => `${c.timecode} - ${c.title}`), ""] : []),
-    `#${cleanTopic.replace(/[^a-zA-Z0-9]/g, "").slice(0, 15)} ${evidence.demonstratedTechnologies.map((t) => `#${t.replace(/[^a-zA-Z0-9]/g, "")}`).slice(0, 3).join(" ")} #tutorial`,
+    `#${cleanTopic.replace(/[^a-zA-Z0-9]/g, "").slice(0, 15)} ${(evidence.demonstratedTechnologies || []).map((t) => `#${t.replace(/[^a-zA-Z0-9]/g, "")}`).slice(0, 3).join(" ")} #tutorial`,
   ].join("\n").trim();
 
   let tags = Array.from(new Set([
     cleanTopic.toLowerCase(),
-    ...evidence.demonstratedTechnologies.map((t) => t.toLowerCase()),
+    ...(evidence.demonstratedTechnologies || []).map((t) => t.toLowerCase()),
     `${cleanTopic.toLowerCase()} tutorial`,
     "step by step",
     "workflow",
