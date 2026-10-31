@@ -219,28 +219,12 @@ export async function generateYouTubeThumbnails(params: {
 }): Promise<GeneratedThumbnail[]> {
   const { assetId, topic, candidateFrames = [], concepts = [] } = params;
 
-  let activeFrames = [...candidateFrames];
-  const framesOnDiskDir = path.join(process.cwd(), "data", "uploads", assetId, "frames");
-  if (activeFrames.length === 0 && fs.existsSync(framesOnDiskDir)) {
-    const diskFiles = fs.readdirSync(framesOnDiskDir).filter((f) => f.endsWith(".jpg") || f.endsWith(".png"));
-    activeFrames = diskFiles.map((df, idx) => ({
-      index: idx + 1,
-      timestampSeconds: idx * 10,
-      relativePercent: idx * 20,
-      framePath: path.join(framesOnDiskDir, df),
-      label: `Frame ${idx + 1}`,
-      sceneType: "action_demo",
-      properties: {
-        brightness: "balanced",
-        dominantColors: ["#0F172A", "#3B82F6", "#FFFFFF"],
-        contrastScore: 85,
-        complexityScore: 70,
-        focalPoint: "Action Demo",
-        detectedOnScreenText: [],
-        thumbnailSuitabilityScore: 90,
-      },
-    }));
-  }
+  // Only caller-provided analyzed frames may be used. Disk filenames alone
+  // do not establish that a frame was analyzed or relevant.
+  const activeFrames = candidateFrames.filter((frame) =>
+    Boolean(frame.semanticDescription?.trim()) &&
+    !frame.semanticDescription.includes("Visual content has not been analyzed")
+  );
 
   // Never create a decorative placeholder and describe it as a video thumbnail.
   // A valid image file is not evidence of visual relevance.
