@@ -338,231 +338,85 @@ export class YouTubePatternModel {
    * visual understanding of the uploaded video.
    */
   public generateGroundedAssets(vision: VideoVisualUnderstanding): ModelGeneratedAssets {
-    const { subject, specificDetail } = this.extractGroundedSubject(vision);
+    const { subject } = this.extractGroundedSubject(vision);
+    const contentType = (vision.contentType || "").toLowerCase();
+    const hasGroundedVisual = Boolean(vision.visualSceneDescription?.trim() || vision.detectedSubject?.trim() || vision.detectedOnScreenText?.some((t) => t.trim().length >= 3));
+    const hasGroundedTranscript = Boolean(vision.transcriptSnippet?.trim() && vision.transcriptSnippet.trim().length >= 12);
 
-    // Fail closed: never fabricate a topic, titles, descriptions, tags, or thumbnails
-    // when the uploaded video has not yielded a grounded subject.
-    if (!subject.trim() || !vision.contentType || vision.contentType === "unknown") {
+    // Fail closed: a frame extraction or classifier label alone is not semantic evidence.
+    if (!subject.trim() || contentType === "unknown" || (!hasGroundedVisual && !hasGroundedTranscript)) {
       return {
         titles: [],
         recommendedTitle: "",
-        recommendedTitleReason: "Video understanding is insufficient. No upload metadata was generated because a grounded subject was not established.",
+        recommendedTitleReason: "Insufficient verified video evidence. No metadata was generated.",
         description: "",
         tags: [],
         thumbnails: [],
       };
     }
 
-    const isRomanticOrMusic =
-      vision.contentType === "romantic_status" ||
-      vision.contentType === "music_video" ||
-      vision.contentType === "lyrics_video" ||
-      /romantic|status|song|melody|love|thendral|solla/i.test(subject);
+    const cleanSubject = subject.replace(/\\s+/g, " ").trim().replace(/[|<>]/g, "");
+    const transcript = vision.transcriptSnippet?.trim();
+    const scene = vision.visualSceneDescription?.trim();
+    const titleCandidates = [
+      cleanSubject,
+      transcript && transcript.length <= 90 ? transcript : "",
+      scene && scene.length <= 90 ? scene : "",
+    ].filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index)
+      .map((title) => title.slice(0, 100).trim())
+      .filter(Boolean)
+      .slice(0, 3);
 
-    const formulas = isRomanticOrMusic
-      ? [
-          {
-            name: "Romantic Status Format",
-            multiplier: 0,
-            template: (s: string) => `${s} | Romantic Status Video`.slice(0, 100),
-            thumbnailHeadline: "LOVE STATUS",
-          },
-          {
-            name: "Soulful Lyrical Mood",
-            multiplier: 0,
-            template: (s: string) => `${s} - Soulful Love BGM & Visuals`.slice(0, 100),
-            thumbnailHeadline: "SOULFUL BGM",
-          },
-          {
-            name: "Fullscreen Mobile Status",
-            multiplier: 0,
-            template: (s: string) => `${s} | WhatsApp Status (Fullscreen)`.slice(0, 100),
-            thumbnailHeadline: "4K STATUS",
-          },
-          {
-            name: "Heart-Touching Melody",
-            multiplier: 0,
-            template: (s: string) => `${s} • Heart Touching Melodic Edit`.slice(0, 100),
-            thumbnailHeadline: "FEEL THE SONG",
-          },
-          {
-            name: "Lyrical Romantic Status",
-            multiplier: 0,
-            template: (s: string) => `${s} | Lyrical Romantic Status`.slice(0, 100),
-            thumbnailHeadline: "LYRICS STATUS",
-          },
-        ]
-      : this.weights.topPerformingFormulas.map((f) => ({
-          name: f.name,
-          multiplier: f.multiplier,
-          template: (s: string, d?: string) => f.template(s, d).slice(0, 100),
-          thumbnailHeadline: f.thumbnailTemplate(subject),
-        }));
+    const titles = titleCandidates.map((title, index) => ({
+      title,
+      formula: index === 0 ? "Direct evidence" : "Transcript or scene evidence",
+      predictedMultiple: 0,
+      characterCount: title.length,
+      isMobileSafe: title.length <= 100,
+      evidenceSupport: index === 0
+        ? "Title uses the detected video subject."
+        : index === 1
+          ? "Title uses the available transcript excerpt; review before publishing."
+          : "Title uses the available scene description; review before publishing.",
+      scores: {
+        contentRelevance: null,
+        specificity: null,
+        readability: null,
+        searchIntent: null,
+        comparablePatternSimilarity: null,
+        overallScore: null,
+      },
+      rankingExplanation: "Not scored. No verified performance benchmark or calibrated scoring model is available.",
+    }));
 
-    // Generate 5 distinct titles using trained formulas
-    const titles = formulas.map((formula, idx) => {
-      const generatedTitle = formula.template(subject, specificDetail);
-      const charCount = generatedTitle.length;
-      const isMobileSafe = charCount <= this.weights.titleLengthOptimalMax;
+    const recommendedTitle = titles[0]?.title || "";
+    const descriptionParts = [
+      transcript ? transcript : "",
+      scene && scene !== transcript ? scene : "",
+    ].filter(Boolean);
+    const description = descriptionParts.join("\\n\\n");
+    const tags = cleanSubject.split(/[^a-zA-Z0-9]+/).filter((word) => word.length >= 3).slice(0, 8);
 
-      // Evidence-based relevance calculation
-      let relevanceScore = 0;
-      if (isRomanticOrMusic) {
-        // If title contains technical/coding jargon, hard fail (< 50)
-        if (/\b(?:tutorial|how\s+to\s+build|architecture|implementation|code|coding|software|api|next\.?js|react)\b/i.test(generatedTitle)) {
-          relevanceScore = 15;
-        } else {
-          relevanceScore = 0;
-        }
-      } else {
-        if (/\b(?:romantic\s+status|love\s+status|whatsapp\s+status)\b/i.test(generatedTitle)) {
-          relevanceScore = 20;
-        } else {
-          relevanceScore = 0;
-        }
-      }
-
-      const specificityScore = 0;
-      const readabilityScore = 0;
-      const searchIntentScore = 0;
-      const overallScore = Math.round(
-        relevanceScore * 0.35 + specificityScore * 0.25 + readabilityScore * 0.25 + searchIntentScore * 0.15
-      );
-
-      return {
-        title: generatedTitle,
-        formula: formula.name,
-        predictedMultiple: formula.multiplier,
-        characterCount: charCount,
-        isMobileSafe,
-        fitReason: isRomanticOrMusic
-          ? `Directly frames "${subject}" as an aesthetic romantic status video with ${formula.name.toLowerCase()}.`
-          : `Directly reflects "${subject}" demonstrated in the video with ${formula.name.toLowerCase()} framing.`,
-        evidenceSupport: isRomanticOrMusic
-          ? `Evidence available: ${vision.contentType || "unclassified content"}${vision.transcriptSnippet ? "; transcript present" : ""}${vision.visualSceneDescription ? "; visual description present" : ""}.`
-          : `Evidence available: ${vision.contentType || "unclassified content"}${vision.transcriptSnippet ? "; transcript present" : ""}${vision.visualSceneDescription ? "; visual description present" : ""}.`,
-        scores: {
-          contentRelevance: relevanceScore,
-          specificity: specificityScore,
-          readability: readabilityScore,
-          searchIntent: searchIntentScore,
-          comparablePatternSimilarity: 0,
-          overallScore,
-        },
-        rankingExplanation: `Transparent score ${overallScore}/100 based on content relevance (${relevanceScore}), readability (${readabilityScore}), and mobile safety.`,
-      };
-    });
-
-    const recommendedTitle = titles[0].title;
-    const recommendedTitleReason = `Recommended because it directly specifies "${subject}" demonstrated in the video, adheres to proven ${titles[0].formula} structure, and stays within mobile-safe length (${titles[0].characterCount} chars).`;
-
-    // Generate accurate description based on the real video scenes & transcript
-    const duration = Math.max(30, Math.round(vision.durationSeconds || (isRomanticOrMusic ? 45 : 600)));
-    const step1 = Math.round(duration * 0.2);
-    const step2 = Math.round(duration * 0.5);
-    const formatTime = (s: number) => `${Math.floor(s / 60)}:${s % 60 < 10 ? "0" : ""}${s % 60}`;
-
-    const description = isRomanticOrMusic
-      ? `${subject} - Romantic status clip featuring soulful music and aesthetic visual presentation.\n\nHighlights:\n• Romantic status video format\n• Soulful audio & musical cues\n• Visual aesthetic pacing\n\n#${subject.replace(/[^a-zA-Z0-9]/g, "").slice(0, 15)} #status #romantic #love #musicvideo`
-      : `In this video, we break down ${subject} step-by-step.\n\nWhat is covered:\n• Live breakdown of ${subject} based on real demonstration\n• Key pitfalls to avoid and implementation details\n• Practical takeaways from start to finish\n\nTIMESTAMPS:\n0:00 - Introduction to ${subject}\n${formatTime(step1)} - Overview & Context\n${formatTime(step2)} - Core Demonstration\n${Math.floor(duration / 60)}:00 - Results & Summary\n\n#${subject.replace(/[^a-zA-Z0-9]/g, "").slice(0, 15)} #workflow #guide`;
-
-    const tags = isRomanticOrMusic
-      ? [
-          subject.toLowerCase(),
-          "romantic status",
-          "whatsapp status",
-          "love status",
-          "status video",
-          "bgm",
-          "fullscreen status",
-        ]
-      : [
-          subject.toLowerCase(),
-          `${subject.toLowerCase()} tutorial`,
-          `how to ${subject.toLowerCase()}`,
-          "step by step",
-          "guide",
-          "best practices",
-        ];
-
-    // Generate 3 trained thumbnail variations that NEVER repeat title words
-    const forbiddenWords = new Set(
-      recommendedTitle.toLowerCase().split(/\s+/).map((w) => w.replace(/[^a-z0-9]/g, ""))
-    );
-
-    const thumbnailVariations = isRomanticOrMusic
-      ? [
-          {
-            id: "thumb_v1_status",
-            variationName: "Romantic Mood & Atmosphere",
-            headline: this.filterThumbnailHeadline("FEEL THE LOVE", forbiddenWords),
-            badge: "ROMANTIC",
-            accentColor: "#F43F5E", // Rose Red
-            visualComposition: `Aesthetic romantic visual focus on ${vision.focalPoint || "visual scene"} with warm glow.`,
-            rationale: "Emotional resonance optimized for WhatsApp and Shorts status viewers.",
-            frameDataUrl: vision.frameDataUrl,
-          },
-          {
-            id: "thumb_v2_bgm",
-            variationName: "Soulful Melody Banner",
-            headline: this.filterThumbnailHeadline("SOULFUL BGM", forbiddenWords),
-            badge: "FEEL IT",
-            accentColor: "#EC4899", // Pink
-            visualComposition: `Emotional lyrical typography emphasizing the music and aesthetic pacing.`,
-            rationale: "Music and lyric lovers identify high-quality melodic audio immediately.",
-            frameDataUrl: vision.frameDataUrl,
-          },
-          {
-            id: "thumb_v3_fullscreen",
-            variationName: "Fullscreen 4K Status",
-            headline: this.filterThumbnailHeadline("PURE EMOTION", forbiddenWords),
-            badge: "FULLSCREEN",
-            accentColor: "#8B5CF6", // Purple
-            visualComposition: `Clean cinematic layout highlighting the visual mood.`,
-            rationale: "Attracts mobile feed viewers seeking high-definition fullscreen status clips.",
-            frameDataUrl: vision.frameDataUrl,
-          },
-        ]
-      : [
-          {
-            id: "thumb_v1_curiosity",
-            variationName: "Curiosity & High Contrast",
-            headline: this.filterThumbnailHeadline("KEY FIX", forbiddenWords),
-            badge: "CRITICAL",
-            accentColor: "#F43F5E", // Rose Red
-            visualComposition: `High-contrast focus on ${vision.focalPoint || "the key visual moment"} with bold red alert badge.`,
-            rationale: "Provocative focal hook triggers high intent in mobile feeds.",
-            frameDataUrl: vision.frameDataUrl,
-          },
-          {
-            id: "thumb_v2_outcome",
-            variationName: "Outcome & Proof Banner",
-            headline: this.filterThumbnailHeadline("FAST PATH", forbiddenWords),
-            badge: "RESULTS",
-            accentColor: "#10B981", // Emerald Green
-            visualComposition: `Crisp outcome layout highlighting ${subject} with green verification badge.`,
-            rationale: "Concrete outcome proof appeals to high-intent viewers seeking solutions.",
-            frameDataUrl: vision.frameDataUrl,
-          },
-          {
-            id: "thumb_v3_blueprint",
-            variationName: "Blueprint & Direct Guide",
-            headline: this.filterThumbnailHeadline("STEP BY STEP", forbiddenWords),
-            badge: "2026 GUIDE",
-            accentColor: "#38BDF8", // Cyan
-            visualComposition: `Clean authority framing with ${vision.focalPoint || "focal demonstration"}.`,
-            rationale: "Clean authority framing designed for search visibility and desktop suggestions.",
-            frameDataUrl: vision.frameDataUrl,
-          },
-        ];
+    const thumbnails = vision.frameDataUrl && scene
+      ? [{
+          id: "video-frame",
+          variationName: "Uploaded video frame",
+          headline: "",
+          badge: "",
+          accentColor: "#111827",
+          visualComposition: scene,
+          rationale: "Uses the supplied frame. No generated subject, performance claim, or thumbnail score.",
+          frameDataUrl: vision.frameDataUrl,
+        }]
+      : [];
 
     return {
       titles,
       recommendedTitle,
-      recommendedTitleReason,
+      recommendedTitleReason: "First evidence-derived candidate; review before publishing.",
       description,
       tags,
-      thumbnails: thumbnailVariations,
+      thumbnails,
     };
   }
 
