@@ -301,7 +301,7 @@ export class YouTubePatternModel {
     }
 
     return {
-      subject: vision.contentType === "romantic_status" || vision.contentType === "music_video" || vision.contentType === "lyrics_video" ? "Romantic music status" : "Video content",
+      subject: "",
     };
   }
 
@@ -350,31 +350,31 @@ export class YouTubePatternModel {
       ? [
           {
             name: "Romantic Status Format",
-            multiplier: 3.9,
+            multiplier: 0,
             template: (s: string) => `${s} | Romantic Status Video`.slice(0, 100),
             thumbnailHeadline: "LOVE STATUS",
           },
           {
             name: "Soulful Lyrical Mood",
-            multiplier: 3.5,
+            multiplier: 0,
             template: (s: string) => `${s} - Soulful Love BGM & Visuals`.slice(0, 100),
             thumbnailHeadline: "SOULFUL BGM",
           },
           {
             name: "Fullscreen Mobile Status",
-            multiplier: 3.2,
+            multiplier: 0,
             template: (s: string) => `${s} | WhatsApp Status (Fullscreen)`.slice(0, 100),
             thumbnailHeadline: "4K STATUS",
           },
           {
             name: "Heart-Touching Melody",
-            multiplier: 3.0,
+            multiplier: 0,
             template: (s: string) => `${s} • Heart Touching Melodic Edit`.slice(0, 100),
             thumbnailHeadline: "FEEL THE SONG",
           },
           {
             name: "Lyrical Romantic Status",
-            multiplier: 2.8,
+            multiplier: 0,
             template: (s: string) => `${s} | Lyrical Romantic Status`.slice(0, 100),
             thumbnailHeadline: "LYRICS STATUS",
           },
@@ -393,25 +393,25 @@ export class YouTubePatternModel {
       const isMobileSafe = charCount <= this.weights.titleLengthOptimalMax;
 
       // Evidence-based relevance calculation
-      let relevanceScore = 90;
+      let relevanceScore = 0;
       if (isRomanticOrMusic) {
         // If title contains technical/coding jargon, hard fail (< 50)
         if (/\b(?:tutorial|how\s+to\s+build|architecture|implementation|code|coding|software|api|next\.?js|react)\b/i.test(generatedTitle)) {
           relevanceScore = 15;
         } else {
-          relevanceScore = 70;
+          relevanceScore = 0;
         }
       } else {
         if (/\b(?:romantic\s+status|love\s+status|whatsapp\s+status)\b/i.test(generatedTitle)) {
           relevanceScore = 20;
         } else {
-          relevanceScore = 50;
+          relevanceScore = 0;
         }
       }
 
-      const specificityScore = specificDetail ? 70 : 40;
-      const readabilityScore = isMobileSafe ? 94 : 78;
-      const searchIntentScore = 50;
+      const specificityScore = 0;
+      const readabilityScore = 0;
+      const searchIntentScore = 0;
       const overallScore = Math.round(
         relevanceScore * 0.35 + specificityScore * 0.25 + readabilityScore * 0.25 + searchIntentScore * 0.15
       );
