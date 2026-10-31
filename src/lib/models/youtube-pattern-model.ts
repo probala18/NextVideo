@@ -377,6 +377,12 @@ export class YouTubePatternModel {
     const recommendedTitleReason = `Recommended because it directly specifies "${subject}" demonstrated in the video, adheres to proven ${titles[0].formula} structure, and stays within mobile-safe length (${titles[0].characterCount} chars).`;
 
     // Generate accurate description based on the real video scenes & transcript
+    const duration = Math.max(60, Math.round(vision.durationSeconds || 600));
+    const step1 = Math.round(duration * 0.2);
+    const step2 = Math.round(duration * 0.5);
+    const step3 = Math.round(duration * 0.85);
+    const formatTime = (s: number) => `${Math.floor(s / 60)}:${s % 60 < 10 ? "0" : ""}${s % 60}`;
+
     const description = `In this video, we break down ${subject} step-by-step.
 
 What is covered:
@@ -386,9 +392,9 @@ What is covered:
 
 TIMESTAMPS:
 0:00 - Introduction to ${subject}
-1:15 - Core Concepts & Setup
-3:45 - Step-by-Step Walkthrough
-${Math.max(5, Math.floor((vision.durationSeconds || 600) / 60))}:00 - Final Results & Summary
+${formatTime(step1)} - Setup & Architecture
+${formatTime(step2)} - Core Demonstration
+${Math.floor(duration / 60)}:00 - Results & Summary
 
 #${subject.replace(/[^a-zA-Z0-9]/g, "").slice(0, 15)} #tutorial #workflow`;
 
@@ -410,11 +416,11 @@ ${Math.max(5, Math.floor((vision.durationSeconds || 600) / 60))}:00 - Final Resu
       {
         id: "thumb_v1_curiosity",
         variationName: "Curiosity & High Contrast",
-        headline: this.filterThumbnailHeadline("90% QUIT", forbiddenWords),
+        headline: this.filterThumbnailHeadline("KEY FIX", forbiddenWords),
         badge: "CRITICAL",
         accentColor: "#F43F5E", // Rose Red
         visualComposition: `High-contrast focus on ${vision.focalPoint || "the key visual moment"} with bold red alert badge.`,
-        rationale: "Provocative metric hook triggers high-stakes curiosity in mobile feeds.",
+        rationale: "Provocative focal hook triggers high intent in mobile feeds.",
         frameDataUrl: vision.frameDataUrl,
       },
       {
