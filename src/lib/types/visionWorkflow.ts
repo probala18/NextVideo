@@ -5,13 +5,13 @@
  */
 
 export interface SampledFrameProperties {
-  brightness: "dark" | "balanced" | "bright";
+  brightness: "dark" | "balanced" | "bright" | "unknown";
   dominantColors: string[];
-  contrastScore: number; // 0 - 100
-  complexityScore: number; // 0 - 100
+  contrastScore: number | null; // 0 - 100; null when not measured
+  complexityScore: number | null; // 0 - 100; null when not measured
   focalPoint: string;
   detectedOnScreenText: string[];
-  thumbnailSuitabilityScore: number; // 0 - 100
+  thumbnailSuitabilityScore: number | null; // 0 - 100; null when not measured
 }
 
 export interface SampledFrame {
@@ -27,7 +27,8 @@ export interface SampledFrame {
     | "split_screen"
     | "presentation"
     | "action_demo"
-    | "b_roll";
+    | "b_roll"
+    | "unknown";
   properties: SampledFrameProperties;
   semanticDescription?: string;
 }
@@ -40,17 +41,17 @@ export interface VisionAnalysisReport {
   onScreenTextCues: Array<{
     timestampSeconds: number;
     text: string;
-    confidence: number;
+    confidence: number | null;
   }>;
   candidateThumbnailMoments: Array<{
     timestampSeconds: number;
     frameIndex: number;
     headline: string;
     reason: string;
-    visualStrength: number;
+    visualStrength: number | null;
   }>;
   limitations: string[];
-  confidenceScore: number; // 0 - 100
+  confidenceScore: number | null; // 0 - 100; null when uncalibrated
   modelUsed: string;
   supportsVision: boolean;
 }
