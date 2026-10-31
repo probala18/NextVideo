@@ -50,13 +50,18 @@ export function getLLMConfig(): LLMConfig {
         ""
   ).trim();
 
-  const model = (
+  let model = (
     runtimeModel !== null
       ? runtimeModel
       : process.env.LLM_MODEL ||
         (provider === "openrouter" ? process.env.OPENROUTER_MODEL : "") ||
         providerDef.defaultModel
   ).trim();
+
+  // Guard against invalid or deprecated legacy model identifiers
+  if (model === "openai/free" || !model) {
+    model = providerDef.defaultModel || "openai/gpt-4o-mini";
+  }
 
   const baseUrl = (
     runtimeBaseUrl !== null

@@ -45,13 +45,14 @@ export function doesModelSupportVision(modelId: string): boolean {
   return (
     m.includes("vision") ||
     m.includes("4o") ||
-    m.includes("gemini-1.5") ||
-    m.includes("gemini-2.0") ||
+    m.includes("gemini") ||
     m.includes("claude-3") ||
     m.includes("claude-3-5") ||
     m.includes("multimodal") ||
     m.includes("pixtral") ||
-    m.includes("llava")
+    m.includes("llava") ||
+    m.includes("qwen-vl") ||
+    m.includes("florence")
   );
 }
 
@@ -183,12 +184,22 @@ export async function analyzeVideoWithComputerVision(params: {
 
     // Extract physical frame if video exists and ffmpeg available
     const extracted = await extractPhysicalFrame(sourceFilePath, timestampSeconds, localFramePath);
-    const clientFrameNumber = i === 0 ? 1 : i === 3 ? 2 : i === 6 ? 3 : 0;
-    const clientFrameFilename = clientFrameNumber ? `frame_${clientFrameNumber}.jpg` : "";
-    const clientFramePath = clientFrameFilename
-      ? path.join(framesDir, clientFrameFilename)
-      : "";
-    const hasClientFrame = !extracted && Boolean(clientFramePath) && fs.existsSync(clientFramePath);
+    let clientFrameFilename = "";
+    if (!extracted && fs.existsSync(framesDir)) {
+      const directFrame = `frame_${i + 1}.jpg`;
+      if (fs.existsSync(path.join(framesDir, directFrame))) {
+        clientFrameFilename = directFrame;
+      } else {
+        const availableFrames = [1, 2, 3, 4, 5]
+          .map((n) => `frame_${n}.jpg`)
+          .filter((fn) => fs.existsSync(path.join(framesDir, fn)));
+        if (availableFrames.length > 0) {
+          clientFrameFilename = availableFrames[i % availableFrames.length];
+        }
+      }
+    }
+
+    const hasClientFrame = !extracted && Boolean(clientFrameFilename);
     const frameAvailable = extracted || hasClientFrame;
 
     const properties = analyzeDeterministicFrameProperties(

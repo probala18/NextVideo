@@ -207,7 +207,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       video.playsInline = true;
 
       const frames: Blob[] = [];
-      const checkpoints = [0.1, 0.5, 0.85];
+      const checkpoints = [0.08, 0.25, 0.5, 0.72, 0.9];
       let currentIdx = 0;
 
       const handleSeeked = () => {

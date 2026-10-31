@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Save client-extracted video frame snapshots directly to frames subfolder
-    const frameKeys = ["frame_0", "frame_1", "frame_2"];
+    const frameKeys = ["frame_0", "frame_1", "frame_2", "frame_3", "frame_4"];
     for (let i = 0; i < frameKeys.length; i++) {
       const frameFile = formData.get(frameKeys[i]) as File | null;
       if (frameFile) {
