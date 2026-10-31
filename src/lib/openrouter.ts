@@ -59,7 +59,12 @@ export function getLLMConfig(): LLMConfig {
   ).trim();
 
   // Guard against invalid or deprecated legacy model identifiers
-  if (model === "openai/free" || !model) {
+  if (
+    model === "openai/free" ||
+    model === "google/gemini-2.0-flash-exp:free" ||
+    model.includes("gemini-2.0-flash-exp") ||
+    !model
+  ) {
     model = providerDef.defaultModel || "openai/gpt-4o-mini";
   }
 
@@ -762,7 +767,7 @@ Transcript Excerpt: "${(input.transcriptText || "").slice(0, 1500)}"`;
         headers["X-Title"] = "NextVideo Creator Studio";
       }
 
-      const res = await fetch(`${baseUrl.replace(/\/+$/, "")}/chat/completions`, {
+      let res = await fetch(`${baseUrl.replace(/\/+$/, "")}/chat/completions`, {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -775,6 +780,22 @@ Transcript Excerpt: "${(input.transcriptText || "").slice(0, 1500)}"`;
         }),
       });
 
+      if (!res.ok && (res.status === 404 || res.status === 400) && model !== "openai/gpt-4o-mini") {
+        // Fallback to openai/gpt-4o-mini if discontinued model was requested
+        res = await fetch(`${baseUrl.replace(/\/+$/, "")}/chat/completions`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            model: "openai/gpt-4o-mini",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            temperature: 0.7,
+          }),
+        });
+      }
+
       if (!res.ok) {
         const err = await res.text();
         throw new Error(`${providerDef.name} HTTP ${res.status}: ${err.slice(0, 120)}`);
@@ -783,11 +804,15 @@ Transcript Excerpt: "${(input.transcriptText || "").slice(0, 1500)}"`;
       rawContent = data.choices?.[0]?.message?.content || "";
     }
 
-    const cleaned = rawContent
-      .replace(/^```json\s*/i, "")
-      .replace(/^```\s*/i, "")
-      .replace(/\s*```$/i, "")
-      .trim();
+    // Robust JSON extraction matching outermost { ... }
+    const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+    const cleaned = jsonMatch
+      ? jsonMatch[0]
+      : rawContent
+          .replace(/^```json\s*/i, "")
+          .replace(/^```\s*/i, "")
+          .replace(/\s*```$/i, "")
+          .trim();
 
     const parsed = JSON.parse(cleaned);
 
