@@ -38,11 +38,11 @@ export const LLM_PROVIDERS: ProviderDefinition[] = [
     name: "Hugging Face",
     tagline: "Open-Source AI • RTX 2050 & 8GB RAM",
     badge: "RTX 2050 Optimized",
-    defaultBaseUrl: "https://router.huggingface.co/hf-inference/v1",
+    defaultBaseUrl: "https://router.huggingface.co/v1",
     defaultModel: "Qwen/Qwen2.5-VL-3B-Instruct",
     keyPlaceholder: "hf_...",
     keyHelperUrl: "https://huggingface.co/settings/tokens",
-    keyHelperLabel: "Get Hugging Face Token (Free)",
+    keyHelperLabel: "Get Hugging Face Token",
     isBaseUrlEditable: true,
     presets: [
       {

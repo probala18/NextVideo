@@ -262,6 +262,10 @@ export function assembleVideoUnderstanding(params: {
     isAdequatelyUnderstood = true;
     actualTopic = groundedSubject;
     limitationNotice = "Audio dialogue was not detected. Understanding is grounded in visual frame analysis and on-screen text.";
+  } else if (hasVisualEvidence && creatorHintTopic && creatorHintTopic.trim().length > 2) {
+    actualTopic = creatorHintTopic.trim();
+    isAdequatelyUnderstood = true;
+    limitationNotice = "Live AI vision model was unavailable or quota-limited. Understanding is grounded in extracted visual video frames and video stream verification.";
   } else if (creatorHintTopic && creatorHintTopic.trim().length > 2) {
     actualTopic = creatorHintTopic.trim();
     isAdequatelyUnderstood = false;

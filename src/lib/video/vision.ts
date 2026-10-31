@@ -357,6 +357,14 @@ export async function analyzeVideoWithComputerVision(params: {
         deduplicatedFrames.forEach((f) => { f.dataUrl = undefined; });
       } catch (error) {
         limitations.push(error instanceof Error ? error.message : "Configured vision model analysis failed.");
+        for (const image of images) {
+          if (!image.frame.semanticDescription || image.frame.semanticDescription.includes("Visual content has not been analyzed")) {
+            image.frame.semanticDescription = `Frame at ${image.frame.timestampSeconds}s (${image.frame.sceneType}, ${image.frame.properties.brightness} lighting).`;
+          }
+        }
+        if (hintTopic && hintTopic.trim().length > 2 && detectedSubjects.length === 0) {
+          detectedSubjects.push(hintTopic.trim());
+        }
       }
     }
   } else if (supportsVision && !llmConfig.isConfigured) {

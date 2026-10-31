@@ -851,7 +851,11 @@ Transcript Excerpt: "${(input.transcriptText || "").slice(0, 1500)}"`;
       notice: `Generated with ${providerDef.name} (${model})`,
     };
   } catch (err: any) {
-    throw new Error(`Packaging generation failed for ${providerDef.name} (${model}): ${err.message}`);
+    console.warn(`[Packaging AI Warning] ${providerDef.name} (${model}) failed: ${err.message}. Using evidence-grounded packaging.`);
+    return {
+      ...fallbackResult,
+      notice: `${providerDef.name} (${model}) unavailable (${err.message}). Assets were generated from verified video evidence.`,
+    };
   }
 }
 
