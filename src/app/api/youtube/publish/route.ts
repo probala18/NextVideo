@@ -89,8 +89,7 @@ export async function POST(req: NextRequest) {
 
     const finalTitle =
       (title || customTitle || "").trim() ||
-      job.report?.publishingPackage?.recommendedTitle ||
-      job.report?.packaging?.alternativeTitles?.[0] || "";
+      job.report?.publishingPackage?.recommendedTitle || "";
 
     if (!finalTitle) {
       return NextResponse.json({ error: "A reviewed publishing title is required. The video filename cannot be used as a title." }, { status: 400 });
@@ -151,8 +150,7 @@ export async function POST(req: NextRequest) {
 
     const finalDesc =
       (description !== undefined ? description : customDescription) ||
-      job.report?.publishingPackage?.description ||
-      job.report?.seo?.description || "";
+      job.report?.publishingPackage?.description || "";
     if (!finalDesc.trim()) {
       return NextResponse.json({ error: "A reviewed video description is required before publishing." }, { status: 400 });
     }
@@ -160,7 +158,7 @@ export async function POST(req: NextRequest) {
     const rawTags = tags !== undefined ? tags : customTags;
     const finalTags = rawTags
       ? (Array.isArray(rawTags) ? rawTags : String(rawTags).split(",").map((t: string) => t.trim()).filter(Boolean))
-      : job.report?.publishingPackage?.tags || job.report?.seo?.tags || [];
+      : job.report?.publishingPackage?.tags || [];
 
     const effectivePrivacy = privacyStatus || privacy || auth.privacyDefault || "private";
 
