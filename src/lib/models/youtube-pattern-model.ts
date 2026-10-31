@@ -340,6 +340,19 @@ export class YouTubePatternModel {
   public generateGroundedAssets(vision: VideoVisualUnderstanding): ModelGeneratedAssets {
     const { subject, specificDetail } = this.extractGroundedSubject(vision);
 
+    // Fail closed: never fabricate a topic, titles, descriptions, tags, or thumbnails
+    // when the uploaded video has not yielded a grounded subject.
+    if (!subject.trim() || !vision.contentType || vision.contentType === "unknown") {
+      return {
+        titles: [],
+        recommendedTitle: "",
+        recommendedTitleReason: "Video understanding is insufficient. No upload metadata was generated because a grounded subject was not established.",
+        description: "",
+        tags: [],
+        thumbnails: [],
+      };
+    }
+
     const isRomanticOrMusic =
       vision.contentType === "romantic_status" ||
       vision.contentType === "music_video" ||
