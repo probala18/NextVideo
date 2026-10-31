@@ -15,15 +15,18 @@ export async function POST(req: NextRequest) {
       assetId = "preview",
     } = body;
 
-    if (!understanding?.isAdequatelyUnderstood || !understanding?.actualTopic || !Array.isArray(understanding.audioEvidence)) {
-      return NextResponse.json({ success: false, error: "Video understanding evidence is missing or inadequate. Reprocess the uploaded video before regenerating assets." }, { status: 422 });
-    }
+    const cleanTopic = String(
+      topic || currentTitle || understanding?.actualTopic || ""
+    ).trim();
 
-    const cleanTopic = String(topic || currentTitle || "YouTube Video").trim();
     if (!cleanTopic) {
       return NextResponse.json(
-        { success: false, error: "Topic or title is required to generate packaging." },
-        { status: 400 }
+        {
+          success: false,
+          error:
+            "Video understanding evidence is missing or inadequate. Enter a title or reprocess the uploaded video before regenerating assets.",
+        },
+        { status: 422 }
       );
     }
 
