@@ -435,19 +435,11 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       const newTitles: TitleOption[] = Array.isArray(data.titles)
         ? data.titles.map((t: string) => ({
             title: t,
-            formula: "Proven Formula",
+            formula: "Evidence-derived candidate",
             characterCount: t.length,
-            isTruncated: t.length > 60,
-            fitReason: "Directly matches demonstrated subject in video.",
-            scores: {
-              contentRelevance: 95,
-              specificity: 92,
-              readability: 96,
-              searchIntent: 94,
-              comparablePatternSimilarity: 90,
-              overallScore: 93,
-            },
-            rankingExplanation: "Optimized for mobile CTR and clear search intent.",
+            isTruncated: t.length > 100,
+            fitReason: "Review against the uploaded video before publishing.",
+            rankingExplanation: "Not scored. No verified performance benchmark or calibrated scoring model is available.",
           }))
         : [];
 
@@ -587,14 +579,6 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
         characterCount: t.length,
         isTruncated: t.length > 60,
         fitReason: "Matches demonstrated subject.",
-        scores: {
-          contentRelevance: 90,
-          specificity: 88,
-          readability: t.length <= 60 ? 95 : 80,
-          searchIntent: 90,
-          comparablePatternSimilarity: 85,
-          overallScore: t.length <= 60 ? 91 : 85,
-        },
       }));
 
   const thumbnailsList: GeneratedThumbnail[] = pkg?.thumbnails || [];
