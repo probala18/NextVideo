@@ -52,6 +52,8 @@ export function doesModelSupportVision(modelId: string): boolean {
     m.includes("pixtral") ||
     m.includes("llava") ||
     m.includes("qwen-vl") ||
+    m.includes("qwen2.5-vl") ||
+    m.includes("smolvlm") ||
     m.includes("florence") ||
     m.includes("-vl") ||
     m.includes("super-vl") ||

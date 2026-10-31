@@ -54,6 +54,13 @@ export async function POST(req: NextRequest) {
           envContent += `\nLLM_MODEL=${model}`;
         }
         // Also keep OPENROUTER_MODEL in sync for backward compatibility if openrouter
+        if (provider === "huggingface") {
+          if (/^HUGGINGFACE_MODEL=.*/m.test(envContent)) {
+            envContent = envContent.replace(/^HUGGINGFACE_MODEL=.*/m, `HUGGINGFACE_MODEL=${model}`);
+          } else {
+            envContent += `\nHUGGINGFACE_MODEL=${model}`;
+          }
+        }
         if (provider === "openrouter" || !provider) {
           if (/^OPENROUTER_MODEL=.*/m.test(envContent)) {
             envContent = envContent.replace(/^OPENROUTER_MODEL=.*/m, `OPENROUTER_MODEL=${model}`);
@@ -68,6 +75,13 @@ export async function POST(req: NextRequest) {
           envContent = envContent.replace(/^LLM_API_KEY=.*/m, `LLM_API_KEY=${apiKey}`);
         } else {
           envContent += `\nLLM_API_KEY=${apiKey}`;
+        }
+        if (provider === "huggingface") {
+          if (/^HUGGINGFACE_API_KEY=.*/m.test(envContent)) {
+            envContent = envContent.replace(/^HUGGINGFACE_API_KEY=.*/m, `HUGGINGFACE_API_KEY=${apiKey}`);
+          } else {
+            envContent += `\nHUGGINGFACE_API_KEY=${apiKey}`;
+          }
         }
         if (provider === "openrouter" || !provider) {
           if (/^OPENROUTER_API_KEY=.*/m.test(envContent)) {

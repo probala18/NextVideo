@@ -38,15 +38,19 @@ export const setOpenRouterConfig = (updates: { model?: string; apiKey?: string }
 export function getLLMConfig(): LLMConfig {
   const provider: LLMProviderId =
     runtimeProvider ||
-    ((process.env.LLM_PROVIDER as LLMProviderId) || "openrouter");
+    ((process.env.LLM_PROVIDER as LLMProviderId) || "huggingface");
 
   const providerDef = LLM_PROVIDERS.find((p) => p.id === provider) || LLM_PROVIDERS[0];
 
   const apiKey = (
     runtimeApiKey !== null
       ? runtimeApiKey
-      : process.env.LLM_API_KEY ||
-        (provider === "openrouter" ? process.env.OPENROUTER_API_KEY : "") ||
+      : (provider === "huggingface" ? (process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN) : undefined) ||
+        process.env.LLM_API_KEY ||
+        (provider === "openrouter" ? process.env.OPENROUTER_API_KEY : undefined) ||
+        (provider === "openai" ? process.env.OPENAI_API_KEY : undefined) ||
+        process.env.OPENROUTER_API_KEY ||
+        process.env.HF_TOKEN ||
         ""
   ).trim();
 
@@ -54,6 +58,7 @@ export function getLLMConfig(): LLMConfig {
     runtimeModel !== null
       ? runtimeModel
       : process.env.LLM_MODEL ||
+        (provider === "huggingface" ? (process.env.HUGGINGFACE_MODEL || providerDef.defaultModel) : "") ||
         (provider === "openrouter" ? process.env.OPENROUTER_MODEL : "") ||
         providerDef.defaultModel
   ).trim();
@@ -65,7 +70,7 @@ export function getLLMConfig(): LLMConfig {
     model.includes("gemini-2.0-flash-exp") ||
     !model
   ) {
-    model = providerDef.defaultModel || "openai/gpt-4o-mini";
+    model = providerDef.defaultModel || "Qwen/Qwen2.5-VL-3B-Instruct";
   }
 
   const baseUrl = (
@@ -74,8 +79,8 @@ export function getLLMConfig(): LLMConfig {
       : process.env.LLM_BASE_URL || providerDef.defaultBaseUrl
   ).trim();
 
-  // For custom/local (like Ollama), a key might not be required
-  const isKeyRequired = provider !== "custom";
+  // For custom/local or localhost endpoints, a key is not required
+  const isKeyRequired = provider !== "custom" && !baseUrl.includes("localhost") && !baseUrl.includes("127.0.0.1");
   const isConfigured = isKeyRequired ? Boolean(apiKey && apiKey.length > 4) : true;
 
   return {
@@ -109,13 +114,14 @@ export async function testLLMConnection(
   const model = (customModel !== undefined && customModel.trim() ? customModel.trim() : baseConfig.model);
   const baseUrl = (customBaseUrl !== undefined && customBaseUrl.trim() ? customBaseUrl.trim() : baseConfig.baseUrl || providerDef.defaultBaseUrl);
 
-  if (provider !== "custom" && (!apiKey || apiKey.length < 4)) {
+  const isKeyRequired = provider !== "custom" && !baseUrl.includes("localhost") && !baseUrl.includes("127.0.0.1");
+  if (isKeyRequired && (!apiKey || apiKey.length < 4)) {
     return {
       success: false,
       provider,
       model,
       latencyMs: 0,
-      message: `No API key configured for ${providerDef.name}. Please enter your key.`,
+      message: `No API key or token configured for ${providerDef.name}. Please enter your ${providerDef.name} token.`,
     };
   }
 

@@ -1,4 +1,5 @@
 export type LLMProviderId =
+  | "huggingface"
   | "openrouter"
   | "openai"
   | "anthropic"
@@ -32,6 +33,56 @@ export interface ProviderDefinition {
 }
 
 export const LLM_PROVIDERS: ProviderDefinition[] = [
+  {
+    id: "huggingface",
+    name: "Hugging Face",
+    tagline: "Open-Source AI • RTX 2050 & 8GB RAM",
+    badge: "RTX 2050 Optimized",
+    defaultBaseUrl: "https://router.huggingface.co/hf-inference/v1",
+    defaultModel: "Qwen/Qwen2.5-VL-3B-Instruct",
+    keyPlaceholder: "hf_...",
+    keyHelperUrl: "https://huggingface.co/settings/tokens",
+    keyHelperLabel: "Get Hugging Face Token (Free)",
+    isBaseUrlEditable: true,
+    presets: [
+      {
+        id: "Qwen/Qwen2.5-VL-3B-Instruct",
+        name: "Qwen 2.5 VL 3B (Vision + Text)",
+        badge: "RTX 2050 SOTA",
+        badgeColor: "bg-purple-50 text-purple-700 border-purple-200",
+        desc: "State-of-the-art 3B vision-language model for video keyframe analysis, title & description generation. Runs smoothly in 4GB VRAM / 8GB RAM.",
+        contextWindow: "32k",
+        speed: "Fast",
+      },
+      {
+        id: "HuggingFaceTB/SmolVLM-Instruct",
+        name: "SmolVLM Instruct (2.2B)",
+        badge: "Ultra-Lightweight",
+        badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+        desc: "Official Hugging Face multimodal model built specifically for local edge devices and laptops with 4GB VRAM.",
+        contextWindow: "8k",
+        speed: "Ultra-fast",
+      },
+      {
+        id: "meta-llama/Llama-3.2-3B-Instruct",
+        name: "Llama 3.2 3B Instruct",
+        badge: "Meta 3B",
+        badgeColor: "bg-blue-50 text-blue-700 border-blue-200",
+        desc: "High-efficiency 3B parameter model from Meta for rapid title ideation, SEO descriptions, and tags.",
+        contextWindow: "128k",
+        speed: "Ultra-fast",
+      },
+      {
+        id: "Qwen/Qwen2.5-7B-Instruct",
+        name: "Qwen 2.5 7B Instruct",
+        badge: "High Accuracy",
+        badgeColor: "bg-cyan-50 text-cyan-700 border-cyan-200",
+        desc: "Comprehensive 7B open model for deeper narrative summaries and long-form chapters via HF Serverless API.",
+        contextWindow: "32k",
+        speed: "Fast",
+      },
+    ],
+  },
   {
     id: "openrouter",
     name: "OpenRouter",
