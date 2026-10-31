@@ -51,6 +51,7 @@ describe("Computer Vision & Video Understanding Engine", () => {
       expect(doesModelSupportVision("anthropic/claude-3-5-sonnet")).toBe(true);
       expect(doesModelSupportVision("google/gemini-1.5-pro")).toBe(true);
       expect(doesModelSupportVision("Qwen/Qwen2.5-VL-3B-Instruct")).toBe(true);
+      expect(doesModelSupportVision("qwen2.5vl:3b")).toBe(true);
       expect(doesModelSupportVision("HuggingFaceTB/SmolVLM-Instruct")).toBe(true);
       expect(doesModelSupportVision("meta-llama/Llama-3.2-3B-Instruct")).toBe(false);
       expect(doesModelSupportVision("meta-llama/llama-3-70b-instruct")).toBe(false);
