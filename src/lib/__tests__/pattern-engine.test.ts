@@ -39,7 +39,7 @@ describe("YouTube Pattern Recognition & Optimization Engine", () => {
 
   describe("Pattern Recognition Engine", () => {
     it("extracts topic clusters and classifies title formulas with performance multiples", async () => {
-      const research = await collectNicheResearch({ nicheOrTopic: "AI Agents" });
+      const research = await collectNicheResearch({ nicheOrTopic: "AI Agents", allowBenchmarkFallback: true });
       const patterns = extractPatterns(research);
 
       expect(patterns.topicClusters.length).toBeGreaterThan(0);
@@ -61,7 +61,7 @@ describe("YouTube Pattern Recognition & Optimization Engine", () => {
 
   describe("Scoring & Optimization Engine", () => {
     it("computes transparent multi-component recommendation score bounded between 0 and 100", async () => {
-      const research = await collectNicheResearch({ nicheOrTopic: "Web Dev" });
+      const research = await collectNicheResearch({ nicheOrTopic: "Web Dev", allowBenchmarkFallback: true });
       const patterns = extractPatterns(research);
 
       const scorecard = computeOptimizationScores({

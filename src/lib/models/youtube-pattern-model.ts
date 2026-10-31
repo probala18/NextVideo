@@ -482,7 +482,7 @@ export class YouTubePatternModel {
           {
             id: "thumb_v1_status",
             variationName: "Romantic Mood & Atmosphere",
-            headline: this.filterThumbnailHeadline("LOVE STATUS", forbiddenWords),
+            headline: this.filterThumbnailHeadline("FEEL THE LOVE", forbiddenWords),
             badge: "ROMANTIC",
             accentColor: "#F43F5E", // Rose Red
             visualComposition: `Aesthetic romantic visual focus on ${vision.focalPoint || "visual scene"} with warm glow.`,
@@ -502,7 +502,7 @@ export class YouTubePatternModel {
           {
             id: "thumb_v3_fullscreen",
             variationName: "Fullscreen 4K Status",
-            headline: this.filterThumbnailHeadline("4K STATUS", forbiddenWords),
+            headline: this.filterThumbnailHeadline("PURE EMOTION", forbiddenWords),
             badge: "FULLSCREEN",
             accentColor: "#8B5CF6", // Purple
             visualComposition: `Clean cinematic layout highlighting the visual mood.`,
