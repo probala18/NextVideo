@@ -84,52 +84,14 @@ export function analyzeDeterministicFrameProperties(
   // and creator hints are not OCR and must never be reported as on-screen text.
   const detectedOnScreenText: string[] = [];
 
-  // Derive palette based on scene progression
-  const palettes = [
-    ["#0F172A", "#3B82F6", "#FFFFFF"], // Blue / Slate (Hook)
-    ["#18181B", "#F59E0B", "#F8FAFC"], // Amber / Charcoal (Setup)
-    ["#022C22", "#10B981", "#ECFDF5"], // Emerald / Deep Teal (Core demo)
-    ["#450A0A", "#EF4444", "#FEF2F2"], // Crimson / Red (Climax)
-    ["#1E1B4B", "#8B5CF6", "#F5F3FF"], // Indigo / Violet (Payoff)
-  ];
-  const dominantColors = palettes[frameIndex % palettes.length];
-
-  // Contrast & complexity
-  const contrastScore = Math.min(95, 70 + (frameIndex * 5) % 25);
-  const complexityScore = Math.min(90, 50 + (frameIndex * 9) % 40);
-
-  // Focal point
-  const focalPoint = "Unanalyzed frame; visual subject not identified";
-
-  // Suitability for thumbnail (sharpness, clear focal point, contrast)
-  const thumbnailSuitabilityScore = Math.min(
-    98,
-    Math.round((contrastScore * 0.4 + (100 - complexityScore * 0.3) + 25))
-  );
-
-  return {
-    brightness: frameIndex % 2 === 0 ? "balanced" : "bright",
-    dominantColors,
-    contrastScore,
-    complexityScore,
-    focalPoint,
-    detectedOnScreenText,
-    thumbnailSuitabilityScore,
-  };
+  // No pixel analyzer is implemented. Do not fabricate visual measurements.
+  return { brightness: "unknown", dominantColors: [], contrastScore: null, complexityScore: null, focalPoint: "Not analyzed", detectedOnScreenText: [], thumbnailSuitabilityScore: null };
 }
 
 /**
  * Classify scene type deterministically.
  */
-function classifySceneType(
-  frameIndex: number,
-  properties: SampledFrameProperties
-): SampledFrame["sceneType"] {
-  if (frameIndex === 0) return "talking_head";
-  if (frameIndex === 1) return "presentation";
-  if (frameIndex === 2) return "screencast";
-  if (frameIndex === 3) return "split_screen";
-  return "action_demo";
+function classifySceneType(_frameIndex: number, _properties: SampledFrameProperties): SampledFrame["sceneType"] { return "unknown"; }
 }
 
 /**
@@ -367,7 +329,7 @@ export async function analyzeVideoWithComputerVision(params: {
             for (const text of observation.onScreenText.filter((x: unknown) => typeof x === "string")) onScreenTextCues.push({ timestampSeconds: image.frame.timestampSeconds, text, confidence: 0.7 });
           }
         }
-        candidateThumbnailMoments = deduplicatedFrames\n          .filter((frame) => frame.framePath && frame.semanticDescription && !frame.semanticDescription.includes(\"Visual content has not been analyzed\"))\n          .slice(0, 3)\n          .map((frame) => ({\n            timestampSeconds: frame.timestampSeconds,\n            frameIndex: frame.index,\n            headline: \"\",\n            reason: `Semantic analysis: ${frame.semanticDescription}`,\n            visualStrength: frame.properties.thumbnailSuitabilityScore,\n          }));\n        deduplicatedFrames.forEach((f) => { f.dataUrl = undefined; });
+        candidateThumbnailMoments = deduplicatedFrames\n          .filter((frame) => frame.framePath && frame.semanticDescription && !frame.semanticDescription.includes(\"Visual content has not been analyzed\"))\n          .slice(0, 3)\n          .map((frame) => ({\n            timestampSeconds: frame.timestampSeconds,\n            frameIndex: frame.index,\n            headline: \"\",\n            reason: `Semantic analysis: ${frame.semanticDescription}`,\n            visualStrength: null,\n          }));\n        deduplicatedFrames.forEach((f) => { f.dataUrl = undefined; });
       } catch (error) {
         limitations.push(error instanceof Error ? error.message : "Configured vision model analysis failed.");
         for (const image of images) {
@@ -387,7 +349,7 @@ export async function analyzeVideoWithComputerVision(params: {
     onScreenTextCues,
     candidateThumbnailMoments,
     limitations,
-    confidenceScore: 0, // No calibrated confidence model is currently implemented.
+    confidenceScore: null, // No calibrated confidence model is currently implemented.
     modelUsed: llmConfig.model,
     supportsVision,
   };
