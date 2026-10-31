@@ -135,12 +135,12 @@ export interface TitleOption {
   fitReason?: string;
   evidenceSupport?: string;
   scores?: {
-    contentRelevance: number;
-    specificity: number;
-    readability: number;
-    searchIntent: number;
-    comparablePatternSimilarity: number;
-    overallScore: number;
+    contentRelevance: number | null;
+    specificity: number | null;
+    readability: number | null;
+    searchIntent: number | null;
+    comparablePatternSimilarity: number | null;
+    overallScore: number | null;
   };
   rankingExplanation?: string;
 }
