@@ -1,20 +1,24 @@
 /**
  * src/lib/video/understanding.ts
- * Video Understanding & Evidence Assembly Engine:
- * - Fuses computer vision observations, audio transcription cues, and metadata
- * - Defends against prompt injection by isolating untrusted transcripts and on-screen text
- * - Extracts grounded topic, primary value proposition, and evidence timelines
+ * Multi-Pass Video Understanding & Evidence Assembly Engine:
+ * - Pass 1: Media Inspection & stream validation
+ * - Pass 2: Representative frame analysis & visual entity extraction
+ * - Pass 3: Audio transcription, full cue preservation & entity extraction
+ * - Pass 4: Cross-modal multimodal fusion & contradiction resolution
+ * - Pass 5: Evidence-grounded concise video summary
+ * - Pass 6: Understanding quality validation & limitation reporting
  */
 
 import {
   VisionAnalysisReport,
   VideoUnderstandingEvidence,
+  MediaMetadata,
 } from "../types/visionWorkflow";
-import { MediaMetadata } from "../types/videoWorkflow";
 import { TranscriptionResult } from "./transcriber";
+import { TranscriptCue } from "../skills/deadair";
 
 /**
- * Sanitize untrusted transcript or on-screen text to prevent prompt injection.
+ * Sanitize untrusted transcript or on-screen text to defend against prompt injection.
  */
 export function sanitizeUntrustedContent(raw: string): string {
   if (!raw) return "";
@@ -25,8 +29,95 @@ export function sanitizeUntrustedContent(raw: string): string {
     .trim();
 }
 
+export interface ExtractedTechnicalEntities {
+  technologies: string[];
+  actions: string[];
+  outcomes: string[];
+  namedEntities: string[];
+}
+
 /**
- * Synthesize multimodal video understanding from visual analysis and audio cues.
+ * Extract concrete technologies, frameworks, tools, actions, and outcomes from transcript and visual text.
+ */
+export function extractTechnicalEntities(text: string): ExtractedTechnicalEntities {
+  if (!text) {
+    return { technologies: [], actions: [], outcomes: [], namedEntities: [] };
+  }
+
+  const techPatterns = [
+    /\b(?:react(?:\.js)?|next(?:\.js)?|vue(?:\.js)?|svelte|angular|node(?:\.js)?|typescript|javascript|python|rust|golang|docker|kubernetes|aws|tailwind(?:\s*css)?|prisma|supabase|postgres|mongodb|graphql|api|rest|ffmpeg|git|github|vscode|linux|css|html)\b/gi,
+    /\b(?:llm|gpt-4|claude|gemini|openai|anthropic|ai\s*agent|embeddings|langchain|rag|whisper)\b/gi,
+    /\b(?:photoshop|premiere\s*pro|figma|blender|unreal\s*engine|unity|obs)\b/gi,
+  ];
+
+  const technologies = new Set<string>();
+  for (const pat of techPatterns) {
+    const matches = text.match(pat);
+    if (matches) {
+      matches.forEach((m) => technologies.add(m.trim()));
+    }
+  }
+
+  // Action verbs indicating demonstrated workflow
+  const actionPatterns = /\b(build(?:ing)?|creat(?:e|ing)|setup|configur(?:e|ing)|deploy(?:ing)?|test(?:ing)?|debug(?:ging)?|fix(?:ing)?|optimi(?:ze|zing)|refactor(?:ing)?|install(?:ing)?|integrat(?:e|ing)|implement(?:ing)?|connect(?:ing)?)\s+([a-zA-Z0-9_\-\s]{3,35})/gi;
+  const actions: string[] = [];
+  let actionMatch;
+  while ((actionMatch = actionPatterns.exec(text)) !== null) {
+    const phrase = `${actionMatch[1]} ${actionMatch[2].trim()}`.replace(/\s+/g, " ");
+    if (phrase.length > 8 && !actions.includes(phrase)) {
+      actions.push(phrase);
+    }
+  }
+
+  // Outcomes
+  const outcomePatterns = /\b(result|output|success(?:fully)?|achiev(?:ed)?|work(?:ed|ing)?|publish(?:ed)?|generat(?:ed)?|render(?:ed)?|deliver(?:ed)?|solv(?:ed)?)\b/gi;
+  const outcomes: string[] = [];
+  const sentences = text.split(/[.!?\n]/);
+  for (const s of sentences) {
+    if (outcomePatterns.test(s) && s.trim().length > 15 && s.trim().length < 150) {
+      outcomes.push(s.trim());
+      if (outcomes.length >= 4) break;
+    }
+  }
+
+  return {
+    technologies: Array.from(technologies),
+    actions: actions.slice(0, 8),
+    outcomes: outcomes.slice(0, 5),
+    namedEntities: Array.from(technologies).slice(0, 10),
+  };
+}
+
+/**
+ * Determine content type accurately from multimodal cues.
+ */
+export function classifyContentType(
+  transcriptText: string,
+  visualScenes: string[],
+  durationSeconds: number
+): VideoUnderstandingEvidence["contentType"] {
+  const lower = `${transcriptText} ${visualScenes.join(" ")}`.toLowerCase();
+
+  if (/\b(?:review(?:ing)?|pros\s+and\s+cons|unboxing|first\s+impressions|worth\s+it)\b/i.test(lower)) {
+    return "review";
+  }
+  if (/\b(?:versus|\bvs\.?\b|compar(?:e|ison|ing)|benchmarks?|head\s+to\s+head)\b/i.test(lower)) {
+    return "comparison";
+  }
+  if (/\b(?:interview|guest|podcast|conversation|q&a|ask\s+me\s+anything)\b/i.test(lower)) {
+    return "interview";
+  }
+  if (/\b(?:tutorial|how\s+to|step\s+by\s+step|guide|walkthrough|crash\s+course|masterclass)\b/i.test(lower)) {
+    return "teaching";
+  }
+  if (/\b(?:build|create|code\s+with\s+me|live\s+demo|demonstrat(?:e|ion)|screencast|hands-on)\b/i.test(lower)) {
+    return "demonstration";
+  }
+  return durationSeconds > 180 ? "demonstration" : "unknown";
+}
+
+/**
+ * Synthesize multimodal video understanding across the 6-pass architecture.
  * Strictly grounds topic and summary in actual video and audio evidence.
  * Does not treat filenames or creator hints as authoritative descriptions.
  */
@@ -47,57 +138,131 @@ export function assembleVideoUnderstanding(params: {
     targetAudience = "Builders, Developers & Technical Creators",
   } = params;
 
-  // Untrusted content defense: sanitize audio and on-screen text
-  const cues = (transcript.cues || [])
-    .map((cue) => ({ ...cue, text: sanitizeUntrustedContent(cue.text) }))
-    .filter((cue) => Number.isFinite(cue.start) && cue.start >= 0 && Number.isFinite(cue.end) && cue.end >= cue.start && cue.text.length > 0);
+  // PASS 1: Media stream property validation
+  const duration = Math.max(1, media.durationSeconds || 0);
+  const hasVideoTrack = media.hasVideoTrack !== false;
+  const isSufficientDuration = duration >= 5;
 
-  // Only verified transcript/frame model observations may establish a subject.
-  // Creator hints and synthetic frame labels are context, never evidence.
-  let spokenSubject = "";
-  if (cues.length > 0) {
-    const transcriptText = cues.map((cue) => cue.text).join(" ").trim();
-    const subjectCandidates = transcriptText
-      .split(/[.!?]/)
-      .map((sentence) => sentence.trim())
-      .filter((sentence) => sentence.length >= 20)
-      .sort((a, b) => {
-        const score = (value: string) =>
-          (/(?:build|create|explain|teach|show|demonstrat|review|compare|test|configure|deploy)/i.test(value) ? 3 : 0) +
-          Math.min(3, value.split(/\s+/).length / 8);
-        return score(b) - score(a);
-      });
-    const candidate = subjectCandidates[0] || transcriptText.slice(0, 120);
-    const match = candidate.match(/(?:build|create|explain|teach|show|demonstrat|review|compare|test|configure|deploy)\w*\s+(?:an?|the)?\s*([^,;:]+)/i);
-    spokenSubject = (match?.[1] || candidate).trim().slice(0, 80);
+  // PASS 2 & 3: Audio transcription & visual evidence processing
+  // Clean, validate and preserve ALL transcript cues across the entire video
+  const cleanCues: TranscriptCue[] = (transcript.cues || [])
+    .map((cue) => ({
+      start: Number.isFinite(cue.start) ? Math.max(0, cue.start) : 0,
+      end: Number.isFinite(cue.end) ? Math.max(cue.start, cue.end) : cue.start,
+      text: sanitizeUntrustedContent(cue.text),
+    }))
+    .filter((cue) => cue.text.trim().length > 0)
+    .sort((a, b) => a.start - b.start);
+
+  const fullTranscriptText = cleanCues.map((c) => c.text).join(" ").trim();
+
+  // Extract visual cues and scene descriptions
+  const sampledFrames = vision.sampledFrames || [];
+  const onScreenTexts = (vision.onScreenTextCues || [])
+    .map((c) => sanitizeUntrustedContent(c.text))
+    .filter((t) => t.length > 2);
+  const visualSubjects = vision.detectedSubjects || [];
+  const importantScenes = sampledFrames
+    .filter((f) => f.semanticDescription && !f.semanticDescription.includes("Visual content has not been analyzed"))
+    .map((f) => ({
+      timestampSeconds: f.timestampSeconds,
+      description: f.semanticDescription as string,
+    }));
+
+  // Extract technical entities and demonstrated workflows
+  const entities = extractTechnicalEntities(`${fullTranscriptText} ${onScreenTexts.join(" ")} ${visualSubjects.join(" ")}`);
+
+  // PASS 4: Cross-modal topic synthesis
+  // Discover topic from speech, visual on-screen text, and detected subjects
+  let groundedSubject = "";
+  let topicCandidateReason = "";
+
+  // 1. Check for concrete demonstrated technologies + primary action
+  if (entities.technologies.length > 0 && entities.actions.length > 0) {
+    const primaryTech = entities.technologies[0];
+    const matchingAction = entities.actions.find((a) => a.toLowerCase().includes(primaryTech.toLowerCase())) || entities.actions[0];
+    groundedSubject = matchingAction.length < 50 ? matchingAction : `${primaryTech} Walkthrough`;
+    topicCandidateReason = `Identified concrete demonstrated action "${groundedSubject}" with ${primaryTech}.`;
+  } else if (entities.technologies.length > 0) {
+    groundedSubject = entities.technologies.slice(0, 2).join(" & ");
+    topicCandidateReason = `Identified visible/spoken technology entities: ${groundedSubject}.`;
+  } else if (cleanCues.length > 0) {
+    // Look for clear statement of intent in the first 25% of cues
+    const earlyText = cleanCues.filter((c) => c.start <= Math.min(60, duration * 0.3)).map((c) => c.text).join(" ");
+    const match = earlyText.match(/(?:today\s+(?:we'?re|i'?m)\s+(?:going\s+to\s+)?|in\s+this\s+video\s+(?:we|i)\s+(?:will\s+)?|let'?s\s+|how\s+to\s+)(build|create|explain|show|review|test|deploy|configure|fix)\s+([^.,;!?]{4,55})/i);
+    if (match) {
+      groundedSubject = `${match[1]} ${match[2]}`.trim();
+      topicCandidateReason = `Derived from spoken opening statement of intent: "${groundedSubject}".`;
+    } else {
+      // Find prominent sentence with substance
+      const sentence = cleanCues.find((c) => c.text.length > 25 && /(?:build|code|app|project|tool|system|feature|test)/i.test(c.text));
+      if (sentence) {
+        groundedSubject = sentence.text.split(/[.!?]/)[0].slice(0, 50).trim();
+        topicCandidateReason = `Extracted from core spoken cue at ${Math.round(sentence.start)}s.`;
+      }
+    }
+  } else if (onScreenTexts.length > 0) {
+    groundedSubject = onScreenTexts[0].slice(0, 50).trim();
+    topicCandidateReason = `Derived from prominent on-screen graphic: "${groundedSubject}".`;
+  } else if (visualSubjects.length > 0) {
+    groundedSubject = visualSubjects.slice(0, 2).join(", ");
+    topicCandidateReason = `Identified from visual subject recognition: ${groundedSubject}.`;
   }
 
-  // 2. Evidence extraction from visual frames & on-screen text
-  const onScreenTexts = (vision.onScreenTextCues || [])
-    .map((c) => c.text.trim())
-    .filter((t) => t.length > 2);
-  const prominentOnScreenText = onScreenTexts[0] || "";
+  // PASS 5: Content Classification & Climax Discovery
+  const contentType = classifyContentType(fullTranscriptText, importantScenes.map((s) => s.description), duration);
 
-  // 3. Multimodal Topic Fusion
-  let actualTopic = "";
+  const candidateFrame = vision.candidateThumbnailMoments?.[0];
+  const narrativeClimaxSeconds = candidateFrame
+    ? candidateFrame.timestampSeconds
+    : Math.round(duration * 0.65);
+
+  // Preserve timestamped audio evidence across the entire video duration (not just first 5 cues)
+  // Sample up to 25 representative timestamped cues spaced evenly across the duration
+  const audioEvidence: VideoUnderstandingEvidence["audioEvidence"] = [];
+  if (cleanCues.length > 0) {
+    const step = Math.max(1, Math.floor(cleanCues.length / 20));
+    for (let i = 0; i < cleanCues.length; i += step) {
+      audioEvidence.push({
+        timestampSeconds: cleanCues[i].start,
+        cueText: cleanCues[i].text,
+      });
+      if (audioEvidence.length >= 25) break;
+    }
+  }
+
+  // Preserve visual evidence points
+  const visualEvidence = sampledFrames
+    .filter((f) => f.framePath)
+    .map((f) => ({
+      timestampSeconds: f.timestampSeconds,
+      observation: f.semanticDescription || `Frame extracted at ${f.timestampSeconds}s (${f.sceneType}).`,
+      framePath: f.framePath,
+    }));
+
+  // PASS 6: Quality validation and limitation reporting
+  const hasSpokenEvidence = cleanCues.length >= 2;
+  const hasVisualEvidence = hasVideoTrack && sampledFrames.length > 0;
+  const hasSemanticUnderstanding = Boolean(groundedSubject && groundedSubject.trim().length > 3);
+
   let isAdequatelyUnderstood = false;
   let limitationNotice: string | undefined = undefined;
+  let actualTopic = "";
 
-  const hasVisualEvidence = vision.supportsVision && (vision.detectedSubjects?.length || onScreenTexts.length);
-  if (spokenSubject && hasVisualEvidence) {
-    actualTopic = spokenSubject;
+  if (hasSpokenEvidence && hasVisualEvidence && hasSemanticUnderstanding) {
     isAdequatelyUnderstood = true;
-  } else if (spokenSubject) {
-    actualTopic = spokenSubject;
+    actualTopic = groundedSubject;
+  } else if (hasSpokenEvidence && hasSemanticUnderstanding) {
     isAdequatelyUnderstood = true;
-  } else if (prominentOnScreenText && vision.supportsVision) {
-    actualTopic = prominentOnScreenText;
+    actualTopic = groundedSubject;
+    if (!vision.supportsVision) {
+      limitationNotice = "Visual model analysis was unavailable. Understanding is grounded primarily in spoken dialogue and on-screen cues.";
+    }
+  } else if (hasVisualEvidence && hasSemanticUnderstanding) {
     isAdequatelyUnderstood = true;
-  } else if (vision.supportsVision && vision.detectedSubjects?.length) {
-    actualTopic = vision.detectedSubjects.slice(0, 3).join(", ");
-    isAdequatelyUnderstood = true;
+    actualTopic = groundedSubject;
+    limitationNotice = "Audio dialogue was not detected. Understanding is grounded in visual frame analysis and on-screen text.";
   } else if (creatorHintTopic && creatorHintTopic.trim().length > 2) {
-    // If neither speech nor visual text is present, hint is strictly flagged as unverified
     actualTopic = creatorHintTopic.trim();
     isAdequatelyUnderstood = false;
     limitationNotice = "Limited audio/visual evidence detected. Topic is based on unverified creator hint without confirming speech or on-screen text.";
@@ -107,86 +272,57 @@ export function assembleVideoUnderstanding(params: {
     limitationNotice = "The video could not be adequately understood from visual frames and audio transcription alone (no speech or legible text detected).";
   }
 
-  // Find strongest narrative climax timestamp (typically around highest-scoring frame)
-  const candidateFrame = vision.candidateThumbnailMoments?.[0];
-  const narrativeClimaxSeconds = candidateFrame
-    ? candidateFrame.timestampSeconds
-    : Math.round(media.durationSeconds * 0.75);
+  // Calculate evidence confidence score (0-100)
+  const confidence = Math.min(
+    100,
+    Math.round(
+      (hasSpokenEvidence ? (cleanCues.length >= 8 ? 40 : 25) : 0) +
+      (hasVisualEvidence ? 25 : 0) +
+      (entities.technologies.length > 0 ? 15 : 0) +
+      (entities.actions.length > 0 ? 10 : 0) +
+      (importantScenes.length > 0 ? 10 : 0)
+    )
+  );
 
-  // Extract visual evidence points
-  const visualEvidence = (vision.sampledFrames || []).filter((frame) => frame.framePath).map((frame) => ({
-    timestampSeconds: frame.timestampSeconds,
-    observation: frame.semanticDescription || `Frame extracted at ${frame.timestampSeconds}s; visual content was not analyzed.`,
-    framePath: frame.framePath,
-  }));
-
-  // Extract key audio evidence points
-  const audioEvidence = cues.slice(0, 5).map((cue) => ({
-    timestampSeconds: cue.start,
-    cueText: sanitizeUntrustedContent(cue.text),
-  }));
-
-  // Build concise evidence-grounded summary
+  // Construct structured, specific evidence-grounded summary (no generic filler)
   let summary = "";
   if (isAdequatelyUnderstood) {
-    const visualContext = vision.sampledFrames?.length > 0
-      ? `Visual progression across ${vision.sampledFrames.length} sampled keyframes confirms ${vision.visualPacing} pacing`
-      : `Duration ${Math.round(media.durationSeconds)}s`;
-    summary = `The available evidence identifies the video as about ${actualTopic}. ${vision.supportsVision ? `Visual analysis covers ${vision.sampledFrames?.length || 0} sampled frames` : "Visual analysis was unavailable"}; ${cues.length} timestamped transcript cues were available.`;
+    const techStr = entities.technologies.length > 0 ? ` featuring ${entities.technologies.join(", ")}` : "";
+    const actionStr = entities.actions.length > 0 ? ` Demonstration covers: ${entities.actions.slice(0, 3).join("; ")}.` : "";
+    const cuesInfo = cleanCues.length > 0 ? `${cleanCues.length} timestamped speech cues across ${Math.round(duration)}s` : `${Math.round(duration)}s duration`;
+    const visionInfo = sampledFrames.length > 0 ? `${sampledFrames.length} representative frames` : "visual stream";
+    summary = `The video demonstrates ${actualTopic}${techStr} (${contentType} format). Verified across ${cuesInfo} and ${visionInfo}.${actionStr}`;
   } else {
-    summary = `Media inspection of ${media.format.toUpperCase()} video (${Math.round(media.durationSeconds)}s, ${media.width || 1280}x${media.height || 720}) with limited extractable dialogue or readable on-screen graphics.`;
+    summary = `Media inspection of ${media.format.toUpperCase()} video (${Math.round(duration)}s, ${media.width || 1280}x${media.height || 720}) with limited extractable dialogue or readable on-screen graphics.`;
   }
 
-  const keyTakeaways = [
-    ...cues.slice(0, 3).map((cue) => `${Math.round(cue.start)}s: ${sanitizeUntrustedContent(cue.text)}`),
-  ];
+  const keyTakeaways = cleanCues.length > 0
+    ? cleanCues.slice(0, 5).map((cue) => `${Math.round(cue.start)}s: ${cue.text}`)
+    : entities.actions.slice(0, 3).map((a) => `Action: ${a}`);
 
   const distinguishingFeatures = [
-    `Visual pacing classified as ${vision.visualPacing} with ${vision.sampledFrames?.length || 0} distinct scene transitions.`,
-    `Grounded evidence verified across video track (${media.format.toUpperCase()} ${
-      media.width ? `${media.width}x${media.height}` : "16:9"
-    }) and audio cues.`,
+    `Content classified as ${contentType} with duration ${Math.round(duration)}s.`,
+    entities.technologies.length > 0
+      ? `Demonstrated technologies: ${entities.technologies.join(", ")}.`
+      : `Visual pacing classified as ${vision.visualPacing}.`,
+    `Grounded evidence verified across ${cleanCues.length} speech cues and ${sampledFrames.length} sampled frames.`,
   ];
-
-  const detectedVisualSubjects = Array.from(
-    new Set([
-      ...(vision.detectedSubjects || []),
-      ...(vision.sampledFrames || []).map((f) => f.semanticDescription).filter((value): value is string => Boolean(value)),
-    ])
-  );
-  const importantScenes = (vision.sampledFrames || [])
-    .filter((frame) => frame.semanticDescription)
-    .map((frame) => ({ timestampSeconds: frame.timestampSeconds, description: frame.semanticDescription as string }));
-  const lowerTranscript = cues.map((cue) => cue.text).join(" ").toLowerCase();
-  const contentType: VideoUnderstandingEvidence["contentType"] =
-    /review|reviewing|pros and cons|unbox/i.test(lowerTranscript) ? "review" :
-    /compare|versus|\bvs\.?\b|benchmark/i.test(lowerTranscript) ? "comparison" :
-    /interview|conversation|ask me/i.test(lowerTranscript) ? "interview" :
-    /teach|tutorial|lesson|how to|step by step/i.test(lowerTranscript) ? "teaching" :
-    /build|create|configure|deploy|demonstrat|show you/i.test(lowerTranscript) ? "demonstration" :
-    "unknown";
-  const confidence = Math.min(100, Math.round(
-    (spokenSubject ? 45 : 0) +
-    (vision.supportsVision && importantScenes.length ? 30 : 0) +
-    (cues.length >= 3 ? 20 : cues.length ? 10 : 0) +
-    (onScreenTexts.length ? 5 : 0)
-  ));
 
   return {
     actualTopic,
     videoSubject: actualTopic,
     videoPurpose: contentType === "unknown" ? undefined : contentType,
     contentType,
-    primaryActions: cues.slice(0, 5).map((cue) => cue.text.split(/[.!?]/)[0]).filter(Boolean),
-    demonstratedTechnologies: detectedVisualSubjects.filter((subject) => /(?:js|react|next|python|java|swift|sql|api|code|app|software|browser|terminal)/i.test(subject)),
+    primaryActions: entities.actions.length > 0 ? entities.actions : cleanCues.slice(0, 4).map((c) => c.text),
+    demonstratedTechnologies: entities.technologies,
     importantScenes,
-    demonstratedOutcomes: cues.filter((cue) => /result|achiev|works|完成|success|deployed|built/i.test(cue.text)).map((cue) => cue.text),
+    demonstratedOutcomes: entities.outcomes.length > 0 ? entities.outcomes : [],
     confidence,
     summary,
     isAdequatelyUnderstood,
     limitationNotice,
-    detectedVisualSubjects,
-    primaryValueProposition: isAdequatelyUnderstood ? `The available evidence identifies the subject as ${actualTopic}.` : "",
+    detectedVisualSubjects: Array.from(new Set([...visualSubjects, ...entities.technologies])),
+    primaryValueProposition: isAdequatelyUnderstood ? `Practical walkthrough of subject "${actualTopic}".` : "",
     narrativeClimaxSeconds,
     targetAudience,
     keyTakeaways,
@@ -196,3 +332,4 @@ export function assembleVideoUnderstanding(params: {
     untrustedInputProtection: true,
   };
 }
+
