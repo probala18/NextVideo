@@ -414,11 +414,13 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          assetId: currentJob.assetId,
           topic: report.understanding?.actualTopic || editableTitle,
           currentTitle: editableTitle,
           transcriptText: report.transcript?.text || "",
           durationSeconds: report.media?.durationSeconds || 600,
           understanding: report.understanding,
+          candidateFrames: report.vision?.sampledFrames || [],
           visualEvidence: report.vision?.sampledFrames?.map((frame) => ({
             timestampSeconds: frame.timestampSeconds,
             description: frame.semanticDescription,
@@ -436,6 +438,24 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       }
       if (data.description) setEditableDesc(data.description);
       if (data.tags) setEditableTags(Array.isArray(data.tags) ? data.tags.join(", ") : data.tags);
+
+      // If refreshed thumbnails returned, update state
+      if (Array.isArray(data.thumbnails) && data.thumbnails.length > 0) {
+        setSelectedThumbnailId(data.thumbnails[0].id);
+        if (currentJob.report) {
+          setCurrentJob({
+            ...currentJob,
+            report: {
+              ...currentJob.report,
+              publishingPackage: {
+                ...(currentJob.report.publishingPackage || {}),
+                thumbnails: data.thumbnails,
+                selectedThumbnailId: data.thumbnails[0].id,
+              } as any,
+            },
+          });
+        }
+      }
 
       onToast("Refreshed packaging assets with configured model!", "success");
     } catch (err: any) {
