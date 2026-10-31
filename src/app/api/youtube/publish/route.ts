@@ -45,6 +45,14 @@ export async function POST(req: NextRequest) {
       selectedThumbnailId,
     } = body;
 
+    const candidateTitle = (title || customTitle || "").trim();
+    if (candidateTitle.length > 100) {
+      return NextResponse.json(
+        { error: `Title exceeds YouTube's hard limit of 100 characters (${candidateTitle.length} characters). Shorten the title before publishing.` },
+        { status: 400 }
+      );
+    }
+
     if (!jobId) {
       return NextResponse.json({ error: "Missing jobId in request body" }, { status: 400 });
     }
@@ -86,6 +94,13 @@ export async function POST(req: NextRequest) {
 
     if (!finalTitle) {
       return NextResponse.json({ error: "A reviewed publishing title is required. The video filename cannot be used as a title." }, { status: 400 });
+    }
+
+    if (finalTitle.length > 100) {
+      return NextResponse.json(
+        { error: `Title exceeds YouTube's hard limit of 100 characters (${finalTitle.length} characters). Shorten the title before publishing.` },
+        { status: 400 }
+      );
     }
 
     // Prevent duplicate publishing when a request is retried

@@ -504,6 +504,11 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
 
     try {
       const finalTitle = editableTitle.trim() || selectedTitle.trim();
+      if (finalTitle.length > 100) {
+        setPublishError(`Title exceeds YouTube's 100-character limit (${finalTitle.length}/100 characters). Shorten the title before publishing.`);
+        setIsPublishing(false);
+        return;
+      }
       const finalDesc = editableDesc || currentJob.report?.seo?.description || "";
       const finalTags = editableTags
         ? editableTags.split(",").map((s) => s.trim()).filter(Boolean)
@@ -1133,8 +1138,8 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs">
                 <label className="font-bold text-[#374151]">Publishing Title</label>
-                <span className={editableTitle.length > 100 ? "text-[#EF4444] font-bold" : "text-[#6B7280]"}>
-                  {editableTitle.length} / 100 characters
+                <span className={editableTitle.length > 100 ? "text-[#EF4444] font-bold" : editableTitle.length > 60 ? "text-amber-600 font-medium" : "text-[#6B7280]"}>
+                  {editableTitle.length} / 100 characters {editableTitle.length > 100 && "(Exceeds YouTube 100-character limit)"}
                 </span>
               </div>
               <input
@@ -1313,7 +1318,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
             <button
               type="button"
               onClick={handlePublishToYouTube}
-              disabled={isPublishing || !isYoutubeConnected || !editableTitle.trim()}
+              disabled={isPublishing || !isYoutubeConnected || !editableTitle.trim() || editableTitle.trim().length > 100}
               className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-[#EF4444] hover:bg-[#DC2626] text-white font-bold text-sm shadow-sm transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               <Youtube className="w-4 h-4" />

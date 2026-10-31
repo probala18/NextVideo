@@ -87,4 +87,40 @@ describe("YouTube OAuth & Publishing Workflow", () => {
     expect(htmlError).toContain("YOUTUBE_OAUTH_ERROR");
     expect(htmlError).toContain("access_denied");
   });
+
+  test("rejects titles exceeding YouTube 100-character hard limit before calling YouTube", async () => {
+    const { POST } = await import("../../app/api/youtube/publish/route");
+    const { NextRequest } = await import("next/server");
+
+    const longTitle = "This is an extremely long publishing title that exceeds YouTube's maximum allowed limit of one hundred characters in total length";
+    expect(longTitle.length).toBeGreaterThan(100);
+
+    const req = new NextRequest("http://localhost:3000/api/youtube/publish", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jobId: "mock_job_999",
+        title: longTitle,
+      }),
+    });
+
+    const res = await POST(req);
+    // Since auth might be missing in test, if auth is missing it returns 401, but if auth is present or mocked it returns 400 with title limit message
+    // Let's store mock auth to test title validation directly
+    const { saveStoredAuth } = await import("../youtube/publishing");
+    saveStoredAuth({
+      accessToken: "mock_token",
+      refreshToken: "mock_refresh",
+      expiryDate: Date.now() + 3600000,
+      scope: "https://www.googleapis.com/auth/youtube.upload",
+      tokenType: "Bearer",
+      channelId: "UC_mock",
+      channelTitle: "Mock Channel",
+    });
+
+    const resWithAuth = await POST(req);
+    expect(resWithAuth.status).toBe(400);
+    const data = await resWithAuth.json();
+    expect(data.error).toContain("100");
+  });
 });
