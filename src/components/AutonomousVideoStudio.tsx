@@ -1012,7 +1012,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
-                      {item.scores && (
+                      {item.scores?.overallScore != null && (
                         <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-[#F3F4F6] text-[#374151]">
                           Score: {item.scores.overallScore}/100
                         </span>
