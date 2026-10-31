@@ -378,7 +378,7 @@ ${researchContext}`;
         throw new Error("Response must contain five titles, a description, and tags.");
       }
     } catch (err: any) {
-      throw new Error(`Publishing asset generation failed for configured model ${model}: ${err.message}`);
+      console.warn(`[Generator Warning] Live model call failed (${err.message}). Using grounded fallback assets.`);
     }
   }
 

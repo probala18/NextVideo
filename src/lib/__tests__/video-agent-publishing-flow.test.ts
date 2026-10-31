@@ -183,9 +183,64 @@ describe("Focused Video Agent Publishing Flow", () => {
 
       const pkg = await generatePublishingPackageWithAI({
         media: mockMedia,
-        evidence: { ...understanding, isAdequatelyUnderstood: false, limitationNotice: "Model response is mocked only in integration tests." },
+        evidence: understanding,
         vision: mockVision,
         thumbnails: thumbs,
+      });
+
+      // 5 distinct titles
+      expect(pkg.titles.length).toBe(5);
+      const uniqueTitles = new Set(pkg.titles.map((t) => t.title));
+      expect(uniqueTitles.size).toBe(5);
+
+      // Verify each title has transparent scores and evidence support
+      pkg.titles.forEach((t) => {
+        expect(t.title.length).toBeGreaterThan(5);
+        expect(t.title.length).toBeLessThanOrEqual(100);
+        expect(t.formula).toBeDefined();
+        expect(t.fitReason).toBeDefined();
+        expect(t.evidenceSupport).toBeDefined();
+        expect(t.scores.contentRelevance).toBeGreaterThanOrEqual(50);
+        expect(t.scores.contentRelevance).toBeLessThanOrEqual(100);
+        expect(t.scores.overallScore).toBeGreaterThanOrEqual(50);
+        expect(t.scores.overallScore).toBeLessThanOrEqual(100);
+
+        // Disallow unsupported clickbait
+        expect(t.title.toLowerCase()).not.toContain("90% fail");
+        expect(t.title.toLowerCase()).not.toContain("tested this for 30 days");
+      });
+
+      // Description and chapters
+      expect(pkg.description).toBeDefined();
+      expect(pkg.description.length).toBeGreaterThan(50);
+      expect(pkg.description).not.toContain("https://github.com/fake");
+      expect(pkg.tags.length).toBeGreaterThanOrEqual(3);
+
+      // Chapters must start at 0:00 and remain within duration
+      if (pkg.chapters.length > 0) {
+        expect(pkg.chapters[0].timecode).toBe("0:00");
+        pkg.chapters.forEach((ch) => {
+          expect(ch.timestampSeconds).toBeLessThanOrEqual(mockMedia.durationSeconds);
+        });
+      }
+    });
+
+    it("pauses generation when evidence is inadequate rather than inventing contents", async () => {
+      const understanding = assembleVideoUnderstanding({
+        media: mockMedia,
+        vision: mockVision,
+        transcript: {
+          text: mockCues.map((c) => c.text).join(" "),
+          cues: mockCues,
+          source: "user_upload",
+        },
+      });
+
+      const pkg = await generatePublishingPackageWithAI({
+        media: mockMedia,
+        evidence: { ...understanding, isAdequatelyUnderstood: false, limitationNotice: "Model response is paused due to inadequate evidence." },
+        vision: mockVision,
+        thumbnails: [],
       });
 
       expect(pkg.titles).toEqual([]);
