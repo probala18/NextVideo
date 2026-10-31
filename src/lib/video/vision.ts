@@ -248,7 +248,7 @@ export async function analyzeVideoWithComputerVision(params: {
   });
 
   // Candidate thumbnail moments (top 3 scoring frames)
-  const sortedCandidates = [...deduplicatedFrames].filter((f) => f.framePath).sort(
+  const sortedCandidates = [...deduplicatedFrames].filter((f) => f.framePath && f.semanticDescription && !f.semanticDescription.includes("Visual content has not been analyzed")).sort(
     (a, b) => b.properties.thumbnailSuitabilityScore - a.properties.thumbnailSuitabilityScore
   );
 
@@ -257,7 +257,7 @@ export async function analyzeVideoWithComputerVision(params: {
       timestampSeconds: frame.timestampSeconds,
       frameIndex: frame.index,
       headline: "",
-      reason: `${frame.semanticDescription?.startsWith("Client-captured") ? "Client-captured" : "Extracted"} video frame at ${frame.timestampSeconds}s; visual content is not analyzed.`,
+      reason: `Vision model analyzed this frame at ${frame.timestampSeconds}s: ${frame.semanticDescription}.`,
       visualStrength: frame.properties.thumbnailSuitabilityScore,
     };
   });
@@ -379,12 +379,7 @@ export async function analyzeVideoWithComputerVision(params: {
       } catch (error) {
         limitations.push(error instanceof Error ? error.message : "Configured vision model analysis failed.");
         for (const image of images) {
-          if (!image.frame.semanticDescription || image.frame.semanticDescription.includes("Visual content has not been analyzed")) {
-            image.frame.semanticDescription = `Frame at ${image.frame.timestampSeconds}s (${image.frame.sceneType}, ${image.frame.properties.brightness} lighting).`;
-          }
-        }
-        if (hintTopic && hintTopic.trim().length > 2 && detectedSubjects.length === 0) {
-          detectedSubjects.push(hintTopic.trim());
+          image.frame.semanticDescription = undefined;
         }
       }
     }
