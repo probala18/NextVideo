@@ -106,11 +106,11 @@ export function classifyContentType(
   }
 ): VideoUnderstandingEvidence["contentType"] {
   const onScreen = (options?.onScreenTexts || []).join(" ").toLowerCase();
-  const hint = (options?.hintTopic || "").toLowerCase();
-  const lower = `${transcriptText} ${visualScenes.join(" ")} ${onScreen} ${(options?.musicCues || []).join(" ")} ${hint}`.toLowerCase();
+  // Creator hints and filenames are metadata, not evidence.
+  const lower = `${transcriptText} ${visualScenes.join(" ")} ${onScreen} ${(options?.musicCues || []).join(" ")}`.toLowerCase();
 
   const hasMusicOrAudioMarker =
-    /\b(?:\[music\]|\[singing\]|[♪♫♩♬]|bgm|instrumental|soundtrack|melody|orchestra|beats?|vocal)\b/i.test(lower) ||
+    /(?:\[music\]|\[singing\]|[♪♫♩♬]|\bbgm\b|\binstrumental\b|\bsoundtrack\b|\bmelody\b|\borchestra\b|\bbeats?\b|\bvocal\b)/i.test(lower) ||
     (options?.musicCues && options.musicCues.length > 0);
 
   const hasRomanticLyricalCues =
@@ -236,7 +236,7 @@ export function assembleVideoUnderstanding(params: {
   // PASS 4 & 5: Content Classification & Cross-modal topic synthesis
   const musicCues: string[] = [];
   cleanCues.forEach((c) => {
-    if (/\b(?:\[music\]|\[singing\]|[♪♫♩♬])\b/i.test(c.text)) {
+    if (/(?:\[music\]|\[singing\]|[♪♫♩♬])/i.test(c.text)) {
       musicCues.push(c.text);
     }
   });
@@ -245,7 +245,7 @@ export function assembleVideoUnderstanding(params: {
     fullTranscriptText,
     importantScenes.map((s) => s.description),
     duration,
-    { onScreenTexts, musicCues, hintTopic: creatorHintTopic }
+    { onScreenTexts, musicCues }
   );
 
   let groundedSubject = "";
