@@ -5,7 +5,14 @@
  */
 
 import fs from "fs";
+import os from "os";
+import path from "path";
+import { exec } from "child_process";
+import { promisify } from "util";
 import { TranscriptCue, loadCuesFromText } from "../skills/deadair";
+import { isFfmpegAvailable } from "./processor";
+
+const execAsync = promisify(exec);
 
 export interface TranscriptionResult {
   source: "whisper_api" | "openrouter" | "user_upload" | "unavailable";
@@ -34,22 +41,38 @@ export async function transcribeMedia(
   }
 
   // Option 2: OpenAI Whisper API if configured
-  const openaiKey = process.env.OPENAI_API_KEY;
+  const openaiKey = (process.env.OPENAI_API_KEY || "").trim();
   if (openaiKey && fs.existsSync(filePath)) {
+    let audioToSendPath = filePath;
+    let tempAudioPath: string | null = null;
+
     try {
-      const stat = await fs.promises.stat(filePath);
+      const ffmpegOk = await isFfmpegAvailable();
+      if (ffmpegOk) {
+        // Extract low-bitrate mono MP3 to guarantee small payload under 25MB even for long videos
+        const tmpFile = path.join(os.tmpdir(), `nextvideo_audio_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.mp3`);
+        const binary = process.env.FFMPEG_PATH || "ffmpeg";
+        await execAsync(`"${binary}" -y -i "${filePath}" -vn -ar 16000 -ac 1 -b:a 64k "${tmpFile}"`);
+        if (fs.existsSync(tmpFile)) {
+          tempAudioPath = tmpFile;
+          audioToSendPath = tmpFile;
+        }
+      }
+
+      const stat = await fs.promises.stat(audioToSendPath);
       // Whisper has 25MB request limit
       if (stat.size <= 24 * 1024 * 1024) {
-        const fileBuffer = await fs.promises.readFile(filePath);
+        const fileBuffer = await fs.promises.readFile(audioToSendPath);
         const boundary = `----NextVideoFormBoundary${Date.now()}`;
-        const filename = filePath.split(/[\/\\]/).pop() || "audio.mp4";
+        const filename = path.basename(audioToSendPath);
+        const mimeType = filename.endsWith(".mp3") ? "audio/mp3" : "video/mp4";
 
         const bodyParts: Buffer[] = [];
 
         // File field
         bodyParts.push(
           Buffer.from(
-            `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: video/mp4\r\n\r\n`
+            `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: ${mimeType}\r\n\r\n`
           )
         );
         bodyParts.push(fileBuffer);
@@ -96,10 +119,19 @@ export async function transcribeMedia(
             language: data.language,
             durationSeconds: data.duration,
           };
+        } else {
+          const errText = await res.text().catch(() => "");
+          console.warn("[Whisper API Warning] Transcription request failed:", res.status, errText.slice(0, 150));
         }
       }
-    } catch {
-      // Preserve the transcription failure as unavailable evidence.
+    } catch (err: any) {
+      console.warn("[Transcription Pipeline Notice]", err?.message || "Failed to transcribe audio stream.");
+    } finally {
+      if (tempAudioPath && fs.existsSync(tempAudioPath)) {
+        try {
+          await fs.promises.unlink(tempAudioPath);
+        } catch {}
+      }
     }
   }
 
