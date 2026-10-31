@@ -48,13 +48,14 @@ export function extractTechnicalEntities(text: string): ExtractedTechnicalEntiti
     /\b(?:react(?:\.js)?|next(?:\.js)?|vue(?:\.js)?|svelte|angular|node(?:\.js)?|typescript|javascript|python|rust|golang|docker|kubernetes|aws|tailwind(?:\s*css)?|prisma|supabase|postgres|mongodb|graphql|api|rest|ffmpeg|git|github|vscode|linux|css|html)\b/gi,
     /\b(?:llm|gpt-4|claude|gemini|openai|anthropic|ai\s*agent|embeddings|langchain|rag|whisper)\b/gi,
     /\b(?:photoshop|premiere\s*pro|figma|blender|unreal\s*engine|unity|obs)\b/gi,
+    /\b(?:sony|canon|nikon|fujifilm|iphone|ipad|macbook|pixel|samsung|nvidia|amd|intel|rtx|camera)\b/gi,
   ];
 
   const technologies = new Set<string>();
   for (const pat of techPatterns) {
     const matches = text.match(pat);
     if (matches) {
-      matches.forEach((m) => technologies.add(m.trim()));
+      matches.forEach((m) => technologies.add(m.trim().toLowerCase()));
     }
   }
 
@@ -98,17 +99,17 @@ export function classifyContentType(
 ): VideoUnderstandingEvidence["contentType"] {
   const lower = `${transcriptText} ${visualScenes.join(" ")}`.toLowerCase();
 
-  if (/\b(?:review(?:ing)?|pros\s+and\s+cons|unboxing|first\s+impressions|worth\s+it)\b/i.test(lower)) {
+  if (/\b(?:tutorial|lecture|how\s+to|step\s+by\s+step|guide|walkthrough|crash\s+course|masterclass|explain(?:ing)?)\b/i.test(lower)) {
+    return "teaching";
+  }
+  if (/\b(?:unboxing|first\s+impressions|worth\s+it|pros\s+and\s+cons|product\s+review)\b/i.test(lower) || (/\breview(?:ing)?\b/i.test(lower) && !/\b(?:trade-?offs?|architecture|system|code)\b/i.test(lower))) {
     return "review";
   }
-  if (/\b(?:versus|\bvs\.?\b|compar(?:e|ison|ing)|benchmarks?|head\s+to\s+head)\b/i.test(lower)) {
+  if (/\b(?:versus|\bvs\.?\b(?!\s*code\b)|compar(?:e|ison|ing)|benchmarks?|head\s+to\s+head)\b/i.test(lower)) {
     return "comparison";
   }
   if (/\b(?:interview|guest|podcast|conversation|q&a|ask\s+me\s+anything)\b/i.test(lower)) {
     return "interview";
-  }
-  if (/\b(?:tutorial|how\s+to|step\s+by\s+step|guide|walkthrough|crash\s+course|masterclass)\b/i.test(lower)) {
-    return "teaching";
   }
   if (/\b(?:build|create|code\s+with\s+me|live\s+demo|demonstrat(?:e|ion)|screencast|hands-on)\b/i.test(lower)) {
     return "demonstration";
@@ -177,8 +178,19 @@ export function assembleVideoUnderstanding(params: {
   let groundedSubject = "";
   let topicCandidateReason = "";
 
-  // 1. Check for concrete demonstrated technologies + primary action
-  if (entities.technologies.length > 0 && entities.actions.length > 0) {
+  // 1. Prioritize explicit spoken opening statement of intent in early cues
+  const earlyText = cleanCues.filter((c) => c.start <= Math.min(60, duration * 0.35)).map((c) => c.text).join(" ");
+  const intentMatch = earlyText.match(/(?:today\s+(?:we'?re|i'?m)\s+(?:going\s+to\s+)?|in\s+this\s+(?:video|lecture|tutorial)\s+(?:we|i)\s+(?:will\s+|are\s+)?|let'?s\s+|how\s+to\s+)(build|create|explain|show|review|test|deploy|configure|fix|break\s+down)\w*\s+([^.,;!?]{4,60})/i);
+
+  if (intentMatch) {
+    const actionVerb = intentMatch[1].trim();
+    const targetObj = intentMatch[2].replace(/\s+(?:from\s+scratch|step\s+by\s+step|today).*$/i, "").trim();
+    groundedSubject = `${actionVerb} ${targetObj}`.slice(0, 60).trim();
+    topicCandidateReason = `Derived from spoken opening statement of intent: "${groundedSubject}".`;
+  } else if (onScreenTexts.length > 0 && onScreenTexts[0].length >= 4) {
+    groundedSubject = onScreenTexts[0].slice(0, 50).trim();
+    topicCandidateReason = `Derived from prominent on-screen graphic: "${groundedSubject}".`;
+  } else if (entities.technologies.length > 0 && entities.actions.length > 0) {
     const primaryTech = entities.technologies[0];
     const matchingAction = entities.actions.find((a) => a.toLowerCase().includes(primaryTech.toLowerCase())) || entities.actions[0];
     groundedSubject = matchingAction.length < 50 ? matchingAction : `${primaryTech} Walkthrough`;
@@ -187,23 +199,11 @@ export function assembleVideoUnderstanding(params: {
     groundedSubject = entities.technologies.slice(0, 2).join(" & ");
     topicCandidateReason = `Identified visible/spoken technology entities: ${groundedSubject}.`;
   } else if (cleanCues.length > 0) {
-    // Look for clear statement of intent in the first 25% of cues
-    const earlyText = cleanCues.filter((c) => c.start <= Math.min(60, duration * 0.3)).map((c) => c.text).join(" ");
-    const match = earlyText.match(/(?:today\s+(?:we'?re|i'?m)\s+(?:going\s+to\s+)?|in\s+this\s+video\s+(?:we|i)\s+(?:will\s+)?|let'?s\s+|how\s+to\s+)(build|create|explain|show|review|test|deploy|configure|fix)\s+([^.,;!?]{4,55})/i);
-    if (match) {
-      groundedSubject = `${match[1]} ${match[2]}`.trim();
-      topicCandidateReason = `Derived from spoken opening statement of intent: "${groundedSubject}".`;
-    } else {
-      // Find prominent sentence with substance
-      const sentence = cleanCues.find((c) => c.text.length > 25 && /(?:build|code|app|project|tool|system|feature|test)/i.test(c.text));
-      if (sentence) {
-        groundedSubject = sentence.text.split(/[.!?]/)[0].slice(0, 50).trim();
-        topicCandidateReason = `Extracted from core spoken cue at ${Math.round(sentence.start)}s.`;
-      }
+    const sentence = cleanCues.find((c) => c.text.length > 25 && /(?:build|code|app|project|tool|system|feature|test)/i.test(c.text));
+    if (sentence) {
+      groundedSubject = sentence.text.split(/[.!?]/)[0].slice(0, 50).trim();
+      topicCandidateReason = `Extracted from core spoken cue at ${Math.round(sentence.start)}s.`;
     }
-  } else if (onScreenTexts.length > 0) {
-    groundedSubject = onScreenTexts[0].slice(0, 50).trim();
-    topicCandidateReason = `Derived from prominent on-screen graphic: "${groundedSubject}".`;
   } else if (visualSubjects.length > 0) {
     groundedSubject = visualSubjects.slice(0, 2).join(", ");
     topicCandidateReason = `Identified from visual subject recognition: ${groundedSubject}.`;
