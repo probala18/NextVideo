@@ -505,7 +505,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
     try {
       const finalTitle = editableTitle.trim() || selectedTitle.trim();
       if (finalTitle.length > 100) {
-        setPublishError(`Title exceeds YouTube's 100-character limit (${finalTitle.length}/100 characters). Shorten the title before publishing.`);
+        onToast(`Title exceeds YouTube's 100-character limit (${finalTitle.length}/100 characters). Shorten the title before publishing.`, "error");
         setIsPublishing(false);
         return;
       }
