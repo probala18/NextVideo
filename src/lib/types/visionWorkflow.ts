@@ -78,7 +78,7 @@ export interface VideoUnderstandingEvidence {
   demonstratedTechnologies?: string[];
   importantScenes?: Array<{ timestampSeconds: number; description: string }>;
   demonstratedOutcomes?: string[];
-  confidence?: number;
+  confidence?: number | null;
   summary?: string;
   isAdequatelyUnderstood?: boolean;
   limitationNotice?: string;
