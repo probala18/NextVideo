@@ -153,16 +153,34 @@ export async function runAutonomousVideoWorkflow(params: {
   }
 
   // 12. SEO & Discovery
+  const isRomanticOrMusic =
+    understanding.contentType === "romantic_status" ||
+    understanding.contentType === "music_video" ||
+    understanding.contentType === "lyrics_video" ||
+    understanding.contentType === "cinematic_edit";
+
+  const hashtags = isRomanticOrMusic
+    ? [`#${topic.replace(/[^a-zA-Z0-9]/g, "").slice(0, 15)}`, "#status", "#romantic", "#musicvideo"]
+    : [`#${topic.replace(/[^a-zA-Z0-9]/g, "").slice(0, 15)}`, "#workflow", "#youtube"];
+
+  const searchQueryOpportunities = isRomanticOrMusic
+    ? [
+        `${topic.toLowerCase()} status video`,
+        `${topic.toLowerCase()} whatsapp status`,
+        `${topic.toLowerCase()} romantic status`,
+      ]
+    : [
+        `${topic.toLowerCase()} walkthrough`,
+        `how to ${topic.toLowerCase()} step by step`,
+        `best ${topic.toLowerCase()} guide 2026`,
+      ];
+
   const seo = {
     suggestedTitle: publishingPackage.recommendedTitle || alternativeTitles[0] || currentTitle,
     description: publishingPackage.description,
     tags: publishingPackage.tags,
-    hashtags: [`#${topic.replace(/[^a-zA-Z0-9]/g, "").slice(0, 15)}`, "#tutorial", "#youtube"],
-    searchQueryOpportunities: [
-      `${topic.toLowerCase()} tutorial for beginners`,
-      `how to learn ${topic.toLowerCase()} fast`,
-      `best ${topic.toLowerCase()} tips 2026`,
-    ],
+    hashtags,
+    searchQueryOpportunities,
   };
 
   // 13. Public Niche Outlier Research (Grounded in real YouTube Data API results)

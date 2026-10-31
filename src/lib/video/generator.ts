@@ -81,6 +81,183 @@ export function attachVerifiedChapters(description: string, chapters: FullPublis
 }
 
 /**
+ * Evaluates semantic content relevance (0-100) of a candidate title against verified video evidence.
+ * A title describing a coding tutorial MUST FAIL relevance (<50) when tested against a romantic music video.
+ */
+export function calculateEvidenceRelevance(
+  title: string,
+  evidence: VideoUnderstandingEvidence
+): number {
+  if (!title || !title.trim()) return 0;
+  const tLower = title.toLowerCase();
+  const isRomanticOrMusic =
+    evidence.contentType === "romantic_status" ||
+    evidence.contentType === "music_video" ||
+    evidence.contentType === "lyrics_video" ||
+    evidence.contentType === "cinematic_edit";
+
+  const techJargonPattern = /\b(?:tutorial|how\s+to\s+build|architecture|implementation|coding?|codebase|software|react|next\.?js|fastapi|docker|devops|backend|frontend|api\b|setup\s+&\s+architecture)\b/i;
+
+  // Hard relevance failure: coding tutorial title for romantic/music video
+  if (isRomanticOrMusic && techJargonPattern.test(tLower)) {
+    return 15; // Hard rejection: fails quality requirement
+  }
+
+  // Hard relevance failure: music/status title for a pure coding tutorial
+  const musicJargonPattern = /\b(?:romantic\s+status|love\s+status|whatsapp\s+status|bgm\b|soulful\s+love|lyrics?\s+status)\b/i;
+  if ((evidence.contentType === "teaching" || evidence.contentType === "demonstration") && musicJargonPattern.test(tLower)) {
+    return 20; // Hard rejection: fails quality requirement
+  }
+
+  // Topic keyword overlap
+  let topicOverlap = 0;
+  if (evidence.actualTopic) {
+    const topicWords = evidence.actualTopic
+      .toLowerCase()
+      .split(/[^a-z0-9]+/g)
+      .filter((w) => w.length > 2 && !["the", "and", "for", "with", "this", "that"].includes(w));
+    if (topicWords.length > 0) {
+      const matchCount = topicWords.filter((w) => tLower.includes(w)).length;
+      topicOverlap = matchCount / topicWords.length;
+    }
+  }
+
+  // Category keyword presence
+  let categoryBonus = 0;
+  if (isRomanticOrMusic) {
+    if (/\b(?:status|love|romantic|song|bgm|melod(?:y|ic)|visuals?|edit|fullscreen)\b/i.test(tLower)) {
+      categoryBonus += 25;
+    }
+  } else if (evidence.contentType === "teaching" || evidence.contentType === "demonstration") {
+    if (/\b(?:how\s+to|guide|explained|walkthrough|process|demo|step\s+by\s+step|master)\b/i.test(tLower)) {
+      categoryBonus += 20;
+    }
+  }
+
+  const baseScore = topicOverlap > 0 ? 55 + Math.round(topicOverlap * 35) : 35;
+  return Math.max(0, Math.min(100, baseScore + categoryBonus));
+}
+
+export function buildCategoryFallbackTitles(cleanTopic: string, contentType?: string): TitleOption[] {
+  const isRomanticOrMusic =
+    contentType === "romantic_status" ||
+    contentType === "music_video" ||
+    contentType === "lyrics_video" ||
+    contentType === "cinematic_edit";
+
+  if (isRomanticOrMusic) {
+    const rawOptions = [
+      {
+        title: `${cleanTopic} | Romantic Status Video`.slice(0, 100),
+        formula: "Romantic Status",
+        fitReason: `Directly frames "${cleanTopic}" as a romantic status video matching visual pacing and audio beats.`,
+        evidenceSupport: `Grounded in music/audio presentation and emotional visual pacing.`,
+      },
+      {
+        title: `${cleanTopic} - Soulful Love BGM & Visuals`.slice(0, 100),
+        formula: "Lyrical Emotion",
+        fitReason: `Focuses on the emotive musical presentation and melodic audio cues of "${cleanTopic}".`,
+        evidenceSupport: `Verified from audio tracks and atmospheric video moments.`,
+      },
+      {
+        title: `${cleanTopic} | WhatsApp Status (Fullscreen)`.slice(0, 100),
+        formula: "Status Format",
+        fitReason: `Optimized for mobile status viewing matching clip duration and framing.`,
+        evidenceSupport: `Derived from vertical/compact video duration and musical flow.`,
+      },
+      {
+        title: `${cleanTopic} • Heart Touching Melodic Edit`.slice(0, 100),
+        formula: "Melodic Edit",
+        fitReason: `Highlights the emotional tone and aesthetic editing of "${cleanTopic}".`,
+        evidenceSupport: `Observed from video transitions and musical tone.`,
+      },
+      {
+        title: `${cleanTopic} | Lyrical Romantic Status`.slice(0, 100),
+        formula: "Lyrical Mood",
+        fitReason: `Captures the lyrical romantic ambiance observed in the video footage.`,
+        evidenceSupport: `Supported by visible aesthetic frames and soundtrack cues.`,
+      },
+    ];
+
+    return rawOptions.map((opt, i) => {
+      const charCount = opt.title.length;
+      return {
+        title: opt.title,
+        formula: opt.formula,
+        characterCount: charCount,
+        isTruncated: charCount > 60,
+        fitReason: opt.fitReason,
+        evidenceSupport: opt.evidenceSupport,
+        scores: {
+          contentRelevance: 96 - i * 2,
+          specificity: 92,
+          readability: charCount <= 60 ? 96 : 84,
+          searchIntent: 94,
+          comparablePatternSimilarity: 90,
+          overallScore: charCount <= 60 ? 94 : 88,
+        },
+        rankingExplanation: "Optimized for status/music search intent and mobile readability.",
+      };
+    });
+  }
+
+  // Educational / Demonstration fallbacks for tutorials
+  const rawOptions = [
+    {
+      title: `How to Build ${cleanTopic} (Step by Step)`.slice(0, 100),
+      formula: "Practical Guide",
+      fitReason: `Directly reflects the core demonstration of "${cleanTopic}" seen in the video.`,
+      evidenceSupport: `Grounded in video actions and transcript cues.`,
+    },
+    {
+      title: `${cleanTopic}: Complete Process & Walkthrough`.slice(0, 100),
+      formula: "Demonstrated Process",
+      fitReason: `Describes the full demonstrated process for "${cleanTopic}".`,
+      evidenceSupport: `Verified across scene progression and demonstrated actions.`,
+    },
+    {
+      title: `Fixing Common ${cleanTopic} Pitfalls & Setup`.slice(0, 100),
+      formula: "Problem & Solution",
+      fitReason: `Targets practical implementation issues and solutions covered in the footage.`,
+      evidenceSupport: `Corresponds to problem context and demonstrated fixes.`,
+    },
+    {
+      title: `${cleanTopic} Explained in Depth`.slice(0, 100),
+      formula: "Clear Breakdown",
+      fitReason: `Clear, informative framing matching the educational pace of the video.`,
+      evidenceSupport: `Derived from transcript explanations and visual demonstrations.`,
+    },
+    {
+      title: `Hands-On ${cleanTopic} Demo & Real-World Walkthrough`.slice(0, 100),
+      formula: "Action Walkthrough",
+      fitReason: `Emphasizes the practical demonstration and live interactions shown.`,
+      evidenceSupport: `Observed from screen recordings and demonstrated actions.`,
+    },
+  ];
+
+  return rawOptions.map((opt, i) => {
+    const charCount = opt.title.length;
+    return {
+      title: opt.title,
+      formula: opt.formula,
+      characterCount: charCount,
+      isTruncated: charCount > 60,
+      fitReason: opt.fitReason,
+      evidenceSupport: opt.evidenceSupport,
+      scores: {
+        contentRelevance: 95 - i * 2,
+        specificity: 92,
+        readability: charCount <= 60 ? 96 : 84,
+        searchIntent: 93,
+        comparablePatternSimilarity: 89,
+        overallScore: charCount <= 60 ? 93 : 87,
+      },
+      rankingExplanation: "Clear search intent, high content accuracy, and mobile viewport readability.",
+    };
+  });
+}
+
+/**
  * Generate complete publishing package grounded in video evidence using configured AI model
  * and real YouTube research findings.
  */
@@ -134,132 +311,76 @@ export async function generatePublishingPackageWithAI(
   const duration = Math.max(0, Math.round(media.durationSeconds));
   const chapters = buildTranscriptChapters(evidence.audioEvidence || [], duration);
 
-  // Grounded fallback pattern titles derived directly from video evidence
-  const fallbackTitles: TitleOption[] = [
-    {
-      title: `How to Build ${cleanTopic} (Step by Step)`,
-      formula: "Practical Guide",
-      characterCount: `How to Build ${cleanTopic} (Step by Step)`.length,
-      isTruncated: false,
-      fitReason: `Directly reflects the core demonstration of "${cleanTopic}" seen in the video.`,
-      evidenceSupport: `Grounded in video actions and transcript cues.`,
-      scores: {
-        contentRelevance: 96,
-        specificity: 92,
-        readability: 96,
-        searchIntent: 95,
-        comparablePatternSimilarity: 90,
-        overallScore: 94,
-      },
-      rankingExplanation: "Clear search intent, high content accuracy, and mobile viewport readability.",
-    },
-    {
-      title: `${cleanTopic}: Complete Architecture & Implementation`,
-      formula: "Demonstrated Process",
-      characterCount: `${cleanTopic}: Complete Architecture & Implementation`.length,
-      isTruncated: false,
-      fitReason: `Describes the full technical workflow demonstrated for "${cleanTopic}".`,
-      evidenceSupport: `Verified across scene progression and demonstrated technologies.`,
-      scores: {
-        contentRelevance: 94,
-        specificity: 94,
-        readability: 92,
-        searchIntent: 90,
-        comparablePatternSimilarity: 88,
-        overallScore: 92,
-      },
-      rankingExplanation: "High technical specificity for viewers seeking an end-to-end implementation.",
-    },
-    {
-      title: `Fixing Common ${cleanTopic} Pitfalls & Setup`,
-      formula: "Problem & Solution",
-      characterCount: `Fixing Common ${cleanTopic} Pitfalls & Setup`.length,
-      isTruncated: false,
-      fitReason: `Targets practical implementation issues and solutions covered in the footage.`,
-      evidenceSupport: `Corresponds to problem context and demonstrated fixes.`,
-      scores: {
-        contentRelevance: 91,
-        specificity: 90,
-        readability: 95,
-        searchIntent: 89,
-        comparablePatternSimilarity: 87,
-        overallScore: 91,
-      },
-      rankingExplanation: "Strong problem-solving orientation with excellent search relevance.",
-    },
-    {
-      title: `${cleanTopic} Explained in Depth`,
-      formula: "Technical Breakdown",
-      characterCount: `${cleanTopic} Explained in Depth`.length,
-      isTruncated: false,
-      fitReason: `Clear, informative framing matching the educational pace of the video.`,
-      evidenceSupport: `Derived from transcript explanations and visual demonstrations.`,
-      scores: {
-        contentRelevance: 92,
-        specificity: 88,
-        readability: 98,
-        searchIntent: 91,
-        comparablePatternSimilarity: 89,
-        overallScore: 92,
-      },
-      rankingExplanation: "Concise, ultra-readable title optimized for mobile browse and search.",
-    },
-    {
-      title: `Hands-On ${cleanTopic} Demo & Real-World Code`,
-      formula: "Action Walkthrough",
-      characterCount: `Hands-On ${cleanTopic} Demo & Real-World Code`.length,
-      isTruncated: false,
-      fitReason: `Emphasizes the practical code and live interface interactions shown.`,
-      evidenceSupport: `Observed from screen recordings and technical assets.`,
-      scores: {
-        contentRelevance: 93,
-        specificity: 91,
-        readability: 94,
-        searchIntent: 92,
-        comparablePatternSimilarity: 88,
-        overallScore: 92,
-      },
-      rankingExplanation: "Action-oriented framing signaling real practical execution to the viewer.",
-    },
-  ];
+  // Grounded fallback pattern titles derived directly from video evidence & category
+  const fallbackTitles: TitleOption[] = buildCategoryFallbackTitles(cleanTopic, evidence.contentType);
 
   let titles: TitleOption[] = fallbackTitles;
   let recommendedTitle = titles[0]?.title || "";
   let recommendedTitleReason = titles[0]?.fitReason || "";
 
+  const isRomanticOrMusic =
+    evidence.contentType === "romantic_status" ||
+    evidence.contentType === "music_video" ||
+    evidence.contentType === "lyrics_video" ||
+    evidence.contentType === "cinematic_edit";
+
   const defaultActions = (evidence.primaryActions && evidence.primaryActions.length > 0)
     ? evidence.primaryActions.slice(0, 5).map((a) => `• ${a}`)
-    : [`• Step-by-step walkthrough of ${cleanTopic}`];
+    : [`• Presentation of ${cleanTopic}`];
   const defaultTech = (evidence.demonstratedTechnologies && evidence.demonstratedTechnologies.length > 0)
     ? [`• Technologies demonstrated: ${evidence.demonstratedTechnologies.join(", ")}`]
     : [];
   const defaultTakeaways = (evidence.keyTakeaways && evidence.keyTakeaways.length > 0)
     ? evidence.keyTakeaways.slice(0, 4).map((k) => `• ${k}`)
-    : [`• Key implementation patterns for ${cleanTopic}`];
+    : [`• Aesthetic pacing for ${cleanTopic}`];
 
-  let description = [
-    evidence.primaryValueProposition || `In this video, we break down ${cleanTopic} step-by-step with real-world implementation details.`,
-    "",
-    "What you'll see in this video:",
-    ...defaultActions,
-    ...defaultTech,
-    "",
-    "Key Takeaways:",
-    ...defaultTakeaways,
-    "",
-    ...(chapters.length > 0 ? ["TIMESTAMPS:", ...chapters.map((c) => `${c.timecode} - ${c.title}`), ""] : []),
-    `#${cleanTopic.replace(/[^a-zA-Z0-9]/g, "").slice(0, 15)} ${(evidence.demonstratedTechnologies || []).map((t) => `#${t.replace(/[^a-zA-Z0-9]/g, "")}`).slice(0, 3).join(" ")} #tutorial`,
-  ].join("\n").trim();
+  let description = isRomanticOrMusic
+    ? [
+        evidence.primaryValueProposition || `${cleanTopic} - Romantic status clip with soulful audio beats and aesthetic visuals.`,
+        "",
+        "Clip Highlights:",
+        `• Format: ${evidence.contentType?.replace("_", " ") || "Romantic Status"}`,
+        `• Visual Pacing: ${vision.visualPacing || "Moderate"}`,
+        ...(evidence.importantScenes && evidence.importantScenes.length > 0 ? evidence.importantScenes.slice(0, 3).map((s) => `• ${s.description}`) : []),
+        "",
+        ...(chapters.length > 0 ? ["TIMESTAMPS:", ...chapters.map((c) => `${c.timecode} - ${c.title}`), ""] : []),
+        `#${cleanTopic.replace(/[^a-zA-Z0-9]/g, "").slice(0, 15)} #status #romantic #love #musicvideo`,
+      ].join("\n").trim()
+    : [
+        evidence.primaryValueProposition || `In this video, we break down ${cleanTopic} step-by-step with real-world implementation details.`,
+        "",
+        "What you'll see in this video:",
+        ...defaultActions,
+        ...defaultTech,
+        "",
+        "Key Takeaways:",
+        ...defaultTakeaways,
+        "",
+        ...(chapters.length > 0 ? ["TIMESTAMPS:", ...chapters.map((c) => `${c.timecode} - ${c.title}`), ""] : []),
+        `#${cleanTopic.replace(/[^a-zA-Z0-9]/g, "").slice(0, 15)} ${(evidence.demonstratedTechnologies || []).map((t) => `#${t.replace(/[^a-zA-Z0-9]/g, "")}`).slice(0, 3).join(" ")} #tutorial`,
+      ].join("\n").trim();
 
-  let tags = Array.from(new Set([
-    cleanTopic.toLowerCase(),
-    ...(evidence.demonstratedTechnologies || []).map((t) => t.toLowerCase()),
-    `${cleanTopic.toLowerCase()} tutorial`,
-    "step by step",
-    "workflow",
-    "complete guide",
-    "best practices",
-  ])).slice(0, 15);
+  let tags = isRomanticOrMusic
+    ? Array.from(new Set([
+        cleanTopic.toLowerCase(),
+        "romantic status",
+        "whatsapp status",
+        "love status",
+        "status video",
+        "lyrics video",
+        "bgm",
+        "fullscreen status",
+        "4k status",
+      ])).slice(0, 15)
+    : Array.from(new Set([
+        cleanTopic.toLowerCase(),
+        ...(evidence.demonstratedTechnologies || []).map((t) => t.toLowerCase()),
+        `${cleanTopic.toLowerCase()} tutorial`,
+        "step by step",
+        "workflow",
+        "complete guide",
+        "best practices",
+      ])).slice(0, 15);
 
   // Try live AI generation with configured model if configured
   if (baseConfig.isConfigured && baseConfig.apiKey) {
@@ -354,29 +475,48 @@ ${researchContext}`;
         const parsed = JSON.parse(cleaned);
 
         if (Array.isArray(parsed.titles) && parsed.titles.length >= 5) {
-          titles = parsed.titles.slice(0, 5).filter((t: any) => t?.title && t.title.length <= 100).map((t: any) => {
-            const rawTitle = String(t.title || "").trim();
-            const charCount = rawTitle.length;
-            return {
-              title: rawTitle,
-              formula: String(t.formula || "Descriptive"),
-              characterCount: charCount,
-              isTruncated: charCount > 60,
-              fitReason: String(t.fitReason || `Fits demonstration of ${cleanTopic}.`),
-              evidenceSupport: String(t.evidenceSupport || `Supported by video footage.`),
-              scores: t.scores || {
-                contentRelevance: 90,
-                specificity: 88,
-                readability: charCount <= 60 ? 95 : 80,
-                searchIntent: 88,
-                comparablePatternSimilarity: 85,
-                overallScore: charCount <= 60 ? 90 : 84,
-              },
-              rankingExplanation: String(t.rankingExplanation || "Transparent evaluation based on content accuracy and clarity."),
-            };
-          });
-          recommendedTitle = parsed.recommendedTitle || titles[0].title;
-          recommendedTitleReason = parsed.recommendedTitleReason || titles[0].fitReason || "Optimal match for video content.";
+          const rawTitles = parsed.titles
+            .filter((t: any) => t?.title)
+            .map((t: any) => {
+              const rawTitle = String(t.title || "").trim().slice(0, 100);
+              const relevance = calculateEvidenceRelevance(rawTitle, evidence);
+              const charCount = rawTitle.length;
+              return {
+                title: rawTitle,
+                formula: String(t.formula || "Descriptive"),
+                characterCount: charCount,
+                isTruncated: charCount > 60,
+                fitReason: String(t.fitReason || `Matches verified video content "${cleanTopic}".`),
+                evidenceSupport: String(t.evidenceSupport || `Supported by video footage.`),
+                scores: {
+                  contentRelevance: relevance,
+                  specificity: t.scores?.specificity || 88,
+                  readability: charCount <= 60 ? 95 : 80,
+                  searchIntent: t.scores?.searchIntent || 88,
+                  comparablePatternSimilarity: t.scores?.comparablePatternSimilarity || 85,
+                  overallScore: Math.round(
+                    relevance * 0.4 +
+                    (t.scores?.specificity || 88) * 0.2 +
+                    (charCount <= 60 ? 95 : 80) * 0.2 +
+                    (t.scores?.searchIntent || 88) * 0.2
+                  ),
+                },
+                rankingExplanation: String(t.rankingExplanation || "Transparent evaluation based on content accuracy and clarity."),
+              };
+            })
+            // Enforce hard relevance requirement: candidates below 50 fail validation
+            .filter((t: any) => t.scores.contentRelevance >= 50);
+
+          if (rawTitles.length >= 5) {
+            titles = rawTitles.slice(0, 5);
+          } else {
+            // Fill remaining slots with category-aware verified fallback options
+            const needed = 5 - rawTitles.length;
+            titles = [...rawTitles, ...fallbackTitles.slice(0, needed)];
+          }
+
+          recommendedTitle = parsed.recommendedTitle || titles[0]?.title || "";
+          recommendedTitleReason = parsed.recommendedTitleReason || titles[0]?.fitReason || "Optimal match for video content.";
         }
 
         if (typeof parsed.description === "string" && parsed.description.length > 20) {
@@ -395,7 +535,13 @@ ${researchContext}`;
     }
   }
 
-  const suggestedCategory = { id: "28", name: "Science & Technology", rationale: "Default category suggestion; review before publishing." };
+  const suggestedCategory = isRomanticOrMusic
+    ? { id: "10", name: "Music", rationale: "Grounded in verified audio/music and lyrical video presentation." }
+    : evidence.contentType === "teaching"
+    ? { id: "27", name: "Education", rationale: "Grounded in instructional/educational demonstration." }
+    : evidence.contentType === "review" || evidence.contentType === "comparison"
+    ? { id: "28", name: "Science & Technology", rationale: "Product/technology review and evaluation." }
+    : { id: "22", name: "People & Blogs", rationale: "General video content format." };
   description = attachVerifiedChapters(description, chapters);
 
   const evidenceGrounding: PublishingEvidenceGrounding[] = [
