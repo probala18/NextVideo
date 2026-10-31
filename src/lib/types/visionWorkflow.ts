@@ -59,7 +59,20 @@ export interface VideoUnderstandingEvidence {
   actualTopic: string;
   videoSubject?: string;
   videoPurpose?: string;
-  contentType?: "teaching" | "demonstration" | "review" | "comparison" | "interview" | "presentation" | "narrative" | "unknown";
+  contentType?:
+    | "romantic_status"
+    | "music_video"
+    | "lyrics_video"
+    | "cinematic_edit"
+    | "teaching"
+    | "demonstration"
+    | "review"
+    | "comparison"
+    | "interview"
+    | "presentation"
+    | "narrative"
+    | "unknown";
+  musicOrAudioCues?: string[];
   primaryActions?: string[];
   demonstratedTechnologies?: string[];
   importantScenes?: Array<{ timestampSeconds: number; description: string }>;
