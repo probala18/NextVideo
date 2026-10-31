@@ -268,11 +268,8 @@ export function assembleVideoUnderstanding(params: {
         topicCandidateReason = `Derived from transcript vocal cue: "${groundedSubject}".`;
       }
     } else {
-      groundedSubject = contentType === "romantic_status" ? "Romantic Song Status" : "Music Video Clip";
-      topicCandidateReason = `Derived from audio-visual musical cues (${contentType} format); exact subject not identified.`;
-    } else {
-      groundedSubject = contentType === "romantic_status" ? "Romantic Song Status" : "Music Video Clip";
-      topicCandidateReason = `Derived from audio-visual musical cues (${contentType} format).`;
+      groundedSubject = "";
+      topicCandidateReason = "Musical format detected, but the specific subject is not established by transcript or readable on-screen evidence.";
     }
   } else {
     // 1. Prioritize explicit spoken opening statement of intent in early cues
@@ -327,16 +324,16 @@ export function assembleVideoUnderstanding(params: {
 
   // Preserve visual evidence points
   const visualEvidence = sampledFrames
-    .filter((f) => f.framePath)
+    .filter((f) => Boolean(f.framePath) && Boolean(f.semanticDescription?.trim()) && !f.semanticDescription!.includes("Visual content has not been analyzed"))
     .map((f) => ({
       timestampSeconds: f.timestampSeconds,
-      observation: f.semanticDescription || `Frame extracted at ${f.timestampSeconds}s (${f.sceneType}).`,
+      observation: f.semanticDescription!.trim(),
       framePath: f.framePath,
     }));
 
   // PASS 6: Quality validation and limitation reporting
-  const hasSpokenEvidence = cleanCues.length >= 2;
-  const hasVisualEvidence = hasVideoTrack && sampledFrames.length > 0;
+  const hasSpokenEvidence = cleanCues.length >= 2 && Boolean(fullTranscriptText.trim());
+  const hasVisualEvidence = hasVideoTrack && visualEvidence.length > 0;
   const hasSemanticUnderstanding = Boolean(groundedSubject && groundedSubject.trim().length > 3);
 
   let isAdequatelyUnderstood = false;
