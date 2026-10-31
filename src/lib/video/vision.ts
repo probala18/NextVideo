@@ -52,7 +52,10 @@ export function doesModelSupportVision(modelId: string): boolean {
     m.includes("pixtral") ||
     m.includes("llava") ||
     m.includes("qwen-vl") ||
-    m.includes("florence")
+    m.includes("florence") ||
+    m.includes("-vl") ||
+    m.includes("super-vl") ||
+    m.includes("nemotron")
   );
 }
 
@@ -307,7 +310,7 @@ export async function analyzeVideoWithComputerVision(params: {
         headers["X-Title"] = "NextVideo Video Agent";
       }
       try {
-        const response = await fetch(endpoint, {
+        let response = await fetch(endpoint, {
           method: "POST",
           headers,
           body: JSON.stringify(anthropic
@@ -315,25 +318,41 @@ export async function analyzeVideoWithComputerVision(params: {
             : { model: llmConfig.model, temperature: 0, messages: [{ role: "user", content }] }),
           signal: AbortSignal.timeout(45000),
         });
+
+        // If the configured model is discontinued or unsupported, retry with verified gpt-4o-mini
+        if (!response.ok && (response.status === 404 || response.status === 400) && !anthropic && llmConfig.model !== "openai/gpt-4o-mini") {
+          response = await fetch(endpoint, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ model: "openai/gpt-4o-mini", temperature: 0, messages: [{ role: "user", content }] }),
+            signal: AbortSignal.timeout(45000),
+          });
+        }
+
         if (!response.ok) throw new Error(`Configured vision model request failed (${response.status}).`);
         const payload = await response.json();
         const raw = anthropic ? payload.content?.find((part: any) => part.type === "text")?.text : payload.choices?.[0]?.message?.content;
         if (typeof raw !== "string") throw new Error("Configured vision model returned no analysis.");
-        const cleaned = raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        const cleaned = jsonMatch
+          ? jsonMatch[0]
+          : raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+
         const parsed = JSON.parse(cleaned);
-      detectedSubjects = Array.isArray(parsed.overallSubjects) ? parsed.overallSubjects.filter((x: unknown) => typeof x === "string") : [];
-      detectedEnvironments = Array.isArray(parsed.environments) ? parsed.environments.filter((x: unknown) => typeof x === "string") : [];
-      const byTime = new Map((Array.isArray(parsed.frames) ? parsed.frames : []).map((f: any) => [Number(f.timestampSeconds), f]));
-      for (const image of images) {
-        const observation: any = byTime.get(image.frame.timestampSeconds);
-        if (!observation) continue;
-        image.frame.semanticDescription = typeof observation.description === "string" ? observation.description : undefined;
-        if (Array.isArray(observation.subjects)) detectedSubjects.push(...observation.subjects.filter((x: unknown) => typeof x === "string"));
-        if (Array.isArray(observation.onScreenText)) {
-          for (const text of observation.onScreenText.filter((x: unknown) => typeof x === "string")) onScreenTextCues.push({ timestampSeconds: image.frame.timestampSeconds, text, confidence: 0.7 });
+        detectedSubjects = Array.isArray(parsed.overallSubjects) ? parsed.overallSubjects.filter((x: unknown) => typeof x === "string") : [];
+        detectedEnvironments = Array.isArray(parsed.environments) ? parsed.environments.filter((x: unknown) => typeof x === "string") : [];
+        const byTime = new Map((Array.isArray(parsed.frames) ? parsed.frames : []).map((f: any) => [Number(f.timestampSeconds), f]));
+        for (const image of images) {
+          const observation: any = byTime.get(image.frame.timestampSeconds);
+          if (!observation) continue;
+          image.frame.semanticDescription = typeof observation.description === "string" ? observation.description : undefined;
+          if (Array.isArray(observation.subjects)) detectedSubjects.push(...observation.subjects.filter((x: unknown) => typeof x === "string"));
+          if (Array.isArray(observation.onScreenText)) {
+            for (const text of observation.onScreenText.filter((x: unknown) => typeof x === "string")) onScreenTextCues.push({ timestampSeconds: image.frame.timestampSeconds, text, confidence: 0.7 });
+          }
         }
-      }
-      deduplicatedFrames.forEach((f) => { f.dataUrl = undefined; });
+        deduplicatedFrames.forEach((f) => { f.dataUrl = undefined; });
       } catch (error) {
         limitations.push(error instanceof Error ? error.message : "Configured vision model analysis failed.");
       }
