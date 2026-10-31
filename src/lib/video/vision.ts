@@ -321,14 +321,22 @@ export async function analyzeVideoWithComputerVision(params: {
           signal: AbortSignal.timeout(45000),
         });
 
-        // If the configured model is discontinued or unsupported, retry with verified gpt-4o-mini
-        if (!response.ok && (response.status === 404 || response.status === 400) && !anthropic && llmConfig.model !== "openai/gpt-4o-mini") {
-          response = await fetch(endpoint, {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ model: "openai/gpt-4o-mini", temperature: 0, messages: [{ role: "user", content }] }),
-            signal: AbortSignal.timeout(45000),
-          });
+        // If the configured model is discontinued or unsupported, retry with free multimodal vision model
+        if (!response.ok && (response.status === 404 || response.status === 400 || response.status === 402) && !anthropic) {
+          const orKey = (process.env.OPENROUTER_API_KEY || "").trim();
+          if (orKey) {
+            response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${orKey}`,
+                "HTTP-Referer": "http://localhost:3000",
+                "X-Title": "NextVideo Video Agent",
+              },
+              body: JSON.stringify({ model: "nvidia/nemotron-3.5-super-vl:free", temperature: 0, messages: [{ role: "user", content }] }),
+              signal: AbortSignal.timeout(45000),
+            });
+          }
         }
 
         if (!response.ok) throw new Error(`Configured vision model request failed (${response.status}).`);

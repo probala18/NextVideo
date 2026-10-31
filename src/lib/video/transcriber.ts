@@ -121,7 +121,11 @@ export async function transcribeMedia(
           };
         } else {
           const errText = await res.text().catch(() => "");
-          console.warn("[Whisper API Warning] Transcription request failed:", res.status, errText.slice(0, 150));
+          if (res.status === 429) {
+            console.warn("[Whisper API Notice] OpenAI Whisper credits exhausted (429). Proceeding with video keyframe visual understanding.");
+          } else {
+            console.warn("[Whisper API Warning] Transcription request failed:", res.status, errText.slice(0, 150));
+          }
         }
       }
     } catch (err: any) {
