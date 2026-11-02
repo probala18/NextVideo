@@ -987,7 +987,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
                 </div>
               )}
               {titlesList.map((item, idx) => {
-                const isSelected = selectedTitle === item.title || editableTitle === item.title;
+                const isSelected = selectedTitle === item.title;
                 const isMobileSafe = item.characterCount <= 60;
 
                 return (
