@@ -213,7 +213,8 @@ export async function analyzeVideoWithComputerVision(params: {
     (a, b) => b.properties.thumbnailSuitabilityScore - a.properties.thumbnailSuitabilityScore
   );
 
-  // Candidate moments are populated only after semantic model analysis succeeds below.\n  let candidateThumbnailMoments: VisionAnalysisReport[\"candidateThumbnailMoments\"] = [];
+  // Candidate moments are populated only after semantic model analysis succeeds below.
+  let candidateThumbnailMoments: VisionAnalysisReport["candidateThumbnailMoments"] = [];
 
   // Check configured LLM capabilities
   const llmConfig = getLLMConfig();
@@ -328,7 +329,24 @@ export async function analyzeVideoWithComputerVision(params: {
             for (const text of observation.onScreenText.filter((x: unknown) => typeof x === "string")) onScreenTextCues.push({ timestampSeconds: image.frame.timestampSeconds, text, confidence: 0.7 });
           }
         }
-        candidateThumbnailMoments = deduplicatedFrames\n          .filter((frame) => frame.framePath && frame.semanticDescription && !frame.semanticDescription.includes(\"Visual content has not been analyzed\"))\n          .slice(0, 3)\n          .map((frame) => ({\n            timestampSeconds: frame.timestampSeconds,\n            frameIndex: frame.index,\n            headline: \"\",\n            reason: `Semantic analysis: ${frame.semanticDescription}`,\n            visualStrength: null,\n          }));\n        deduplicatedFrames.forEach((f) => { f.dataUrl = undefined; });
+        candidateThumbnailMoments = deduplicatedFrames
+          .filter(
+            (frame) =>
+              frame.framePath &&
+              frame.semanticDescription &&
+              !frame.semanticDescription.includes("Visual content has not been analyzed")
+          )
+          .slice(0, 3)
+          .map((frame) => ({
+            timestampSeconds: frame.timestampSeconds,
+            frameIndex: frame.index,
+            headline: "",
+            reason: `Semantic analysis: ${frame.semanticDescription}`,
+            visualStrength: frame.properties.thumbnailSuitabilityScore,
+          }));
+        deduplicatedFrames.forEach((f) => {
+          f.dataUrl = undefined;
+        });
       } catch (error) {
         limitations.push(error instanceof Error ? error.message : "Configured vision model analysis failed.");
         for (const image of images) {
