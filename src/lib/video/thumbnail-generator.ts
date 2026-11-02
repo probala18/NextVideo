@@ -1,17 +1,15 @@
 /**
  * src/lib/video/thumbnail-generator.ts
- * Real visual thumbnail generation engine:
- * - Generates actual 1280x720 16:9 YouTube thumbnail image files (< 2MB)
- * - Renders 3 distinct high-contrast design variations for creator comparison
- * - Supports configured AI image models when available, with vision-assisted composite rendering fallback
- * - Validates YouTube thumbnail specification compliance (1280x720, 16:9, PNG format)
+ * Evidence-based thumbnail candidates:
+ * - Uses analyzed video frames as thumbnail candidates; it does not synthesize new imagery
+ * - Keeps candidates tied to their source frame and semantic description
+ * - Validates image bytes and YouTube thumbnail dimensions before returning a candidate
  */
 
 import fs from "fs";
 import path from "path";
 import zlib from "zlib";
 import { GeneratedThumbnail, SampledFrame } from "../types/visionWorkflow";
-import { getLLMConfig } from "../openrouter";
 import { saveDerivedAsset } from "./storage";
 
 export interface ThumbnailConceptInput {
@@ -217,7 +215,7 @@ export async function generateYouTubeThumbnails(params: {
   candidateFrames: SampledFrame[];
   concepts?: ThumbnailConceptInput[];
 }): Promise<GeneratedThumbnail[]> {
-  const { assetId, topic, candidateFrames = [], concepts = [] } = params;
+  const { assetId, candidateFrames = [], concepts = [] } = params;
 
   // Only caller-provided analyzed frames may be used. Disk filenames alone
   // do not establish that a frame was analyzed or relevant.
