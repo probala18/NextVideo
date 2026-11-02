@@ -324,7 +324,7 @@ ${researchContext}`;
     researchSummary: {
       isLiveApiData: Boolean(research?.isLiveApiData),
       videosAnalyzedCount: research?.videos?.length || 0,
-      notice: research?.notes?.[0] || "Live competitive research completed.",
+      notice: research?.notes?.[0] || (research?.videos?.length ? "Competitive research data was returned." : "No competitive research results were returned; titles use video evidence only."),
     },
   };
 }
