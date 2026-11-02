@@ -569,15 +569,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
   const report: ConsolidatedAnalysisReport | undefined = currentJob?.report;
   const pkg = report?.publishingPackage;
   const isJobComplete = currentJob?.status === "completed" && Boolean(report);
-  const titlesList: TitleOption[] = (pkg?.titles && pkg.titles.length > 0)
-    ? pkg.titles
-    : (report?.packaging?.alternativeTitles || []).map((t) => ({
-        title: t,
-        formula: "Editorial Pattern",
-        characterCount: t.length,
-        isTruncated: t.length > 60,
-        fitReason: "Matches demonstrated subject.",
-      }));
+  const titlesList: TitleOption[] = pkg?.titles || [];
 
   const thumbnailsList: GeneratedThumbnail[] = pkg?.thumbnails || [];
 
