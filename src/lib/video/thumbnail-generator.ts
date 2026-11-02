@@ -328,9 +328,9 @@ export async function generateYouTubeThumbnails(params: {
         const stat = await fs.promises.stat(saved.filePath);
         results.push({ id: cfg.id, variationName: cfg.variationName, headline: cfg.headline, imagePath: saved.filePath, imageUrl: saved.fileUrl,
           width: actualDimensions.width, height: actualDimensions.height, aspectRatio: "16:9", format: finalFormat,
-          sizeBytes: stat.size, source: "video_frame", selected: i === 0, promptUsed: `Original extracted video frame at ${matchingFrame.timestampSeconds}s; headline metadata: ${cfg.headline}.`,
-          colorPalette: "Original frame colors", focalPoint: matchingFrame.semanticDescription || "Frame content not described",
-          rationale: `Frame extracted at ${matchingFrame.timestampSeconds}s.` });
+          sizeBytes: stat.size, source: "video_frame", selected: i === 0, promptUsed: `Original extracted video frame at ${matchingFrame.timestampSeconds}s. No generated headline or compositing applied.`,
+          colorPalette: "Original frame colors", focalPoint: matchingFrame.semanticDescription!.trim(),
+          rationale: matchingFrame.semanticDescription!.trim() });
         continue;
       }
     } else {
