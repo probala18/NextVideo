@@ -45,7 +45,11 @@ export function buildTranscriptChapters(
   }
 
   for (const cue of valid) {
-    if (cue.timestampSeconds - selected[selected.length - 1].timestampSeconds >= minInterval && selected.length < 8) {
+    const lastSelected = selected[selected.length - 1];
+    if (
+      selected.length < 8 &&
+      (!lastSelected || cue.timestampSeconds - lastSelected.timestampSeconds >= minInterval)
+    ) {
       selected.push(cue);
     }
   }
