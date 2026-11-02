@@ -71,7 +71,7 @@ export function extractTechnicalEntities(text: string): ExtractedTechnicalEntiti
   }
 
   // Outcomes
-  const outcomePatterns = /\b(result|output|success(?:fully)?|achiev(?:ed)?|work(?:ed|ing)?|publish(?:ed)?|generat(?:ed)?|render(?:ed)?|deliver(?:ed)?|solv(?:ed)?)\b/gi;
+  const outcomePatterns = /\\b(result|output|success(?:fully)?|achiev(?:ed)?|work(?:ed|ing)?|publish(?:ed)?|generat(?:ed)?|render(?:ed)?|deliver(?:ed)?|solv(?:ed)?)\\b/i;
   const outcomes: string[] = [];
   const sentences = text.split(/[.!?\n]/);
   for (const s of sentences) {
