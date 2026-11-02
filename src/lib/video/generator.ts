@@ -133,7 +133,7 @@ export async function generatePublishingPackageWithAI(
   if (!baseConfig.isConfigured || (!baseConfig.apiKey && !baseConfig.baseUrl.includes("localhost") && !baseConfig.baseUrl.includes("127.0.0.1"))) {
     return {
       titles: [], recommendedTitle: "", recommendedTitleReason: "The configured text model is unavailable; no publishing copy was fabricated.",
-      description: "Asset generation requires a configured text model.", tags: [],
+      description: "", tags: [],
       suggestedCategory: { id: "", name: "Unspecified", rationale: "No model output is available to support a category." },
       chapters: [], thumbnails: [], selectedThumbnailId: "", evidenceGrounding: [],
       modelUsed: `${providerDef.name} (${model})`, generatedAt: new Date().toISOString(),
