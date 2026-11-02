@@ -211,11 +211,26 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       const handleSeeked = () => {
         try {
           const canvas = document.createElement("canvas");
-          canvas.width = 1280;
-          canvas.height = 720;
+          const targetWidth = 1280;
+          const targetHeight = 720;
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
           const ctx = canvas.getContext("2d");
           if (ctx) {
-            ctx.drawImage(video, 0, 0, 1280, 720);
+            // Preserve the source video's aspect ratio; letterbox instead of stretching
+            // faces, text, and other visual evidence into a 16:9 frame.
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, targetWidth, targetHeight);
+            const sourceWidth = video.videoWidth;
+            const sourceHeight = video.videoHeight;
+            if (sourceWidth > 0 && sourceHeight > 0) {
+              const scale = Math.min(targetWidth / sourceWidth, targetHeight / sourceHeight);
+              const drawWidth = Math.round(sourceWidth * scale);
+              const drawHeight = Math.round(sourceHeight * scale);
+              const x = Math.round((targetWidth - drawWidth) / 2);
+              const y = Math.round((targetHeight - drawHeight) / 2);
+              ctx.drawImage(video, x, y, drawWidth, drawHeight);
+            }
             canvas.toBlob(
               (blob) => {
                 if (blob) frames.push(blob);
