@@ -41,7 +41,7 @@ export function buildTranscriptChapters(
   if (valid[0].timestampSeconds <= 15) {
     selected.push({ ...valid[0], timestampSeconds: 0 });
   } else {
-    selected.push({ timestampSeconds: 0, cueText: "Introduction & Overview" });
+    // No cue at zero: do not invent an introduction chapter.
   }
 
   for (const cue of valid) {
@@ -58,7 +58,7 @@ export function buildTranscriptChapters(
       .split(/[.!?]/)[0]
       .replace(/^(and|so|but|now|today|then|well|okay|alright|in this video)\s+/i, "")
       .trim();
-    if (clean.length < 3) clean = "Demonstration";
+    if (clean.length < 3) return null;
     const title = clean.slice(0, 60).trim();
     return {
       timestampSeconds: cue.timestampSeconds,
@@ -66,7 +66,7 @@ export function buildTranscriptChapters(
       title,
       visualSupport: `Transcript cue at ${Math.round(cue.timestampSeconds)}s: ${cue.cueText.slice(0, 180)}`,
     };
-  });
+  }).filter((chapter): chapter is NonNullable<typeof chapter> => chapter !== null);
 }
 
 export function attachVerifiedChapters(description: string, chapters: FullPublishingPackage["chapters"]): string {
@@ -84,64 +84,9 @@ export function attachVerifiedChapters(description: string, chapters: FullPublis
  * Evaluates semantic content relevance (0-100) of a candidate title against verified video evidence.
  * A title describing a coding tutorial MUST FAIL relevance (<50) when tested against a romantic music video.
  */
-export function calculateEvidenceRelevance(
-  title: string,
-  evidence: VideoUnderstandingEvidence
-): number {
-  if (!title || !title.trim()) return 0;
-  const tLower = title.toLowerCase();
-  const isRomanticOrMusic =
-    evidence.contentType === "romantic_status" ||
-    evidence.contentType === "music_video" ||
-    evidence.contentType === "lyrics_video" ||
-    evidence.contentType === "cinematic_edit";
-
-  const techJargonPattern = /\b(?:tutorial|how\s+to\s+build|architecture|implementation|coding?|codebase|software|react|next\.?js|fastapi|docker|devops|backend|frontend|api\b|setup\s+&\s+architecture)\b/i;
-
-  // Hard relevance failure: coding tutorial title for romantic/music video
-  if (isRomanticOrMusic && techJargonPattern.test(tLower)) {
-    return 15; // Hard rejection: fails quality requirement
-  }
-
-  // Hard relevance failure: music/status title for a pure coding tutorial
-  const musicJargonPattern = /\b(?:romantic\s+status|love\s+status|whatsapp\s+status|bgm\b|soulful\s+love|lyrics?\s+status)\b/i;
-  if ((evidence.contentType === "teaching" || evidence.contentType === "demonstration") && musicJargonPattern.test(tLower)) {
-    return 20; // Hard rejection: fails quality requirement
-  }
-
-  // Topic keyword overlap
-  let topicOverlap = 0;
-  if (evidence.actualTopic) {
-    const topicWords = evidence.actualTopic
-      .toLowerCase()
-      .split(/[^a-z0-9]+/g)
-      .filter((w) => w.length > 2 && !["the", "and", "for", "with", "this", "that"].includes(w));
-    if (topicWords.length > 0) {
-      const matchCount = topicWords.filter((w) => tLower.includes(w)).length;
-      topicOverlap = matchCount / topicWords.length;
-    }
-  }
-
-  // Category keyword presence
-  let categoryBonus = 0;
-  if (isRomanticOrMusic) {
-    if (/\b(?:status|love|romantic|song|bgm|melod(?:y|ic)|visuals?|edit|fullscreen)\b/i.test(tLower)) {
-      categoryBonus += 25;
-    }
-  } else if (evidence.contentType === "teaching" || evidence.contentType === "demonstration") {
-    if (/\b(?:how\s+to|guide|explained|walkthrough|process|demo|step\s+by\s+step|master)\b/i.test(tLower)) {
-      categoryBonus += 20;
-    }
-  }
-
-  const baseScore = topicOverlap > 0 ? 55 + Math.round(topicOverlap * 35) : 35;
-  return Math.max(0, Math.min(100, baseScore + categoryBonus));
-}
-
-export function buildCategoryFallbackTitles(_cleanTopic: string, _contentType?: string): TitleOption[] {
-  // Do not manufacture title formulas, performance scores, or claims when the
-  // configured generation model has not produced evidence-grounded candidates.
-  return [];
+export function calculateEvidenceRelevance(_title: string, _evidence: VideoUnderstandingEvidence): number | null {
+  // No calibrated title-evaluation dataset exists; do not emit synthetic quality scores.
+  return null;
 }
 
 /**
@@ -201,9 +146,9 @@ export async function generatePublishingPackageWithAI(
   // Grounded fallback pattern titles derived directly from video evidence & category
   const fallbackTitles: TitleOption[] = buildCategoryFallbackTitles(cleanTopic, evidence.contentType);
 
-  let titles: TitleOption[] = fallbackTitles;
-  let recommendedTitle = titles[0]?.title || "";
-  let recommendedTitleReason = titles[0]?.fitReason || "";
+  let titles: TitleOption[] = [];
+  let recommendedTitle = "";
+  let recommendedTitleReason = "";
 
   const isRomanticOrMusic =
     evidence.contentType === "romantic_status" ||
@@ -213,7 +158,7 @@ export async function generatePublishingPackageWithAI(
 
   const defaultActions = (evidence.primaryActions && evidence.primaryActions.length > 0)
     ? evidence.primaryActions.slice(0, 5).map((a) => `• ${a}`)
-    : [`• Presentation of ${cleanTopic}`];
+    : [];
   const defaultTech = (evidence.demonstratedTechnologies && evidence.demonstratedTechnologies.length > 0)
     ? [`• Technologies demonstrated: ${evidence.demonstratedTechnologies.join(", ")}`]
     : [];
@@ -292,7 +237,7 @@ STRICT EDITORIAL RULES:
 3. Mobile Readability: Titles should ideally be under 60 characters so mobile search viewports do not truncate them, with an absolute maximum of 100 characters.
 4. Concrete Nouns & Actions: Use specific technologies, actions, or outcomes seen in the evidence.
 5. Distinct Title Options: Each of the 5 options must represent a genuinely different angle (e.g. How-To, Direct Walkthrough, Practical Warning, Deep Dive, Benchmark).
-6. Explainability: For each title, supply a fitReason, evidenceSupport, and transparent scores (contentRelevance, specificity, readability, searchIntent, comparablePatternSimilarity, overallScore). Never claim guaranteed views or CTR.
+6. Explainability: Explain why each title is supported by specific transcript or semantic frame evidence. Do not output numerical quality scores; no calibrated title-quality dataset is available. Never claim guaranteed views or CTR.
 
 OUTPUT JSON FORMAT ONLY:
 {
@@ -361,49 +306,34 @@ ${researchContext}`;
           .trim();
         const parsed = JSON.parse(cleaned);
 
-        if (Array.isArray(parsed.titles) && parsed.titles.length >= 5) {
-          const rawTitles = parsed.titles
-            .filter((t: any) => t?.title)
+        if (Array.isArray(parsed.titles) && parsed.titles.length > 0) {
+          const rawTitles: TitleOption[] = parsed.titles
+            .filter((t: any) => typeof t?.title === "string" && t.title.trim())
             .map((t: any) => {
-              const rawTitle = String(t.title || "").trim().slice(0, 100);
-              const relevance = calculateEvidenceRelevance(rawTitle, evidence);
-              const charCount = rawTitle.length;
+              const title = String(t.title).trim().slice(0, 100);
               return {
-                title: rawTitle,
-                formula: String(t.formula || "Descriptive"),
-                characterCount: charCount,
-                isTruncated: charCount > 60,
-                fitReason: String(t.fitReason || `Matches verified video content "${cleanTopic}".`),
-                evidenceSupport: String(t.evidenceSupport || `Supported by video footage.`),
+                title,
+                formula: String(t.formula || "Descriptive angle"),
+                characterCount: title.length,
+                isTruncated: title.length > 60,
+                fitReason: typeof t.fitReason === "string" ? t.fitReason : undefined,
+                evidenceSupport: typeof t.evidenceSupport === "string" ? t.evidenceSupport : undefined,
                 scores: {
-                  contentRelevance: relevance,
-                  specificity: t.scores?.specificity || 88,
-                  readability: charCount <= 60 ? 95 : 80,
-                  searchIntent: t.scores?.searchIntent || 88,
-                  comparablePatternSimilarity: t.scores?.comparablePatternSimilarity || 85,
-                  overallScore: Math.round(
-                    relevance * 0.4 +
-                    (t.scores?.specificity || 88) * 0.2 +
-                    (charCount <= 60 ? 95 : 80) * 0.2 +
-                    (t.scores?.searchIntent || 88) * 0.2
-                  ),
+                  contentRelevance: null,
+                  specificity: null,
+                  readability: null,
+                  searchIntent: null,
+                  comparablePatternSimilarity: null,
+                  overallScore: null,
                 },
-                rankingExplanation: String(t.rankingExplanation || "Transparent evaluation based on content accuracy and clarity."),
+                rankingExplanation: typeof t.rankingExplanation === "string" ? t.rankingExplanation : undefined,
               };
-            })
-            // Enforce hard relevance requirement: candidates below 50 fail validation
-            .filter((t: any) => t.scores.contentRelevance >= 50);
+            });
 
-          if (rawTitles.length >= 5) {
-            titles = rawTitles.slice(0, 5);
-          } else {
-            // Fill remaining slots with category-aware verified fallback options
-            const needed = 5 - rawTitles.length;
-            titles = [...rawTitles, ...fallbackTitles.slice(0, needed)];
-          }
-
-          recommendedTitle = parsed.recommendedTitle || titles[0]?.title || "";
-          recommendedTitleReason = parsed.recommendedTitleReason || titles[0]?.fitReason || "Optimal match for video content.";
+          titles = rawTitles.slice(0, 5);
+          const requested = typeof parsed.recommendedTitle === "string" ? parsed.recommendedTitle.trim() : "";
+          recommendedTitle = requested && titles.some((t) => t.title === requested) ? requested : "";
+          recommendedTitleReason = recommendedTitle ? String(parsed.recommendedTitleReason || "") : "";
         }
 
         if (typeof parsed.description === "string" && parsed.description.length > 20) {
@@ -414,11 +344,11 @@ ${researchContext}`;
           tags = parsed.tags.map((tg: any) => String(tg).trim().toLowerCase()).filter(Boolean);
         }
       }
-      if (titles.length !== 5 || !description.trim() || !tags.length) {
+      if (!titles.length || !description.trim() || !tags.length) {
         throw new Error("Response must contain five titles, a description, and tags.");
       }
     } catch (err: any) {
-      console.warn(`[Generator Warning] Live model call failed (${err.message}). Using grounded fallback assets.`);
+      console.warn(`[Generator Warning] Live model call failed (${err.message}). Leaving unsupported assets unavailable.`);
     }
   }
 
@@ -431,35 +361,8 @@ ${researchContext}`;
     : { id: "22", name: "People & Blogs", rationale: "General video content format." };
   description = attachVerifiedChapters(description, chapters);
 
-  const evidenceGrounding: PublishingEvidenceGrounding[] = [
-    {
-      assetType: "title",
-      value: recommendedTitle,
-      rationale: recommendedTitleReason,
-      supportingTimestamps: [0, Math.round(duration * 0.5)],
-      supportingScenes: [
-        vision.sampledFrames?.[0]?.label || "Opening Scene",
-        vision.sampledFrames?.[2]?.label || "Core Demonstration",
-      ],
-      confidence: 0.95,
-    },
-    {
-      assetType: "chapters",
-      value: `${chapters.length} verified chapters`,
-      rationale: "Each chapter timestamp corresponds directly to video duration and verified scene bounds.",
-      supportingTimestamps: chapters.map((c) => c.timestampSeconds),
-      supportingScenes: chapters.map((c) => c.visualSupport),
-      confidence: 0.94,
-    },
-    {
-      assetType: "thumbnail",
-      value: thumbnails[0]?.headline || "CRITICAL FIX",
-      rationale: `Grounded in video keyframe with ${thumbnails[0]?.format?.toUpperCase() || "PNG"} format and high contrast.`,
-      supportingTimestamps: [0],
-      supportingScenes: ["Keyframe anchor"],
-      confidence: 0.95,
-    },
-  ];
+  const evidenceGrounding: PublishingEvidenceGrounding[] = [];
+
 
   return {
     titles,
@@ -470,7 +373,7 @@ ${researchContext}`;
     suggestedCategory,
     chapters,
     thumbnails,
-    selectedThumbnailId: thumbnails[0]?.id || "thumb_v1_hook",
+    selectedThumbnailId: thumbnails[0]?.id || "",
     evidenceGrounding,
     modelUsed: `${providerDef.name} (${model})`,
     generatedAt: new Date().toISOString(),
