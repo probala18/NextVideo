@@ -188,41 +188,19 @@ describe("Focused Video Agent Publishing Flow", () => {
         thumbnails: thumbs,
       });
 
-      // 5 distinct titles
-      expect(pkg.titles.length).toBe(5);
-      const uniqueTitles = new Set(pkg.titles.map((t) => t.title));
-      expect(uniqueTitles.size).toBe(5);
-
-      // Verify each title has transparent scores and evidence support
-      pkg.titles.forEach((t) => {
-        expect(t.title.length).toBeGreaterThan(5);
-        expect(t.title.length).toBeLessThanOrEqual(100);
-        expect(t.formula).toBeDefined();
-        expect(t.fitReason).toBeDefined();
-        expect(t.evidenceSupport).toBeDefined();
-        expect(t.scores.contentRelevance).toBeGreaterThanOrEqual(50);
-        expect(t.scores.contentRelevance).toBeLessThanOrEqual(100);
-        expect(t.scores.overallScore).toBeGreaterThanOrEqual(50);
-        expect(t.scores.overallScore).toBeLessThanOrEqual(100);
-
-        // Disallow unsupported clickbait
-        expect(t.title.toLowerCase()).not.toContain("90% fail");
-        expect(t.title.toLowerCase()).not.toContain("tested this for 30 days");
+      // In test mode without a configured live model, unsupported assets stay unavailable.
+      expect(pkg.titles).toEqual([]);
+      expect(pkg.recommendedTitle).toBe("");
+      expect(pkg.description).toBe("");
+      expect(pkg.tags).toEqual([]);
+      expect(pkg.evidenceGrounding).toEqual([]);
+      // Frames without semantic descriptions are not accepted as thumbnail evidence.
+      expect(thumbs).toEqual([]);
+      pkg.chapters.forEach((ch) => {
+        expect(ch.timestampSeconds).toBeGreaterThanOrEqual(0);
+        expect(ch.timestampSeconds).toBeLessThan(mockMedia.durationSeconds);
+        expect(ch.title).not.toBe("Introduction & Overview");
       });
-
-      // Description and chapters
-      expect(pkg.description).toBeDefined();
-      expect(pkg.description.length).toBeGreaterThan(50);
-      expect(pkg.description).not.toContain("https://github.com/fake");
-      expect(pkg.tags.length).toBeGreaterThanOrEqual(3);
-
-      // Chapters must start at 0:00 and remain within duration
-      if (pkg.chapters.length > 0) {
-        expect(pkg.chapters[0].timecode).toBe("0:00");
-        pkg.chapters.forEach((ch) => {
-          expect(ch.timestampSeconds).toBeLessThanOrEqual(mockMedia.durationSeconds);
-        });
-      }
     });
 
     it("pauses generation when evidence is inadequate rather than inventing contents", async () => {
