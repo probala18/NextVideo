@@ -39,7 +39,7 @@ export function buildTranscriptChapters(
   const selected: typeof valid = [];
 
   if (valid[0].timestampSeconds <= 15) {
-    selected.push({ ...valid[0], timestampSeconds: 0 });
+    selected.push(valid[0]);
   } else {
     // No cue at zero: do not invent an introduction chapter.
   }
@@ -156,66 +156,11 @@ export async function generatePublishingPackageWithAI(
     evidence.contentType === "lyrics_video" ||
     evidence.contentType === "cinematic_edit";
 
-  const defaultActions = (evidence.primaryActions && evidence.primaryActions.length > 0)
-    ? evidence.primaryActions.slice(0, 5).map((a) => `• ${a}`)
-    : [];
-  const defaultTech = (evidence.demonstratedTechnologies && evidence.demonstratedTechnologies.length > 0)
-    ? [`• Technologies demonstrated: ${evidence.demonstratedTechnologies.join(", ")}`]
-    : [];
-  const defaultTakeaways = (evidence.keyTakeaways && evidence.keyTakeaways.length > 0)
-    ? evidence.keyTakeaways.slice(0, 4).map((k) => `• ${k}`)
-    : [`• Aesthetic pacing for ${cleanTopic}`];
-
-  let description = isRomanticOrMusic
-    ? [
-        evidence.primaryValueProposition || `${cleanTopic} - Romantic status clip with soulful audio beats and aesthetic visuals.`,
-        "",
-        "Clip Highlights:",
-        `• Format: ${evidence.contentType?.replace("_", " ") || "Romantic Status"}`,
-        `• Visual Pacing: ${vision.visualPacing || "Moderate"}`,
-        ...(evidence.importantScenes && evidence.importantScenes.length > 0 ? evidence.importantScenes.slice(0, 3).map((s) => `• ${s.description}`) : []),
-        "",
-        ...(chapters.length > 0 ? ["TIMESTAMPS:", ...chapters.map((c) => `${c.timecode} - ${c.title}`), ""] : []),
-        `#${cleanTopic.replace(/[^a-zA-Z0-9]/g, "").slice(0, 15)} #status #romantic #love #musicvideo`,
-      ].join("\n").trim()
-    : [
-        evidence.primaryValueProposition || `In this video, we break down ${cleanTopic} step-by-step with real-world implementation details.`,
-        "",
-        "What you'll see in this video:",
-        ...defaultActions,
-        ...defaultTech,
-        "",
-        "Key Takeaways:",
-        ...defaultTakeaways,
-        "",
-        ...(chapters.length > 0 ? ["TIMESTAMPS:", ...chapters.map((c) => `${c.timecode} - ${c.title}`), ""] : []),
-        `#${cleanTopic.replace(/[^a-zA-Z0-9]/g, "").slice(0, 15)} ${(evidence.demonstratedTechnologies || []).map((t) => `#${t.replace(/[^a-zA-Z0-9]/g, "")}`).slice(0, 3).join(" ")} #tutorial`,
-      ].join("\n").trim();
-
-  let tags = isRomanticOrMusic
-    ? Array.from(new Set([
-        cleanTopic.toLowerCase(),
-        "romantic status",
-        "whatsapp status",
-        "love status",
-        "status video",
-        "lyrics video",
-        "bgm",
-        "fullscreen status",
-        "4k status",
-      ])).slice(0, 15)
-    : Array.from(new Set([
-        cleanTopic.toLowerCase(),
-        ...(evidence.demonstratedTechnologies || []).map((t) => t.toLowerCase()),
-        `${cleanTopic.toLowerCase()} tutorial`,
-        "step by step",
-        "workflow",
-        "complete guide",
-        "best practices",
-      ])).slice(0, 15);
+  let description = "";
+  let tags: string[] = [];
 
   // Try live AI generation with configured model if configured
-  if (baseConfig.isConfigured && baseConfig.apiKey) {
+  if (baseConfig.isConfigured && (baseConfig.apiKey || baseConfig.baseUrl.includes("localhost") || baseConfig.baseUrl.includes("127.0.0.1"))) {
     try {
       const liveResearchVideos = (research?.videos || []).slice(0, 5);
       const researchContext = liveResearchVideos.length > 0
@@ -247,14 +192,6 @@ OUTPUT JSON FORMAT ONLY:
       "formula": "Name of Angle/Formula",
       "fitReason": "Why this title fits the video",
       "evidenceSupport": "Specific video evidence / timestamp support",
-      "scores": {
-        "contentRelevance": 95,
-        "specificity": 92,
-        "readability": 96,
-        "searchIntent": 90,
-        "comparablePatternSimilarity": 88,
-        "overallScore": 93
-      },
       "rankingExplanation": "Transparent explanation of rank"
     }
   ],
