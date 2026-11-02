@@ -278,9 +278,23 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // A newly selected file starts a new workflow. Do not leave the previous
+      // video's report, title/thumbnail selection, or publish result attached.
       setVideoFile(file);
+      setVideoDuration(null);
+      setCurrentJob(null);
+      setIsPolling(false);
+      setSelectedTitle("");
+      setSelectedThumbnailId("");
+      setEditableTitle("");
+      setEditableDesc("");
+      setEditableTags("");
       setPublishedVideoUrl(null);
       setPublishedVideoId(null);
+      setCopiedLink(false);
+      try {
+        localStorage.removeItem("nextvideo_active_job_id");
+      } catch {}
     }
   };
 
