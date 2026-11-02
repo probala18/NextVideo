@@ -139,7 +139,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
 
       if (!editableTitle) {
         setEditableTitle(initialTitle);
-        setSelectedTitle(initialTitle);
+        // Suggestion is prefilled, but selection requires a card click.
       }
 
       if (!editableDesc) {
@@ -154,7 +154,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       if (!selectedThumbnailId) {
         const thumbs = pkg?.thumbnails || [];
         if (thumbs.length > 0) {
-          setSelectedThumbnailId(thumbs[0].id);
+          // Require the creator to click a thumbnail card.
         }
       }
     }
@@ -458,17 +458,17 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
 
       if (data.suggestedTitle) {
         setEditableTitle(data.suggestedTitle);
-        setSelectedTitle(data.suggestedTitle);
+        // Keep the generated title as a suggestion, not a selection.
       } else if (newTitles.length > 0) {
         setEditableTitle(newTitles[0].title);
-        setSelectedTitle(newTitles[0].title);
+        // Keep the generated title as a suggestion, not a selection.
       }
 
       if (data.description) setEditableDesc(data.description);
       if (data.tags) setEditableTags(Array.isArray(data.tags) ? data.tags.join(", ") : data.tags);
 
       if (Array.isArray(data.thumbnails) && data.thumbnails.length > 0) {
-        setSelectedThumbnailId(data.thumbnails[0].id);
+        // Require the creator to click a thumbnail card.
       }
 
       if (currentJob.report) {
@@ -486,7 +486,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
               thumbnails: (Array.isArray(data.thumbnails) && data.thumbnails.length > 0)
                 ? data.thumbnails
                 : (existingPkg.thumbnails || []),
-              selectedThumbnailId: data.thumbnails?.[0]?.id || existingPkg.selectedThumbnailId,
+              selectedThumbnailId: selectedThumbnailId || existingPkg.selectedThumbnailId,
             } as any,
           },
         });
@@ -503,6 +503,14 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
   // Publish to YouTube
   const handlePublishToYouTube = async () => {
     if (!currentJob) return;
+    if (!selectedTitle.trim()) {
+      onToast("Select a title option before publishing.", "info");
+      return;
+    }
+    if (!selectedThumbnailId.trim()) {
+      onToast("Select a thumbnail option before publishing.", "info");
+      return;
+    }
     setIsPublishing(true);
     setPublishedVideoUrl(null);
     setPublishedVideoId(null);
