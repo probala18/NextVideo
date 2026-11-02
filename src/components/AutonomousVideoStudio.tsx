@@ -151,12 +151,6 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
         setEditableTags(Array.isArray(tags) ? tags.join(", ") : String(tags));
       }
 
-      if (!selectedThumbnailId) {
-        const thumbs = pkg?.thumbnails || [];
-        if (thumbs.length > 0) {
-          // Require the creator to click a thumbnail card.
-        }
-      }
     }
   }, [currentJob?.report]);
 
@@ -456,6 +450,10 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
           }))
         : [];
 
+      // Regeneration invalidates prior card selections; require fresh review.
+      setSelectedTitle("");
+      setSelectedThumbnailId("");
+
       if (data.suggestedTitle) {
         setEditableTitle(data.suggestedTitle);
         // Keep the generated title as a suggestion, not a selection.
@@ -466,10 +464,6 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
 
       if (data.description) setEditableDesc(data.description);
       if (data.tags) setEditableTags(Array.isArray(data.tags) ? data.tags.join(", ") : data.tags);
-
-      if (Array.isArray(data.thumbnails) && data.thumbnails.length > 0) {
-        // Require the creator to click a thumbnail card.
-      }
 
       if (currentJob.report) {
         const existingPkg = currentJob.report.publishingPackage || ({} as any);
@@ -486,7 +480,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
               thumbnails: (Array.isArray(data.thumbnails) && data.thumbnails.length > 0)
                 ? data.thumbnails
                 : (existingPkg.thumbnails || []),
-              selectedThumbnailId: selectedThumbnailId || existingPkg.selectedThumbnailId,
+              selectedThumbnailId: "",
             } as any,
           },
         });
@@ -509,6 +503,15 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
     }
     if (!selectedThumbnailId.trim()) {
       onToast("Select a thumbnail option before publishing.", "info");
+      return;
+    }
+    const pkg = currentJob.report?.publishingPackage;
+    if (!pkg?.titles?.some((option) => option.title === selectedTitle)) {
+      onToast("That title option is no longer available. Select a current title.", "info");
+      return;
+    }
+    if (!pkg?.thumbnails?.some((thumbnail) => thumbnail.id === selectedThumbnailId)) {
+      onToast("That thumbnail option is no longer available. Select a current thumbnail.", "info");
       return;
     }
     setIsPublishing(true);
