@@ -15,9 +15,11 @@ export async function POST(req: NextRequest) {
       assetId = "preview",
     } = body;
 
-    const cleanTopic = String(
-      topic || currentTitle || understanding?.actualTopic || ""
-    ).trim();
+    // Packaging must use a topic established by video evidence, not a stale/manual title.
+    const evidenceTopic = understanding?.isAdequatelyUnderstood
+      ? understanding?.actualTopic
+      : "";
+    const cleanTopic = String(topic || evidenceTopic || "").trim();
 
     if (!cleanTopic) {
       return NextResponse.json(
