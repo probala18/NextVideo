@@ -231,63 +231,13 @@ export async function generateYouTubeThumbnails(params: {
   const uniqueFrames = activeFrames.filter((frame, index, all) => frame.framePath && all.findIndex((other) => other.timestampSeconds === frame.timestampSeconds) === index).slice(0, 3);
   if (!uniqueFrames.length) return [];
 
-  const cleanTopic = topic.trim().slice(0, 30);
-  const topicHeadline = cleanTopic
-    .replace(/[^\w\s-]/g, "")
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 4)
-    .join(" ")
-    .toUpperCase() || "VIDEO HIGHLIGHT";
-
-  // Define 3 high-contrast, distinct packaging variations
-  const variationsConfig = [
-    {
-      id: "thumb_v1_hook",
-      variationName: "Opening Hook Frame & Alert",
-      headline: concepts?.[0]?.headline || topicHeadline,
-      badge: "HOOK",
-      bgR: 30,
-      bgG: 27,
-      bgB: 75,
-      accentR: 244,
-      accentG: 63,
-      accentB: 94, // Rose red
-      accentHex: "#F43F5E",
-      rationale: "Grounded in opening hook scene with alert accent for high mobile feed visibility.",
-      focalPoint: "High-contrast alert badge and bold warning headline",
-    },
-    {
-      id: "thumb_v2_outcome",
-      variationName: "Demonstration & Outcome Proof",
-      headline: concepts?.[1]?.headline || topicHeadline,
-      badge: "SOLUTION",
-      bgR: 2,
-      bgG: 44,
-      bgB: 34,
-      accentR: 16,
-      accentG: 185,
-      accentB: 129, // Emerald green
-      accentHex: "#10B981",
-      rationale: "Grounded in core demonstration scene highlighting practical solution execution.",
-      focalPoint: "Emerald outcome indicator and clear workflow focus",
-    },
-    {
-      id: "thumb_v3_mastery",
-      variationName: "Climax & Blueprint Walkthrough",
-      headline: concepts?.[2]?.headline || topicHeadline,
-      badge: "2026",
-      bgR: 15,
-      bgG: 23,
-      bgB: 42,
-      accentR: 56,
-      accentG: 189,
-      accentB: 248, // Electric cyan
-      accentHex: "#38BDF8",
-      rationale: "Grounded in climax/summary scene with authority framing for long-term discovery.",
-      focalPoint: "Cyan authority border and structured guide headline",
-    },
-  ];
+  const variationsConfig = uniqueFrames.map((frame, index) => ({
+    id: `thumb_frame_${index + 1}`,
+    variationName: `Analyzed frame at ${Math.round(frame.timestampSeconds)}s`,
+    headline: concepts[index]?.headline?.trim() || "",
+    rationale: frame.semanticDescription!.trim(),
+    focalPoint: frame.semanticDescription!.trim(),
+  }));
 
   const results: GeneratedThumbnail[] = [];
 
