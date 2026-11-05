@@ -320,6 +320,8 @@ export async function runAutonomousVideoWorkflow(params: {
     highestPriorityRecommendation: highestPriority,
     followUpContentPlan,
     vision,
+    audioAnalysis: understanding.audioAnalysis,
+    multimodal: understanding.multimodal,
     understanding,
     publishingPackage,
   };

@@ -21,6 +21,7 @@ import {
   ArrowRight,
   Shield,
   Info,
+  Mic,
 } from "lucide-react";
 import { VideoProcessingJob, ConsolidatedAnalysisReport } from "@/lib/types/videoWorkflow";
 import { TitleOption, GeneratedThumbnail } from "@/lib/types/visionWorkflow";
@@ -53,6 +54,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
   const [editableTitle, setEditableTitle] = useState("");
   const [editableDesc, setEditableDesc] = useState("");
   const [editableTags, setEditableTags] = useState("");
+  const [showTranscriptSegments, setShowTranscriptSegments] = useState(false);
   const [isRegeneratingPackaging, setIsRegeneratingPackaging] = useState(false);
 
   // Step 4: YouTube OAuth & Publishing state
@@ -946,6 +948,86 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
                 <AlertCircle className="w-4 h-4 text-[#D97706] shrink-0 mt-0.5" />
                 <span>{report.understanding.limitationNotice}</span>
               </div>
+            )}
+          </div>
+
+          {/* Audio Intelligence & Whisper Evidence Panel */}
+          <div className="p-4 bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0] space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-[#1E293B]">
+                <Mic className="w-4 h-4 text-[#10B981]" />
+                <span>Audio Intelligence (OpenAI Whisper)</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  report.audioAnalysis?.speechDetected
+                    ? "bg-[#DCFCE7] text-[#15803D]"
+                    : report.audioAnalysis?.status === "no_speech"
+                    ? "bg-[#DBEAFE] text-[#1E40AF]"
+                    : report.audioAnalysis?.status === "no_audio"
+                    ? "bg-[#F3F4F6] text-[#4B5563]"
+                    : "bg-[#FEF3C7] text-[#92400E]"
+                }`}>
+                  {report.audioAnalysis?.speechDetected
+                    ? "Speech Detected"
+                    : report.audioAnalysis?.status === "no_speech"
+                    ? "Music / No Dialogue"
+                    : report.audioAnalysis?.status === "no_audio"
+                    ? "No Audio Track"
+                    : "Audio Unavailable"}
+                </span>
+              </div>
+              <div className="flex items-center gap-3 text-[11px] text-[#6B7280]">
+                <span>Model: <strong className="text-[#374151]">{report.audioAnalysis?.model || "base"}</strong></span>
+                <span>Language: <strong className="text-[#374151]">{report.audioAnalysis?.language?.name || "Automatic"}</strong></span>
+              </div>
+            </div>
+
+            {/* Cross-Modal Contradiction or Agreement Warnings */}
+            {report.multimodal?.combined?.contradictions && report.multimodal.combined.contradictions.length > 0 && (
+              <div className="p-3 bg-[#FEF2F2] border border-[#FECACA] rounded-xl text-[11px] text-[#991B1B] space-y-1">
+                <div className="font-bold flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-[#DC2626]" />
+                  <span>Cross-Modal Contradiction Detected:</span>
+                </div>
+                {report.multimodal.combined.contradictions.map((c, i) => (
+                  <p key={i}>• {c}</p>
+                ))}
+              </div>
+            )}
+
+            {/* Transcript Preview & Segment Toggle */}
+            {report.transcript?.text ? (
+              <div className="space-y-2">
+                <p className="text-xs text-[#334155] italic bg-white p-3 rounded-xl border border-[#E2E8F0] line-clamp-3">
+                  &ldquo;{report.transcript.text}&rdquo;
+                </p>
+                {report.transcript.cues && report.transcript.cues.length > 0 && (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setShowTranscriptSegments((prev) => !prev)}
+                      className="text-[11px] font-semibold text-[#2563EB] hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      {showTranscriptSegments ? "Hide" : "Show"} {report.transcript.cues.length} timestamped speech segments
+                    </button>
+                    {showTranscriptSegments && (
+                      <div className="mt-2 max-h-48 overflow-y-auto space-y-1.5 p-2 bg-white rounded-xl border border-[#E2E8F0] text-[11px]">
+                        {report.transcript.cues.map((cue, idx) => (
+                          <div key={idx} className="flex items-start gap-2 py-0.5 border-b border-[#F8FAFC] last:border-0">
+                            <span className="font-mono text-[10px] text-[#2563EB] shrink-0 bg-[#EFF6FF] px-1.5 py-0.5 rounded">
+                              {Math.floor(cue.start / 60)}:{(Math.floor(cue.start % 60)).toString().padStart(2, "0")} - {Math.floor(cue.end / 60)}:{(Math.floor(cue.end % 60)).toString().padStart(2, "0")}
+                            </span>
+                            <span className="text-[#374151]">{cue.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-[11px] text-[#64748B]">
+                {report.audioAnalysis?.limitations?.[0] || "No speech dialogue was transcribed from this clip."}
+              </p>
             )}
           </div>
         </div>

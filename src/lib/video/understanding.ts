@@ -16,6 +16,7 @@ import {
 import { MediaMetadata } from "../types/videoWorkflow";
 import { TranscriptionResult } from "./transcriber";
 import { TranscriptCue } from "../skills/deadair";
+import { AudioAnalysisResult, MultimodalVideoEvidence, fuseMultimodalEvidence } from "./audio";
 
 /**
  * Sanitize untrusted transcript or on-screen text to defend against prompt injection.
@@ -197,6 +198,7 @@ export function assembleVideoUnderstanding(params: {
   media: MediaMetadata;
   vision: VisionAnalysisReport;
   transcript: TranscriptionResult;
+  audioAnalysis?: AudioAnalysisResult;
   creatorHintTopic?: string;
   channelNiche?: string;
   targetAudience?: string;
@@ -205,6 +207,7 @@ export function assembleVideoUnderstanding(params: {
     media,
     vision,
     transcript,
+    audioAnalysis: inputAudioAnalysis,
     creatorHintTopic,
     channelNiche,
     targetAudience,
@@ -479,11 +482,39 @@ export function assembleVideoUnderstanding(params: {
 
   const analysisMethod = `Multi-pass multimodal fusion: analyzed ${cleanCues.length} speech cues and ${sampledFrames.length} sampled frames (${vision.analyzedFramesCount || 0} parsed) using ${vision.modelUsed || "vision"}.`;
 
+  const audioResult: AudioAnalysisResult = inputAudioAnalysis || transcript.audioAnalysis || {
+    status: cleanCues.length > 0 ? "completed" : media.hasAudioTrack ? "no_speech" : "no_audio",
+    provider: transcript.source === "user_upload" ? "user_upload" : transcript.source === "whisper_api" ? "openai_whisper_api" : "none",
+    model: "whisper",
+    language: {
+      code: transcript.language || null,
+      name: transcript.language || null,
+      status: transcript.language ? "detected" : "unknown",
+    },
+    speechDetected: cleanCues.length > 0,
+    transcript: {
+      rawText: fullTranscriptText,
+      segments: cleanCues.map((c) => ({ start: c.start, end: c.end, text: c.text })),
+    },
+    limitations: [],
+    processing: { durationSeconds: duration, processingTimeMs: 0 },
+  };
+
+  const multimodal = fuseMultimodalEvidence({
+    media,
+    visual: vision,
+    audio: audioResult,
+    actualTopic: actualTopic || groundedSubject,
+    detectedVisualSubjects: visualSubjects,
+  });
+
   return {
     actualTopic,
     videoSubject: actualTopic,
     videoPurpose: contentType === "unknown" ? undefined : contentType,
     analysisMethod,
+    audioAnalysis: audioResult,
+    multimodal,
     contentType,
     primaryActions: entities.actions.length > 0 ? entities.actions : cleanCues.slice(0, 4).map((c) => c.text),
     demonstratedTechnologies: entities.technologies,

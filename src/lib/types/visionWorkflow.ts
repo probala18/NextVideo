@@ -4,6 +4,8 @@
  * and AI publishing asset generation.
  */
 
+import { AudioAnalysisResult, MultimodalVideoEvidence } from "../video/audio/types";
+
 export interface SampledFrameProperties {
   brightness: "dark" | "balanced" | "bright" | "unknown";
   dominantColors: string[];
@@ -63,6 +65,8 @@ export interface VideoUnderstandingEvidence {
   videoSubject?: string;
   videoPurpose?: string;
   analysisMethod?: string;
+  audioAnalysis?: AudioAnalysisResult;
+  multimodal?: MultimodalVideoEvidence;
   contentType?:
     | "romantic_status"
     | "music_video"

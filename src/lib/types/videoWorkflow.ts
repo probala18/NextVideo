@@ -15,6 +15,7 @@ import {
   FullPublishingPackage,
   GeneratedThumbnail,
 } from "./visionWorkflow";
+import { AudioAnalysisResult, MultimodalVideoEvidence } from "../video/audio/types";
 
 export type VideoJobStatus =
   | "uploaded"
@@ -131,6 +132,8 @@ export interface ConsolidatedAnalysisReport {
     format: "Shorts" | "Long-form";
   }[];
   vision?: VisionAnalysisReport;
+  audioAnalysis?: AudioAnalysisResult;
+  multimodal?: MultimodalVideoEvidence;
   understanding?: VideoUnderstandingEvidence;
   publishingPackage?: FullPublishingPackage;
 }
