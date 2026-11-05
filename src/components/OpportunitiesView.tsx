@@ -154,7 +154,7 @@ export const OpportunitiesView: React.FC<OpportunitiesViewProps> = ({
           <div className="space-y-3 pt-2">
             <div className="p-3 rounded-2xl bg-[#F9FAFB] border border-[#E8EAEE] space-y-1">
               <div className="text-xs font-bold text-[#111827]">1. Specific First Viewer</div>
-              <p className="text-[11px] text-[#6B7280]">Who has this pain right now? (Avoid "anyone who wants to learn").</p>
+              <p className="text-[11px] text-[#6B7280]">Who has this pain right now? (Avoid &quot;anyone who wants to learn&quot;).</p>
             </div>
 
             <div className="p-3 rounded-2xl bg-[#F9FAFB] border border-[#E8EAEE] space-y-1">

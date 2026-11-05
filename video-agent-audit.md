@@ -31,3 +31,12 @@ The existing Video Agent and OAuth modal layout remain in place. No dashboard, n
 - `bun run lint`: unavailable until an ESLint configuration is added; Next.js opened an interactive first-run setup prompt.
 - OAuth and YouTube upload still require configured Google OAuth credentials and an authorized channel. They have not been tested with real credentials.
 - Video understanding, OCR, transcription, thumbnail creation, and deployment infrastructure were not fully audited or completed in this pass. In particular, the repository still needs a complete end-to-end review using a real uploaded video and configured providers.
+
+## Build and lint follow-up
+
+- No local font files were present. `next/font/google` was removed from the root layout and the existing Tailwind font variables now use system font stacks, removing Google Fonts as a build-time dependency.
+- Added `.eslintrc.json` extending `next/core-web-vitals`, plus ESLint 8 and `eslint-config-next` 14.2.15. Fixed eight JSX quote lint errors. ESLint runs directly under Node with 0 errors and 12 existing warnings.
+- The production build completed under Node without fetching fonts. It still reports the pre-existing missing `@libsql/client` module warning and dynamic route warnings. Bun's launch of the Node build/lint scripts exits with code 66 in this managed environment; direct Node invocations completed successfully.
+- Expanded mocked OAuth and upload tests to cover callback authorization, token refresh, reconnect, private metadata, thumbnail reporting, and duplicate blocking. `bun test` reports 91 passing tests. These tests use mocked Google/YouTube responses and do not establish live account access or upload success.
+- While validating the test suite, the pre-existing OAuth storage test was found to disconnect the stored channel without restoring it. The test now restores prior state. The current mock authorization record was cleared; the previous live token had already been removed by the old test, so the channel must be reconnected before live OAuth/upload validation. No video was sent to YouTube.
+- The 6.34 second local test clip was identified, but the private upload could not proceed without a live stored authorization. The in-app browser is unavailable in this session, so interactive Google consent/reconnect must happen in a browser before continuing.

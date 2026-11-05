@@ -214,7 +214,7 @@ export const NicheResearchView: React.FC<NicheResearchViewProps> = ({
                     </div>
                     {cl.sampleTitles?.[0] && (
                       <div className="text-[11px] text-[#4B5563] italic bg-white p-2 rounded-lg border border-[#F0F2F5]">
-                        "{cl.sampleTitles[0]}"
+                        &quot;{cl.sampleTitles[0]}&quot;
                       </div>
                     )}
                   </div>
@@ -254,7 +254,7 @@ export const NicheResearchView: React.FC<NicheResearchViewProps> = ({
                     {pt.sampleTitles?.[0] && (
                       <div className="flex items-center justify-between gap-2 bg-white p-2 rounded-lg border border-[#F0F2F5]">
                         <span className="text-[11px] text-[#1F2937] font-medium truncate">
-                          "{pt.sampleTitles[0]}"
+                          &quot;{pt.sampleTitles[0]}&quot;
                         </span>
                         <div className="flex items-center gap-1 shrink-0">
                           <button

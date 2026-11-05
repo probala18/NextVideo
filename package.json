@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "bun ./node_modules/next/dist/bin/next dev",
-    "build": "bun ./node_modules/next/dist/bin/next build",
+    "build": "node ./node_modules/next/dist/bin/next build",
     "start": "bun ./node_modules/next/dist/bin/next start",
-    "lint": "bun ./node_modules/next/dist/bin/next lint"
+    "lint": "node ./node_modules/eslint/bin/eslint.js src api"
   },
   "dependencies": {
     "@vercel/blob": "^2.8.2",
@@ -22,6 +22,8 @@
     "tailwind-merge": "^2.5.4"
   },
   "devDependencies": {
+    "eslint": "^8.57.1",
+    "eslint-config-next": "14.2.15",
     "@types/node": "^20.17.0",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",

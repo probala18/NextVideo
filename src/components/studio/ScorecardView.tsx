@@ -234,7 +234,7 @@ export const ScorecardView: React.FC<ScorecardViewProps> = ({
                       : "bg-[#F9FAFB] hover:bg-[#F3F4F6] border-[#E5E7EB] text-[#1F2937]"
                   }`}
                 >
-                  <span className="truncate">"{t}"</span>
+                  <span className="truncate">&quot;{t}&quot;</span>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-[10px] text-[#6B7280]">{t.length} chars</span>
                     {title === t && (
