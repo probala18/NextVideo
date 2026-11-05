@@ -28,8 +28,6 @@ export const YouTubeOAuthModal: React.FC<YouTubeOAuthModalProps> = ({
   onSuccess,
   onToast,
 }) => {
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [copiedRedirect, setCopiedRedirect] = useState(false);
 
@@ -46,32 +44,19 @@ export const YouTubeOAuthModal: React.FC<YouTubeOAuthModalProps> = ({
 
   const handleSaveAndConnect = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clientId.trim() || !clientSecret.trim()) {
-      onToast("Please enter both Client ID and Client Secret.", "info");
-      return;
-    }
-
     setIsSaving(true);
     try {
-      const res = await fetch("/api/youtube/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clientId: clientId.trim(),
-          clientSecret: clientSecret.trim(),
-        }),
-      });
+      const res = await fetch("/api/youtube/auth?action=connect");
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save credentials");
+      if (!res.ok || !data.success) throw new Error(data.error || "YouTube OAuth is not configured.");
 
       const authUrl = data.oauthUrl || data.authUrl;
       if (authUrl) {
-        onToast("Credentials saved! Opening Google authorization popup...", "success");
+        onToast("Opening Google authorization popup...", "success");
         onSuccess(authUrl);
       } else {
-        onToast("Saved credentials successfully.", "success");
-        onClose();
+        throw new Error(data.error || "YouTube OAuth is not configured.");
       }
     } catch (err: any) {
       onToast(err.message || "Failed to save OAuth credentials.", "error");
@@ -164,37 +149,15 @@ export const YouTubeOAuthModal: React.FC<YouTubeOAuthModalProps> = ({
               </div>
             </div>
 
-            {/* Form */}
+            {/* Credentials remain in server environment configuration. */}
             <form onSubmit={handleSaveAndConnect} className="space-y-3.5">
-              <div>
-                <label className="text-[11px] font-bold text-[#6B7280] block mb-1">
-                  OAuth Client ID
-                </label>
-                <input
-                  type="text"
-                  value={clientId}
-                  onChange={(e) => setClientId(e.target.value)}
-                  placeholder="e.g. 123456789-xxxx.apps.googleusercontent.com"
-                  className="w-full px-3.5 py-2.5 bg-[#F9FAFB] border border-[#E2E5EB] focus:border-[#3B82F6] rounded-xl text-xs text-[#111827] focus:outline-none font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-[#6B7280] block mb-1">
-                  OAuth Client Secret
-                </label>
-                <input
-                  type="password"
-                  value={clientSecret}
-                  onChange={(e) => setClientSecret(e.target.value)}
-                  placeholder="GOCSPX-xxxxxxxxxxxxxxxxxxxxxxxx"
-                  className="w-full px-3.5 py-2.5 bg-[#F9FAFB] border border-[#E2E5EB] focus:border-[#3B82F6] rounded-xl text-xs text-[#111827] focus:outline-none font-mono"
-                />
+              <div className="rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] p-3.5 text-xs text-[#4B5563]">
+                Configure <code>YOUTUBE_OAUTH_CLIENT_ID</code> and <code>YOUTUBE_OAUTH_CLIENT_SECRET</code> in the server environment, then restart the app. Secrets are never sent from this browser form.
               </div>
 
               <div className="flex items-center gap-2 text-[11px] text-[#059669]">
                 <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-                <span>Credentials are saved strictly in your local server environment (.env.local).</span>
+                <span>OAuth credentials stay in server configuration.</span>
               </div>
 
               {/* Actions */}

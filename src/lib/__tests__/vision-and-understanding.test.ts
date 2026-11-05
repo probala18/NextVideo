@@ -58,7 +58,7 @@ describe("Computer Vision & Video Understanding Engine", () => {
       expect(doesModelSupportVision("deepseek/deepseek-chat")).toBe(false);
     });
 
-    it("extracts deterministic visual properties (palette, contrast, focal point, thumbnail suitability)", () => {
+    it("does not invent pixel properties when no image analyzer is available", () => {
       const props = analyzeDeterministicFrameProperties(
         0,
         15.0,
@@ -67,11 +67,10 @@ describe("Computer Vision & Video Understanding Engine", () => {
         "AI Agent Next.js"
       );
 
-      expect(props.dominantColors.length).toBeGreaterThanOrEqual(3);
-      expect(props.contrastScore).toBeGreaterThanOrEqual(60);
-      expect(props.contrastScore).toBeLessThanOrEqual(100);
-      expect(props.focalPoint).toBeDefined();
-      expect(props.thumbnailSuitabilityScore).toBeGreaterThanOrEqual(50);
+      expect(props.dominantColors).toEqual([]);
+      expect(props.contrastScore).toBeNull();
+      expect(props.focalPoint).toBe("Not analyzed");
+      expect(props.thumbnailSuitabilityScore).toBeNull();
       expect(props.detectedOnScreenText).toEqual([]);
     });
 
@@ -86,7 +85,7 @@ describe("Computer Vision & Video Understanding Engine", () => {
 
       expect(vision.sampledFrames.length).toBeGreaterThanOrEqual(3);
       expect(vision.candidateThumbnailMoments).toEqual([]);
-      expect(vision.confidenceScore).toBe(0);
+      expect(vision.confidenceScore).toBeNull();
       expect(vision.detectedSubjects).toEqual([]);
       expect(vision.detectedEnvironments).toEqual([]);
     });
@@ -154,7 +153,7 @@ describe("Computer Vision & Video Understanding Engine", () => {
       expect(understanding.actualTopic).toBeDefined();
       expect(understanding.primaryValueProposition).toContain("subject");
       expect(understanding.keyTakeaways.length).toBeGreaterThanOrEqual(2);
-      expect(understanding.visualEvidence.length).toBeGreaterThan(0);
+      expect(understanding.visualEvidence).toEqual([]);
       expect(understanding.audioEvidence.length).toBeGreaterThan(0);
       expect(understanding.untrustedInputProtection).toBe(true);
     });
@@ -203,8 +202,8 @@ describe("Computer Vision & Video Understanding Engine", () => {
         { timestampSeconds: 999, cueText: "Past the end" },
       ], 480);
       expect(chapters.length).toBe(3);
-      expect(chapters[0].timestampSeconds).toBe(0);
-      expect(chapters[0].timecode).toBe("0:00");
+      expect(chapters[0].timestampSeconds).toBe(2);
+      expect(chapters[0].timecode).toBe("0:02");
       expect(chapters[1].timestampSeconds).toBe(70);
       expect(chapters.every((chapter) => chapter.timestampSeconds < 480)).toBe(true);
       expect(buildTranscriptChapters([{ timestampSeconds: 20, cueText: "Only one segment" }], 480)).toEqual([]);

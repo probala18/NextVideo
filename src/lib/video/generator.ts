@@ -147,9 +147,6 @@ export async function generatePublishingPackageWithAI(
   const duration = Math.max(0, Math.round(media.durationSeconds));
   const chapters = buildTranscriptChapters(evidence.audioEvidence || [], duration);
 
-  // Grounded fallback pattern titles derived directly from video evidence & category
-  const fallbackTitles: TitleOption[] = buildCategoryFallbackTitles(cleanTopic, evidence.contentType);
-
   let titles: TitleOption[] = [];
   let recommendedTitle = "";
   let recommendedTitleReason = "";
@@ -162,6 +159,7 @@ export async function generatePublishingPackageWithAI(
 
   let description = "";
   let tags: string[] = [];
+  let generationNotice = evidence.limitationNotice;
 
   // Try live AI generation with configured model if configured
   if (baseConfig.isConfigured && (baseConfig.apiKey || baseConfig.baseUrl.includes("localhost") || baseConfig.baseUrl.includes("127.0.0.1"))) {
@@ -290,6 +288,7 @@ ${researchContext}`;
       }
     } catch (err: any) {
       console.warn(`[Generator Warning] Live model call failed (${err.message}). Leaving unsupported assets unavailable.`);
+      generationNotice = "The configured model did not return a usable publishing package. No AI-generated copy was fabricated; check the provider configuration and retry.";
     }
   }
 
@@ -320,7 +319,7 @@ ${researchContext}`;
     generatedAt: new Date().toISOString(),
     summary: evidence.summary,
     isAdequatelyUnderstood: evidence.isAdequatelyUnderstood,
-    limitationNotice: evidence.limitationNotice,
+    limitationNotice: generationNotice,
     researchSummary: {
       isLiveApiData: Boolean(research?.isLiveApiData),
       videosAnalyzedCount: research?.videos?.length || 0,
@@ -402,36 +401,6 @@ async function fetchLLMCompletion(params: {
   });
 
   if (!res.ok) {
-    // If the configured provider returned 400/402 (e.g. Hugging Face cloud quota), retry with free vision/text model
-    const orKey = (process.env.OPENROUTER_API_KEY || "").trim();
-    if (orKey && provider !== "openrouter" && (res.status === 400 || res.status === 402 || res.status === 404)) {
-      try {
-        const retryRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${orKey}`,
-            "HTTP-Referer": "http://localhost:3000",
-            "X-Title": "NextVideo Video Agent",
-          },
-          body: JSON.stringify({
-            model: "nvidia/nemotron-3.5-super-vl:free",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt },
-            ],
-            temperature: 0.7,
-          }),
-          signal: AbortSignal.timeout(25000),
-        });
-        if (retryRes.ok) {
-          const retryData = await retryRes.json();
-          const content = retryData.choices?.[0]?.message?.content;
-          if (content) return content;
-        }
-      } catch {}
-    }
-
     const errText = await res.text().catch(() => "");
     console.warn(`[LLM Completion Notice] ${provider} (${model}) HTTP ${res.status}: ${errText.slice(0, 150)}`);
     return null;

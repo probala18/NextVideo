@@ -221,7 +221,7 @@ export async function generateYouTubeThumbnails(params: {
   // do not establish that a frame was analyzed or relevant.
   const activeFrames = candidateFrames.filter((frame) =>
     Boolean(frame.semanticDescription?.trim()) &&
-    !frame.semanticDescription.includes("Visual content has not been analyzed")
+    !frame.semanticDescription?.includes("Visual content has not been analyzed")
   );
 
   // Never create a decorative placeholder and describe it as a video thumbnail.

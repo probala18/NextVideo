@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
 import {
   getStoredAuth,
   generateOAuthUrl,
@@ -81,60 +79,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-
-    // Option A: Configure OAuth Client ID & Secret
     if (body.clientId || body.clientSecret) {
-      const clientId = String(body.clientId || "").trim();
-      const clientSecret = String(body.clientSecret || "").trim();
-
-      if (clientId) process.env.YOUTUBE_OAUTH_CLIENT_ID = clientId;
-      if (clientSecret) process.env.YOUTUBE_OAUTH_CLIENT_SECRET = clientSecret;
-
-      // Persist to .env.local
-      try {
-        const envLocalPath = path.resolve(process.cwd(), ".env.local");
-        let envContent = fs.existsSync(envLocalPath) ? fs.readFileSync(envLocalPath, "utf-8") : "";
-
-        if (clientId) {
-          if (/^YOUTUBE_OAUTH_CLIENT_ID=.*/m.test(envContent)) {
-            envContent = envContent.replace(
-              /^YOUTUBE_OAUTH_CLIENT_ID=.*/m,
-              `YOUTUBE_OAUTH_CLIENT_ID=${clientId}`
-            );
-          } else {
-            envContent += `\nYOUTUBE_OAUTH_CLIENT_ID=${clientId}`;
-          }
-        }
-        if (clientSecret) {
-          if (/^YOUTUBE_OAUTH_CLIENT_SECRET=.*/m.test(envContent)) {
-            envContent = envContent.replace(
-              /^YOUTUBE_OAUTH_CLIENT_SECRET=.*/m,
-              `YOUTUBE_OAUTH_CLIENT_SECRET=${clientSecret}`
-            );
-          } else {
-            envContent += `\nYOUTUBE_OAUTH_CLIENT_SECRET=${clientSecret}`;
-          }
-        }
-        fs.writeFileSync(envLocalPath, envContent.trim() + "\n", "utf-8");
-      } catch (err) {
-        console.warn("Could not write to .env.local:", err);
-      }
-
-      const origin = req.nextUrl.origin || "http://localhost:3000";
-      const redirectUri = `${origin}/api/youtube/callback`;
-      let oauthUrl: string | null = null;
-      try {
-        oauthUrl = generateOAuthUrl(redirectUri);
-      } catch {}
-
       return NextResponse.json({
-        success: true,
-        hasOAuthConfig: true,
-        oauthUrl,
-        authUrl: oauthUrl,
-        redirectUri,
-        message: "OAuth credentials saved successfully",
-      });
+        error: "OAuth credentials must be configured as server environment variables; they cannot be accepted over this endpoint.",
+        required: ["YOUTUBE_OAUTH_CLIENT_ID", "YOUTUBE_OAUTH_CLIENT_SECRET"],
+      }, { status: 400 });
     }
 
     // Option B: Update channel publishing preferences

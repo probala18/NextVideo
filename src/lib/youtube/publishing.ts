@@ -6,6 +6,7 @@
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import { createReadStream } from "fs";
 
 const OAUTH_FILE_PATH = path.join(process.cwd(), "data", "youtube_oauth.json");
 const PUBLISH_LOG_FILE_PATH = path.join(process.cwd(), "data", "youtube_publish_history.json");
@@ -31,6 +32,7 @@ export interface PublishPackageInput {
   description: string;
   tags?: string[];
   privacyStatus?: "private" | "unlisted" | "public";
+  categoryId?: string;
   publishAt?: string; // ISO 8601 for scheduled publishing
   isShort?: boolean;
   thumbnailPath?: string;
@@ -47,6 +49,7 @@ export interface PublishedVideoRecord {
   publishedAt: string;
   channelId: string;
   status: "uploaded_to_youtube" | "live" | "failed";
+  thumbnailStatus?: "not_requested" | "uploaded" | "failed";
 }
 
 function ensureStorage(): void {
@@ -119,7 +122,7 @@ export function generateOAuthUrl(redirectUri: string): string {
     "https://www.googleapis.com/auth/userinfo.profile",
   ].join(" ");
 
-  const state = crypto.randomBytes(16).toString("hex");
+  const state = createOAuthState();
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -132,6 +135,29 @@ export function generateOAuthUrl(redirectUri: string): string {
   });
 
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+}
+
+function createOAuthState(): string {
+  const secret = process.env.YOUTUBE_OAUTH_CLIENT_SECRET || "";
+  if (!secret) throw new Error("YOUTUBE_OAUTH_CLIENT_SECRET is not configured in environment.");
+  const payload = Buffer.from(JSON.stringify({ issuedAt: Date.now(), nonce: crypto.randomBytes(16).toString("hex") })).toString("base64url");
+  const signature = crypto.createHmac("sha256", secret).update(payload).digest("base64url");
+  return `${payload}.${signature}`;
+}
+
+export function verifyOAuthState(state: string | null): boolean {
+  const secret = process.env.YOUTUBE_OAUTH_CLIENT_SECRET || "";
+  if (!secret || !state) return false;
+  const [payload, signature, extra] = state.split(".");
+  if (!payload || !signature || extra) return false;
+  const expected = crypto.createHmac("sha256", secret).update(payload).digest();
+  let actual: Buffer;
+  try { actual = Buffer.from(signature, "base64url"); } catch { return false; }
+  if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) return false;
+  try {
+    const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    return Number.isFinite(data.issuedAt) && Math.abs(Date.now() - data.issuedAt) <= 10 * 60 * 1000 && typeof data.nonce === "string";
+  } catch { return false; }
 }
 
 /**
@@ -278,8 +304,8 @@ export async function publishVideoToYouTube(
     snippet: {
       title: input.title.slice(0, 100),
       description: input.description,
-      tags: input.tags || ["nextvideo"],
-      categoryId: "28", // Science & Technology default
+      tags: input.tags || [],
+      categoryId: input.categoryId && /^\d+$/.test(input.categoryId) ? input.categoryId : undefined,
     },
     status: {
       privacyStatus: privacy,
@@ -312,16 +338,17 @@ export async function publishVideoToYouTube(
     throw new Error("YouTube API did not return a resumable upload location URL.");
   }
 
-  // Step 2: Stream Video Buffer to Upload URL
-  const videoBuffer = await fs.promises.readFile(input.filePath);
-
+  // Step 2: Stream the video to avoid buffering large uploads in application memory.
   const uploadRes = await fetch(uploadUrl, {
     method: "PUT",
     headers: {
       "Content-Type": "video/mp4",
       "Content-Length": stat.size.toString(),
     },
-    body: videoBuffer,
+    // Node's fetch requires the duplex option when given a streaming request body.
+    body: createReadStream(input.filePath) as unknown as BodyInit,
+    // @ts-expect-error Node.js fetch extension for streaming request bodies
+    duplex: "half",
   });
 
   if (!uploadRes.ok) {
@@ -334,20 +361,24 @@ export async function publishVideoToYouTube(
   const youtubeUrl = `https://youtu.be/${youtubeVideoId}`;
 
   // Step 3: Upload Custom Thumbnail if provided
+  let thumbnailStatus: PublishedVideoRecord["thumbnailStatus"] = input.thumbnailPath ? "failed" : "not_requested";
   if (input.thumbnailPath && fs.existsSync(input.thumbnailPath) && youtubeVideoId) {
     try {
       const thumbBuffer = await fs.promises.readFile(input.thumbnailPath);
-      await fetch(
+      const extension = path.extname(input.thumbnailPath).toLowerCase();
+      const thumbRes = await fetch(
         `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${youtubeVideoId}`,
         {
           method: "POST",
           headers: {
             Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "image/png",
+            "Content-Type": extension === ".jpg" || extension === ".jpeg" ? "image/jpeg" : "image/png",
           },
           body: thumbBuffer,
         }
       );
+      if (!thumbRes.ok) console.warn(`Custom thumbnail upload failed with HTTP ${thumbRes.status}: ${(await thumbRes.text()).slice(0, 300)}`);
+      else thumbnailStatus = "uploaded";
     } catch (thumbErr) {
       console.warn("Custom thumbnail upload failed gracefully:", thumbErr);
     }
@@ -364,6 +395,7 @@ export async function publishVideoToYouTube(
     publishedAt: new Date().toISOString(),
     channelId: auth.channelId,
     status: "uploaded_to_youtube",
+    thumbnailStatus,
   };
 
   recordPublishedVideo(record);

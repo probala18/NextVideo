@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { exchangeCodeForTokens } from "@/lib/youtube/publishing";
+import { exchangeCodeForTokens, verifyOAuthState } from "@/lib/youtube/publishing";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const origin = req.nextUrl.origin;
   try {
     const { searchParams } = new URL(req.url);
     const code = searchParams.get("code");
@@ -13,17 +14,20 @@ export async function GET(req: NextRequest) {
       return renderCallbackResponse({
         success: false,
         error: `Google authorization failed: ${error}`,
-      });
+      }, origin);
+    }
+
+    if (!verifyOAuthState(searchParams.get("state"))) {
+      return renderCallbackResponse({ success: false, error: "OAuth state validation failed. Start the YouTube connection again." }, origin);
     }
 
     if (!code) {
       return renderCallbackResponse({
         success: false,
         error: "Missing authorization code from Google.",
-      });
+      }, origin);
     }
 
-    const origin = req.nextUrl.origin || "http://localhost:3000";
     const redirectUri = `${origin}/api/youtube/callback`;
 
     const auth = await exchangeCodeForTokens(code, redirectUri);
@@ -32,12 +36,12 @@ export async function GET(req: NextRequest) {
       success: true,
       channelTitle: auth.channelTitle || "Connected YouTube Channel",
       channelId: auth.channelId,
-    });
+    }, origin);
   } catch (err: any) {
     return renderCallbackResponse({
       success: false,
       error: err.message || "Failed to exchange YouTube authorization code.",
-    });
+    }, origin);
   }
 }
 
@@ -46,7 +50,7 @@ function renderCallbackResponse(params: {
   channelTitle?: string;
   channelId?: string;
   error?: string;
-}) {
+}, allowedOrigin: string) {
   const { success, channelTitle = "", channelId = "", error = "" } = params;
 
   const html = `<!DOCTYPE html>
@@ -105,13 +109,13 @@ function renderCallbackResponse(params: {
     <h2>${success ? "✓ YouTube Connected Successfully!" : "Connection Failed"}</h2>
     ${
       success && channelTitle
-        ? `<div class="channel-badge">${channelTitle}</div>`
+        ? `<div class="channel-badge">${escapeHtml(channelTitle)}</div>`
         : ""
     }
     <p>${
       success
         ? "Your YouTube channel credentials are now saved. You can close this window and continue in the Studio."
-        : error
+        : escapeHtml(error)
     }</p>
     <p style="font-size: 11px; color: #64748B;">This window will close automatically...</p>
   </div>
@@ -121,14 +125,14 @@ function renderCallbackResponse(params: {
       var payload = {
         type: "${success ? "YOUTUBE_OAUTH_SUCCESS" : "YOUTUBE_OAUTH_ERROR"}",
         success: ${success},
-        channelTitle: ${JSON.stringify(channelTitle)},
-        channelId: ${JSON.stringify(channelId)},
-        error: ${JSON.stringify(error)}
+        channelTitle: ${scriptJson(channelTitle)},
+        channelId: ${scriptJson(channelId)},
+        error: ${scriptJson(error)}
       };
 
       try {
         if (window.opener && !window.opener.closed) {
-          window.opener.postMessage(payload, "*");
+          window.opener.postMessage(payload, ${scriptJson(allowedOrigin)});
           setTimeout(function() {
             window.close();
           }, 1200);
@@ -153,4 +157,12 @@ function renderCallbackResponse(params: {
       "Content-Type": "text/html; charset=utf-8",
     },
   });
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] || char);
+}
+
+function scriptJson(value: string): string {
+  return JSON.stringify(value).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
 }

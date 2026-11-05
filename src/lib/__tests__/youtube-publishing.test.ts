@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   generateOAuthUrl,
+  verifyOAuthState,
   getStoredAuth,
   saveStoredAuth,
   disconnectYouTubeChannel,
@@ -12,12 +13,17 @@ import {
 describe("YouTube OAuth & Publishing Workflow", () => {
   test("generates Google OAuth 2.0 URL with required scopes", () => {
     process.env.YOUTUBE_OAUTH_CLIENT_ID = "mock_client_id_123.apps.googleusercontent.com";
+    process.env.YOUTUBE_OAUTH_CLIENT_SECRET = "test-only-oauth-secret";
     const url = generateOAuthUrl("http://localhost:3000/api/youtube/callback");
 
     expect(url).toContain("accounts.google.com/o/oauth2/v2/auth");
     expect(url).toContain("mock_client_id_123");
     expect(url).toContain("youtube.upload");
     expect(url).toContain("youtube.readonly");
+    const state = new URL(url).searchParams.get("state");
+    expect(verifyOAuthState(state)).toBe(true);
+    expect(verifyOAuthState(`${state}tampered`)).toBe(false);
+    expect(verifyOAuthState(null)).toBe(false);
   });
 
   test("stores and retrieves authorized channel credentials securely", () => {

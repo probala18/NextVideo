@@ -171,11 +171,14 @@ export async function POST(req: NextRequest) {
       tags: finalTags,
       privacyStatus: effectivePrivacy,
       thumbnailPath,
+      categoryId: job.report?.publishingPackage?.suggestedCategory?.id,
     });
 
     return NextResponse.json({
       success: true,
-      message: `Video successfully published to YouTube as ${record.privacyStatus}`,
+      message: record.thumbnailStatus === "failed"
+        ? `Video uploaded to YouTube as ${record.privacyStatus}, but the selected thumbnail upload failed.`
+        : `Video successfully uploaded to YouTube as ${record.privacyStatus}`,
       record,
       videoUrl: record.youtubeUrl,
       publishedUrl: record.youtubeUrl,

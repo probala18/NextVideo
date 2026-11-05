@@ -210,7 +210,7 @@ export async function analyzeVideoWithComputerVision(params: {
 
   // Candidate thumbnail moments (top 3 scoring frames)
   const sortedCandidates = [...deduplicatedFrames].filter((f) => f.framePath && f.semanticDescription && !f.semanticDescription.includes("Visual content has not been analyzed")).sort(
-    (a, b) => b.properties.thumbnailSuitabilityScore - a.properties.thumbnailSuitabilityScore
+    (a, b) => (b.properties.thumbnailSuitabilityScore ?? 0) - (a.properties.thumbnailSuitabilityScore ?? 0)
   );
 
   // Candidate moments are populated only after semantic model analysis succeeds below.
@@ -287,24 +287,6 @@ export async function analyzeVideoWithComputerVision(params: {
             : { model: llmConfig.model, temperature: 0, messages: [{ role: "user", content }] }),
           signal: AbortSignal.timeout(45000),
         });
-
-        // If the configured model is discontinued or unsupported, retry with free multimodal vision model
-        if (!response.ok && (response.status === 404 || response.status === 400 || response.status === 402) && !anthropic) {
-          const orKey = (process.env.OPENROUTER_API_KEY || "").trim();
-          if (orKey) {
-            response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${orKey}`,
-                "HTTP-Referer": "http://localhost:3000",
-                "X-Title": "NextVideo Video Agent",
-              },
-              body: JSON.stringify({ model: "nvidia/nemotron-3.5-super-vl:free", temperature: 0, messages: [{ role: "user", content }] }),
-              signal: AbortSignal.timeout(45000),
-            });
-          }
-        }
 
         if (!response.ok) throw new Error(`Configured vision model request failed (${response.status}).`);
         const payload = await response.json();

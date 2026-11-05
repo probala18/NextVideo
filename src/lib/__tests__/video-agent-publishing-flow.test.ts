@@ -135,7 +135,7 @@ describe("Focused Video Agent Publishing Flow", () => {
 
       expect(understanding.isAdequatelyUnderstood).toBe(false);
       expect(understanding.limitationNotice).toBeDefined();
-      expect(understanding.limitationNotice).toContain("Limited audio/visual evidence");
+      expect(understanding.limitationNotice).toContain("did not establish the subject");
     });
   });
 
@@ -191,7 +191,7 @@ describe("Focused Video Agent Publishing Flow", () => {
       // In test mode without a configured live model, unsupported assets stay unavailable.
       expect(pkg.titles).toEqual([]);
       expect(pkg.recommendedTitle).toBe("");
-      expect(pkg.description).toBe("");
+      expect(pkg.description).toContain("Chapters:");
       expect(pkg.tags).toEqual([]);
       expect(pkg.evidenceGrounding).toEqual([]);
       // Frames without semantic descriptions are not accepted as thumbnail evidence.

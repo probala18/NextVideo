@@ -5,11 +5,11 @@
  */
 
 import fs from "fs";
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
 import { MediaMetadata } from "../types/videoWorkflow";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 let ffprobeCached: boolean | null = null;
 
@@ -20,7 +20,8 @@ export async function isFfprobeAvailable(): Promise<boolean> {
     return ffprobeCached;
   }
   try {
-    await execAsync("ffprobe -version");
+    const binary = process.env.FFPROBE_PATH || "ffprobe";
+    await execFileAsync(binary, ["-version"]);
     ffprobeCached = true;
   } catch {
     ffprobeCached = false;
@@ -42,8 +43,7 @@ export async function inspectMedia(filePath: string, originalFilename?: string):
   if (ffprobeOk) {
     try {
       const probeBinary = process.env.FFPROBE_PATH || "ffprobe";
-      const cmd = `${probeBinary} -v quiet -print_format json -show_format -show_streams "${filePath}"`;
-      const { stdout } = await execAsync(cmd);
+      const { stdout } = await execFileAsync(probeBinary, ["-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", filePath]);
       const data = JSON.parse(stdout);
 
       const format = data.format || {};
@@ -65,6 +65,10 @@ export async function inspectMedia(filePath: string, originalFilename?: string):
       if (videoStream?.r_frame_rate) {
         const [num, den] = videoStream.r_frame_rate.split("/").map(Number);
         if (den && den > 0) frameRate = Math.round((num / den) * 100) / 100;
+      }
+
+      if (!videoStream || !Number.isFinite(duration) || duration <= 0) {
+        throw new Error("File has no readable video stream or valid duration.");
       }
 
       return {
@@ -89,6 +93,9 @@ export async function inspectMedia(filePath: string, originalFilename?: string):
   // Tier 2: Pure JavaScript ISO-BMFF (MP4/MOV) box parser
   try {
     const atomMeta = await parseMp4Atoms(filePath);
+    if (!atomMeta.hasVideoTrack || !Number.isFinite(atomMeta.durationSeconds) || atomMeta.durationSeconds <= 0) {
+      throw new Error("File has no readable video stream or valid duration.");
+    }
     return {
       filename,
       filesizeBytes: stat.size,
@@ -103,21 +110,8 @@ export async function inspectMedia(filePath: string, originalFilename?: string):
       codec: atomMeta.codec || (ext === "mov" ? "prores/h264" : "h264/aac"),
       inspectedWith: "atom_parser",
     };
-  } catch {
-    // Tier 3: Conservative metadata approximation
-    return {
-      filename,
-      filesizeBytes: stat.size,
-      format: ext,
-      durationSeconds: Math.max(10, Math.round(stat.size / (150 * 1024))), // approx 150KB/sec heuristic
-      width: 1920,
-      height: 1080,
-      aspectRatio: "16:9",
-      hasVideoTrack: true,
-      hasAudioTrack: true,
-      codec: "mp4v",
-      inspectedWith: "fallback",
-    };
+  } catch (error) {
+    throw new Error(`Could not read valid ${ext.toUpperCase()} media metadata. Install/configure FFprobe or provide a supported MP4/MOV file. ${error instanceof Error ? error.message : ""}`);
   }
 }
 
@@ -247,13 +241,13 @@ async function parseMp4Atoms(filePath: string): Promise<{
   }
 
   return {
-    durationSeconds: Math.max(1, durationSeconds),
-    width: width || 1920,
-    height: height || 1080,
-    aspectRatio: aspectRatio || "16:9",
-    frameRate: 30,
-    hasVideoTrack: hasVideoTrack || true,
-    hasAudioTrack: hasAudioTrack || true,
+    durationSeconds,
+    width,
+    height,
+    aspectRatio,
+    frameRate: undefined,
+    hasVideoTrack,
+    hasAudioTrack,
     codec: codec || "h264",
   };
 }

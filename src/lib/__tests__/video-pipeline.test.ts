@@ -42,17 +42,13 @@ describe("Video Processing Pipeline & Media Infrastructure", () => {
   });
 
   describe("2. Media Inspector", () => {
-    test("inspects video file and extracts container metadata gracefully", async () => {
+    test("rejects unreadable media instead of inventing container metadata", async () => {
       const dummyPath = path.join(process.cwd(), "data", "test_sample.mp4");
       const dir = path.dirname(dummyPath);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(dummyPath, Buffer.alloc(1024 * 100)); // 100KB test buffer
 
-      const meta = await inspectMedia(dummyPath, "test_sample.mp4");
-      expect(meta.filename).toBe("test_sample.mp4");
-      expect(meta.format).toBe("mp4");
-      expect(meta.durationSeconds).toBeGreaterThan(0);
-      expect(meta.hasVideoTrack).toBe(true);
+      await expect(inspectMedia(dummyPath, "test_sample.mp4")).rejects.toThrow("Could not read valid MP4 media metadata");
 
       if (fs.existsSync(dummyPath)) fs.unlinkSync(dummyPath);
     });
