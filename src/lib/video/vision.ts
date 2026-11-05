@@ -288,6 +288,41 @@ export async function analyzeVideoWithComputerVision(params: {
           signal: AbortSignal.timeout(45000),
         });
 
+        // If bundled multi-frame request failed (e.g. 400 context size exceeded in local Ollama),
+        // gracefully fall back to analyzing representative keyframes individually
+        if (!response.ok && images.length > 1) {
+          const singleObservations: any[] = [];
+          for (const image of images.slice(0, 2)) {
+            const singleContent = [
+              { type: "text", text: `Analyze this video keyframe at ${image.frame.timestampSeconds}s. Return JSON: {"timestampSeconds": ${image.frame.timestampSeconds}, "description": "...", "subjects": ["..."], "onScreenText": ["..."]}. Only report visible evidence.` },
+              { type: "image_url", image_url: { url: image.dataUrl } }
+            ];
+            try {
+              const singleRes = await fetch(endpoint, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ model: llmConfig.model, temperature: 0, messages: [{ role: "user", content: singleContent }] }),
+                signal: AbortSignal.timeout(30000),
+              });
+              if (singleRes.ok) {
+                const sPayload = await singleRes.json();
+                const sRaw = sPayload.choices?.[0]?.message?.content;
+                if (typeof sRaw === "string") {
+                  const m = sRaw.match(/\{[\s\S]*\}/);
+                  if (m) singleObservations.push(JSON.parse(m[0]));
+                }
+              }
+            } catch {
+              // Ignore single frame failure and try next
+            }
+          }
+          if (singleObservations.length > 0) {
+            response = new Response(JSON.stringify({
+              choices: [{ message: { content: JSON.stringify({ frames: singleObservations, overallSubjects: [], environments: [] }) } }]
+            }), { status: 200, headers: { "Content-Type": "application/json" } });
+          }
+        }
+
         if (!response.ok) throw new Error(`Configured vision model request failed (${response.status}).`);
         const payload = await response.json();
         const raw = anthropic ? payload.content?.find((part: any) => part.type === "text")?.text : payload.choices?.[0]?.message?.content;
