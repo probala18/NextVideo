@@ -238,11 +238,14 @@ ${researchContext}`;
       if (!aiResponse) throw new Error("Configured model returned an empty response.");
 
       if (aiResponse) {
-        const cleaned = aiResponse
-          .replace(/^```json\s*/i, "")
-          .replace(/^```\s*/i, "")
-          .replace(/\s*```$/i, "")
-          .trim();
+        const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+        const cleaned = jsonMatch
+          ? jsonMatch[0]
+          : aiResponse
+              .replace(/^```json\s*/i, "")
+              .replace(/^```\s*/i, "")
+              .replace(/\s*```$/i, "")
+              .trim();
         const parsed = JSON.parse(cleaned);
 
         if (Array.isArray(parsed.titles) && parsed.titles.length > 0) {
@@ -368,7 +371,7 @@ async function fetchLLMCompletion(params: {
         system: systemPrompt,
         messages: [{ role: "user", content: userPrompt }],
       }),
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(60000),
     });
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
@@ -397,7 +400,7 @@ async function fetchLLMCompletion(params: {
       ],
       temperature: 0.7,
     }),
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(60000),
   });
 
   if (!res.ok) {
