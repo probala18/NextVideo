@@ -371,7 +371,7 @@ async function fetchLLMCompletion(params: {
         system: systemPrompt,
         messages: [{ role: "user", content: userPrompt }],
       }),
-      signal: AbortSignal.timeout(60000),
+      signal: AbortSignal.timeout(120000),
     });
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
@@ -400,7 +400,7 @@ async function fetchLLMCompletion(params: {
       ],
       temperature: 0.7,
     }),
-    signal: AbortSignal.timeout(60000),
+    signal: AbortSignal.timeout(120000),
   });
 
   if (!res.ok) {
