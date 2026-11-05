@@ -87,10 +87,141 @@ export function attachVerifiedChapters(description: string, chapters: FullPublis
 /**
  * Evaluates semantic content relevance (0-100) of a candidate title against verified video evidence.
  * A title describing a coding tutorial MUST FAIL relevance (<50) when tested against a romantic music video.
+ * Titles containing internal analysis terminology ("benchmark test", "visual analysis", "walkthrough")
+ * when the video is not a tutorial/benchmark receive severe penalties.
  */
-export function calculateEvidenceRelevance(_title: string, _evidence: VideoUnderstandingEvidence): number | null {
-  // No calibrated title-evaluation dataset exists; do not emit synthetic quality scores.
-  return null;
+export function calculateEvidenceRelevance(title: string, evidence: VideoUnderstandingEvidence): number {
+  if (!title || !title.trim()) return 0;
+  const t = title.toLowerCase().trim();
+  let score = 70; // baseline
+
+  const isMusicOrStatus =
+    evidence.contentType === "romantic_status" ||
+    evidence.contentType === "music_video" ||
+    evidence.contentType === "lyrics_video" ||
+    evidence.contentType === "cinematic_edit";
+
+  const isInstructional =
+    evidence.contentType === "teaching" ||
+    evidence.contentType === "demonstration";
+
+  // 1. Internal analysis contamination penalty
+  const hasAnalysisJargon = /\b(?:visual\s*analysis|benchmark\s*test|practical\s*walkthrough|ai\s*analysis|model\s*analysis|workflow\s*analysis)\b/i.test(t);
+  if (hasAnalysisJargon && !isInstructional) {
+    score -= 50;
+  }
+
+  // 2. Content Type Mismatch Checks
+  const techCodingKeywords = /\b(?:react|next\.?js|architecture|full\s*stack|code|tutorial|how\s*to\s*build|deploy|api|database|backend|frontend|framework|typescript|python|docker)\b/i;
+  const hasTechCodingWords = techCodingKeywords.test(t);
+
+  const tutorialKeywords = /\b(?:walkthrough|tutorial|how\s*to|step\s*by\s*step|deep\s*dive|benchmark)\b/i;
+  const hasTutorialWords = tutorialKeywords.test(t);
+
+  const romanticMusicKeywords = /\b(?:status|romantic|love|song|music|kadhal|melody|soulful|lyric|lyrics|aesthetic|fullscreen|bgm)\b/i;
+  const hasRomanticMusicWords = romanticMusicKeywords.test(t);
+
+  if (isMusicOrStatus) {
+    // A coding title or tutorial title for a romantic music video is an egregious failure
+    if (hasTechCodingWords) {
+      score -= 55;
+    }
+    if (hasTutorialWords) {
+      score -= 45;
+    }
+    if (hasRomanticMusicWords && !hasTutorialWords && !hasTechCodingWords && !hasAnalysisJargon) {
+      score += 20;
+    }
+  } else if (isInstructional) {
+    if (hasRomanticMusicWords && !hasTechCodingWords) {
+      score -= 40;
+    }
+    if (hasTutorialWords || hasTechCodingWords) {
+      score += 15;
+    }
+  } else if (evidence.contentType === "unknown") {
+    // Unknown content: reject speculative tutorial or benchmark claims
+    if (hasTutorialWords || hasTechCodingWords) {
+      score -= 40;
+    }
+  }
+
+  // 3. Subject & Evidence Alignment
+  const topicWords = (evidence.actualTopic || "")
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length >= 3 && !["and", "the", "for", "with", "video"].includes(w));
+
+  const hasTopicWord = topicWords.some((w) => t.includes(w));
+  if (hasTopicWord) {
+    score += 15;
+  }
+
+  const subjects = (evidence.detectedVisualSubjects || [])
+    .map((s) => s.toLowerCase().trim())
+    .filter((s) => s.length >= 3);
+  const hasVisualSubject = subjects.some((s) => t.includes(s));
+  if (hasVisualSubject) {
+    score += 10;
+  }
+
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+/**
+ * Validates whether a candidate title semantically reflects actual video evidence
+ * without confusing internal AI analysis activity with video content.
+ */
+export function validateTitleSemantics(
+  title: string,
+  evidence: VideoUnderstandingEvidence
+): { isValid: boolean; reason?: string } {
+  if (!title || !title.trim()) return { isValid: false, reason: "Title is empty." };
+  const t = title.trim();
+  const lower = t.toLowerCase();
+
+  // 1. YouTube length constraint
+  if (t.length > 100) {
+    return { isValid: false, reason: "Title exceeds YouTube 100-character hard limit." };
+  }
+
+  const isMusicOrStatus =
+    evidence.contentType === "romantic_status" ||
+    evidence.contentType === "music_video" ||
+    evidence.contentType === "lyrics_video" ||
+    evidence.contentType === "cinematic_edit";
+
+  const isInstructional =
+    evidence.contentType === "teaching" ||
+    evidence.contentType === "demonstration";
+
+  // 2. Reject internal AI analysis titles describing the agent's work
+  if (/\b(?:visual\s*analysis|benchmark\s*test|practical\s*walkthrough|ai\s*analysis|model\s*analysis|workflow\s*analysis)\b/i.test(lower)) {
+    if (!isInstructional) {
+      return { isValid: false, reason: "Title describes AI analysis activity rather than the video content." };
+    }
+  }
+
+  // 3. For music/romantic or unknown content: reject tutorial/workflow formulas
+  if (isMusicOrStatus) {
+    if (/\b(?:walkthrough|tutorial|how\s+to\s+build|architecture|deep\s+dive|benchmark|step\s+by\s+step)\b/i.test(lower)) {
+      return { isValid: false, reason: "Music/status video cannot have tutorial or benchmark titles." };
+    }
+  }
+
+  if (evidence.contentType === "unknown") {
+    if (/\b(?:walkthrough|benchmark|architecture|how\s+to\s+build|workflow)\b/i.test(lower)) {
+      return { isValid: false, reason: "Uncertain content cannot claim tutorial or benchmark workflows." };
+    }
+  }
+
+  // 4. Evidence relevance check
+  const relevance = calculateEvidenceRelevance(title, evidence);
+  if (relevance < 50) {
+    return { isValid: false, reason: `Title relevance score is ${relevance}/100 (<50 required).` };
+  }
+
+  return { isValid: true };
 }
 
 /**
@@ -175,15 +306,45 @@ export async function generatePublishingPackageWithAI(
             .join("\n")
         : "Live YouTube competitive research is unavailable for this topic. Generate titles strictly from video evidence.";
 
+      const contentType = evidence.contentType || "unknown";
+      const isRomanticOrMusic =
+        contentType === "romantic_status" ||
+        contentType === "music_video" ||
+        contentType === "lyrics_video" ||
+        contentType === "cinematic_edit";
+
+      const isInstructional =
+        contentType === "teaching" || contentType === "demonstration";
+
+      let formatGuidance = "";
+      if (isRomanticOrMusic) {
+        formatGuidance = `VIDEO TYPE: Music / Romantic / Visual Status Clip.
+- Angles to use: Emotional Lyric Highlight, Romantic Scene Mood, Aesthetic Visual Cut, Melodic Mood, Short Status.
+- STRICTLY FORBIDDEN: Do NOT use words like "Walkthrough", "Benchmark", "Tutorial", "How-To", "Step by Step", "Deep Dive", "Practical", or "Workflow".
+- Never describe the AI's analysis activity as the title. Ground titles strictly in the music/scene mood and visual subjects.`;
+      } else if (isInstructional) {
+        formatGuidance = `VIDEO TYPE: Instructional / Tutorial.
+- Angles to use: Practical Guide, Core Step-by-Step, Implementation Focus, Key Technique, How-To.`;
+      } else if (contentType === "review" || contentType === "comparison") {
+        formatGuidance = `VIDEO TYPE: Review / Comparison.
+- Angles to use: Hands-on Review, Feature Comparison, Real-World Evaluation, Assessment.`;
+      } else {
+        formatGuidance = `VIDEO TYPE: Visual Presentation (${contentType}).
+- Angles to use: Descriptive Highlight, Key Visual Scene, Direct Presentation, Visual Focus.
+- STRICTLY FORBIDDEN: Do NOT invent walkthrough, tutorial, or benchmark titles. Ground strictly in observed visual subjects.`;
+      }
+
       const systemPrompt = `You are a professional YouTube video publishing strategist and metadata specialist.
 Your task is to generate 5 genuinely different title options, an SEO description with accurate chapter timestamps, and tags for an uploaded video.
 
+${formatGuidance}
+
 STRICT EDITORIAL RULES:
 1. Grounding: All titles and descriptions must be strictly grounded in what is actually demonstrated or explained in the video evidence. Never invent topics, tools, codebases, or claims absent from the evidence.
-2. No generic clickbait: Avoid unsupported claims, false promises ("in 2 minutes", "100x views"), or sensationalist buzzwords.
+2. No Analysis Jargon: Never generate titles that describe the AI's analysis activity (e.g. "Visual Analysis", "Benchmark Test", "Walkthrough Analysis"). Titles must describe what a viewer sees in the video!
 3. Mobile Readability: Titles should ideally be under 60 characters so mobile search viewports do not truncate them, with an absolute maximum of 100 characters.
-4. Concrete Nouns & Actions: Use specific technologies, actions, or outcomes seen in the evidence.
-5. Distinct Title Options: Each of the 5 options must represent a genuinely different angle (e.g. How-To, Direct Walkthrough, Practical Warning, Deep Dive, Benchmark).
+4. Concrete Nouns & Actions: Use specific subjects, actions, or outcomes seen in the evidence.
+5. Distinct Title Options: Each of the 5 options must represent a genuinely different angle appropriate to the video type.
 6. Explainability: Explain why each title is supported by specific transcript or semantic frame evidence. Do not output numerical quality scores; no calibrated title-quality dataset is available. Never claim guaranteed views or CTR.
 
 OUTPUT JSON FORMAT ONLY:
@@ -253,6 +414,7 @@ ${researchContext}`;
             .filter((t: any) => typeof t?.title === "string" && t.title.trim())
             .map((t: any) => {
               const title = String(t.title).trim().slice(0, 100);
+              const relevance = calculateEvidenceRelevance(title, evidence);
               return {
                 title,
                 formula: String(t.formula || "Descriptive angle"),
@@ -261,21 +423,77 @@ ${researchContext}`;
                 fitReason: typeof t.fitReason === "string" ? t.fitReason : undefined,
                 evidenceSupport: typeof t.evidenceSupport === "string" ? t.evidenceSupport : undefined,
                 scores: {
-                  contentRelevance: null,
+                  contentRelevance: relevance,
                   specificity: null,
                   readability: null,
                   searchIntent: null,
                   comparablePatternSimilarity: null,
-                  overallScore: null,
+                  overallScore: relevance,
                 },
-                rankingExplanation: typeof t.rankingExplanation === "string" ? t.rankingExplanation : undefined,
+                rankingExplanation: typeof t.rankingExplanation === "string"
+                  ? t.rankingExplanation
+                  : `Semantic evidence relevance: ${relevance}/100.`,
               };
             });
 
-          titles = rawTitles.slice(0, 5);
+          // Validate each title against semantic evidence rules (rejects analysis terminology)
+          const validTitles = rawTitles.filter((t) => validateTitleSemantics(t.title, evidence).isValid);
+
+          // If validation filtered out bad titles and we need to replenish with evidence-grounded options:
+          if (validTitles.length < 3 && cleanTopic) {
+            const fallbackAngles = isRomanticOrMusic
+              ? [
+                  { title: `${cleanTopic} | Romantic Status Video (Fullscreen)`, formula: "Romantic Status" },
+                  { title: `${cleanTopic} - Soulful Lyrical Mood`, formula: "Lyrical Mood" },
+                  { title: `${cleanTopic} Romantic Visual Scene`, formula: "Visual Cut" },
+                  { title: `${cleanTopic} | Aesthetic Status Cut`, formula: "Aesthetic Highlight" },
+                  { title: `${cleanTopic} Romantic Moments`, formula: "Scene Focus" },
+                ]
+              : isInstructional
+              ? [
+                  { title: `${cleanTopic} Guide`, formula: "Practical Guide" },
+                  { title: `How to Use ${cleanTopic}`, formula: "How-To" },
+                  { title: `Understanding ${cleanTopic}`, formula: "Core Concept" },
+                  { title: `${cleanTopic} Full Overview`, formula: "Overview" },
+                  { title: `Mastering ${cleanTopic}`, formula: "Implementation" },
+                ]
+              : [
+                  { title: `${cleanTopic} (Visual Presentation)`, formula: "Descriptive Highlight" },
+                  { title: `Scenes from ${cleanTopic}`, formula: "Visual Cut" },
+                  { title: `${cleanTopic} Visual Highlights`, formula: "Scene Focus" },
+                  { title: `Exploring ${cleanTopic}`, formula: "Overview" },
+                  { title: `${cleanTopic} Scene Overview`, formula: "Presentation" },
+                ];
+
+            for (const fb of fallbackAngles) {
+              if (validTitles.length >= 5) break;
+              if (!validTitles.some((vt) => vt.title.toLowerCase() === fb.title.toLowerCase())) {
+                const relevance = calculateEvidenceRelevance(fb.title, evidence);
+                validTitles.push({
+                  title: fb.title.slice(0, 100),
+                  formula: fb.formula,
+                  characterCount: fb.title.length,
+                  isTruncated: fb.title.length > 60,
+                  fitReason: `Grounded in verified ${evidence.contentType || "visual"} subject "${cleanTopic}".`,
+                  evidenceSupport: `Direct video subject and visual frame evidence.`,
+                  scores: {
+                    contentRelevance: relevance,
+                    specificity: null,
+                    readability: null,
+                    searchIntent: null,
+                    comparablePatternSimilarity: null,
+                    overallScore: relevance,
+                  },
+                  rankingExplanation: `Grounded evidence title (score: ${relevance}/100).`,
+                });
+              }
+            }
+          }
+
+          titles = validTitles.slice(0, 5);
           const requested = typeof parsed.recommendedTitle === "string" ? parsed.recommendedTitle.trim() : "";
-          recommendedTitle = requested && titles.some((t) => t.title === requested) ? requested : "";
-          recommendedTitleReason = recommendedTitle ? String(parsed.recommendedTitleReason || "") : "";
+          recommendedTitle = requested && titles.some((t) => t.title === requested) ? requested : (titles[0]?.title || "");
+          recommendedTitleReason = recommendedTitle ? String(parsed.recommendedTitleReason || `Top ranking evidence-grounded title matching ${evidence.contentType}.`) : "";
         }
 
         if (typeof parsed.description === "string" && parsed.description.length > 20) {
@@ -283,7 +501,22 @@ ${researchContext}`;
         }
 
         if (Array.isArray(parsed.tags) && parsed.tags.length > 0) {
-          tags = parsed.tags.map((tg: any) => String(tg).trim().toLowerCase()).filter(Boolean);
+          const forbiddenJargon = new Set([
+            "workflow", "benchmark", "walkthrough", "music technology",
+            "youtube", "duration", "28 seconds", "seconds", "ai analysis",
+            "video analysis", "analysis", "deep dive"
+          ]);
+          tags = parsed.tags
+            .map((tg: any) => String(tg).trim().toLowerCase())
+            .filter((tg: string) => tg.length >= 2 && !forbiddenJargon.has(tg));
+        }
+
+        // If tags empty or need augmentation, derive topic-specific tags
+        if (tags.length === 0 && cleanTopic) {
+          const cleanWords = cleanTopic.toLowerCase().split(/\s+/).filter((w: string) => w.length >= 3);
+          tags = isRomanticOrMusic
+            ? [...cleanWords, "status video", "romantic status", "aesthetic"]
+            : [...cleanWords, "visual presentation"];
         }
       }
       if (!titles.length || !description.trim() || !tags.length) {
@@ -295,13 +528,24 @@ ${researchContext}`;
     }
   }
 
-  const suggestedCategory = isRomanticOrMusic
-    ? { id: "10", name: "Music", rationale: "Grounded in verified audio/music and lyrical video presentation." }
-    : evidence.contentType === "teaching"
-    ? { id: "27", name: "Education", rationale: "Grounded in instructional/educational demonstration." }
-    : evidence.contentType === "review" || evidence.contentType === "comparison"
-    ? { id: "28", name: "Science & Technology", rationale: "Product/technology review and evaluation." }
-    : { id: "22", name: "People & Blogs", rationale: "General video content format." };
+  let suggestedCategory: FullPublishingPackage["suggestedCategory"];
+  if (isRomanticOrMusic) {
+    suggestedCategory = { id: "10", name: "Music", rationale: "Grounded in verified audio/music and lyrical video presentation." };
+  } else if (evidence.contentType === "cinematic_edit") {
+    suggestedCategory = { id: "1", name: "Film & Animation", rationale: "Grounded in cinematic editing and visual scenes." };
+  } else if (evidence.contentType === "teaching") {
+    suggestedCategory = { id: "27", name: "Education", rationale: "Grounded in instructional/educational demonstration." };
+  } else if (evidence.contentType === "demonstration" || evidence.contentType === "review" || evidence.contentType === "comparison") {
+    suggestedCategory = { id: "28", name: "Science & Technology", rationale: "Product/technology review and evaluation." };
+  } else if (evidence.contentType === "interview") {
+    suggestedCategory = { id: "22", name: "People & Blogs", rationale: "Conversational or interview video format." };
+  } else {
+    suggestedCategory = {
+      id: "22",
+      name: "People & Blogs (Unverified)",
+      rationale: "Classification uncertain: Category selection could not be verified from available audio/visual evidence. Defaulted to People & Blogs (ID 22) for creator review."
+    };
+  }
   description = attachVerifiedChapters(description, chapters);
 
   const evidenceGrounding: PublishingEvidenceGrounding[] = [];

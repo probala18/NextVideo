@@ -118,6 +118,30 @@ async function extractPhysicalFrame(
 }
 
 /**
+ * Extract compact resized vision proxy frame (max 640px) to preserve RTX 2050 4GB VRAM and token budget.
+ */
+async function extractVisionProxyFrame(
+  sourceFilePath: string,
+  timestampSeconds: number,
+  outputProxyPath: string
+): Promise<boolean> {
+  const ffmpegOk = await isFfmpegAvailable();
+  if (!ffmpegOk || !fs.existsSync(sourceFilePath)) return false;
+
+  try {
+    const binary = process.env.FFMPEG_PATH || "ffmpeg";
+    const dir = path.dirname(outputProxyPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    const cmd = `"${binary}" -ss ${timestampSeconds} -i "${sourceFilePath}" -vf "scale='min(640,iw)':-2" -frames:v 1 -q:v 3 -y "${outputProxyPath}"`;
+    await execAsync(cmd);
+    return fs.existsSync(outputProxyPath);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Analyze representative frames across the uploaded video.
  */
 export async function analyzeVideoWithComputerVision(params: {
@@ -153,6 +177,10 @@ export async function analyzeVideoWithComputerVision(params: {
 
     // Extract physical frame if video exists and ffmpeg available
     const extracted = await extractPhysicalFrame(sourceFilePath, timestampSeconds, localFramePath);
+    const proxyFilename = `cv_proxy_${i + 1}_${Math.floor(timestampSeconds)}s.jpg`;
+    const localProxyPath = path.join(framesDir, proxyFilename);
+    await extractVisionProxyFrame(sourceFilePath, timestampSeconds, localProxyPath);
+
     let clientFrameFilename = "";
     if (!extracted && fs.existsSync(framesDir)) {
       const directFrame = `frame_${i + 1}.jpg`;
@@ -240,12 +268,14 @@ export async function analyzeVideoWithComputerVision(params: {
       process.env.NODE_ENV === "test" ||
       process.env.BUN_ENV === "test";
 
-    // For local / custom models (e.g. qwen2.5vl:3b on RTX 2050), select up to 3 top representative frames
-    // to preserve GPU memory and guarantee sub-5s response time
-    const targetFrames = deduplicatedFrames.slice(0, 3);
+    // For local / custom models (e.g. qwen2.5vl:3b on RTX 2050), select up to 5 representative keyframes
+    // Using resized proxy images (max 640px) preserves GPU memory and context budget
+    const targetFrames = deduplicatedFrames.slice(0, Math.min(deduplicatedFrames.length, 5));
     const framesWithImages = await Promise.all(targetFrames.map(async (frame) => {
       const filename = path.basename(frame.framePath);
-      const imagePath = path.join(framesDir, filename);
+      const proxyFilename = filename.replace(/^cv_frame_/, "cv_proxy_");
+      const proxyPath = path.join(framesDir, proxyFilename);
+      const imagePath = fs.existsSync(proxyPath) ? proxyPath : path.join(framesDir, filename);
       if (!fs.existsSync(imagePath)) return null;
       const data = await fs.promises.readFile(imagePath);
       if (data.length > 4_000_000) return null;
@@ -265,7 +295,7 @@ export async function analyzeVideoWithComputerVision(params: {
           content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64 } });
         } else {
           content.push({ type: "text", text: `Frame timestamp: ${frame.timestampSeconds}s` });
-          content.push({ type: "image_url", image_url: { url: dataUrl, detail: "high" } });
+          content.push({ type: "image_url", image_url: { url: dataUrl, detail: "low" } });
         }
       }
       const endpoint = anthropic
@@ -289,13 +319,13 @@ export async function analyzeVideoWithComputerVision(params: {
         });
 
         // If bundled multi-frame request failed (e.g. 400 context size exceeded in local Ollama),
-        // gracefully fall back to analyzing representative keyframes individually
+        // gracefully fall back to analyzing all representative keyframes individually in sequence
         if (!response.ok && images.length > 1) {
           const singleObservations: any[] = [];
-          for (const image of images.slice(0, 2)) {
+          for (const image of images) {
             const singleContent = [
-              { type: "text", text: `Analyze this video keyframe at ${image.frame.timestampSeconds}s. Return JSON: {"timestampSeconds": ${image.frame.timestampSeconds}, "description": "...", "subjects": ["..."], "onScreenText": ["..."]}. Only report visible evidence.` },
-              { type: "image_url", image_url: { url: image.dataUrl } }
+              { type: "text", text: `Analyze this video keyframe at ${image.frame.timestampSeconds}s. Return JSON: {"timestampSeconds": ${image.frame.timestampSeconds}, "description": "...", "subjects": ["..."], "onScreenText": ["..."]}. Only report visible evidence; do not invent unseen dialogue or actions.` },
+              { type: "image_url", image_url: { url: image.dataUrl, detail: "low" } }
             ];
             try {
               const singleRes = await fetch(endpoint, {
@@ -375,8 +405,14 @@ export async function analyzeVideoWithComputerVision(params: {
     limitations.push("Vision-capable model is selected, but provider credentials are not configured; extracted frames were not analyzed.");
   }
 
+  const analyzedFramesCount = deduplicatedFrames.filter(
+    (f) => f.semanticDescription && !f.semanticDescription.includes("Visual content has not been analyzed")
+  ).length;
+
   return {
     sampledFrames: deduplicatedFrames,
+    sampledFramesCount: deduplicatedFrames.length,
+    analyzedFramesCount,
     detectedSubjects: [...new Set(detectedSubjects)],
     detectedEnvironments: [...new Set(detectedEnvironments)],
     visualPacing: media.durationSeconds > 600 ? "moderate" : "rapid",

@@ -168,8 +168,8 @@ describe("Romantic Status Video Pipeline & Evidence Relevance (Regression Tests)
     const romanticRelevance = calculateEvidenceRelevance(romanticTitle, understanding);
 
     // Hard quality requirement: coding title MUST fail relevance (<50)
-    expect(codingRelevance).toBeNull();
-    expect(romanticRelevance).toBeNull();
+    expect(codingRelevance).toBeLessThan(50);
+    expect(romanticRelevance).toBeGreaterThanOrEqual(70);
   });
 
   it("5. YouTube Pattern Model generates category-adapted titles under 100 characters", () => {

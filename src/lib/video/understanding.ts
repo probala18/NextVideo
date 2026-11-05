@@ -103,29 +103,40 @@ export function classifyContentType(
     onScreenTexts?: string[];
     musicCues?: string[];
     hintTopic?: string;
+    hasAudioTrack?: boolean;
+    hasVideoTrack?: boolean;
+    aspectRatio?: string;
   }
 ): VideoUnderstandingEvidence["contentType"] {
   const onScreen = (options?.onScreenTexts || []).join(" ").toLowerCase();
   // Creator hints and filenames are metadata, not evidence.
-  const lower = `${transcriptText} ${visualScenes.join(" ")} ${onScreen} ${(options?.musicCues || []).join(" ")}`.toLowerCase();
+  const scenesText = visualScenes.join(" ");
+  const lower = `${transcriptText} ${scenesText} ${onScreen} ${(options?.musicCues || []).join(" ")}`.toLowerCase();
+
+  const hasSpeech = transcriptText.trim().length > 15;
+  const hasAudioTrack = options?.hasAudioTrack !== false;
+  const isAudioWithoutSpeech = hasAudioTrack && !hasSpeech;
 
   const hasMusicOrAudioMarker =
     /(?:\[music\]|\[singing\]|[♪♫♩♬]|\bbgm\b|\binstrumental\b|\bsoundtrack\b|\bmelody\b|\borchestra\b|\bbeats?\b|\bvocal\b)/i.test(lower) ||
-    (options?.musicCues && options.musicCues.length > 0);
+    (options?.musicCues && options.musicCues.length > 0) ||
+    isAudioWithoutSpeech;
 
   const hasRomanticLyricalCues =
-    /\b(?:romantic|love|kadhal|thendral|thendralai|enna\s+solla|solla\s+pogirai|pogirai|song|status|whatsapp\s+status|couple|feeling|heart|romance|affection|melody|soulful)\b/i.test(lower);
+    /\b(?:romantic|love|kadhal|thendral|thendralai|enna\s+solla|solla\s+pogirai|pogirai|song|status|whatsapp\s+status|couple|feeling|heart|romance|affection|melody|soulful|woman|man|face|earrings?|necklace|jewelry|hand|touching|embrace|bride|groom|wedding|kiss|holding\s+hands|aesthetic)\b/i.test(lower);
 
   const hasLyricsText =
     /\b(?:lyrics?|lyrical|subtitles?|subtitled|karaoke)\b/i.test(lower) ||
     /\b(?:thendralai|solla\s+pogirai|pogirai)\b/i.test(lower);
 
   const isShortOrStatusDuration = durationSeconds > 0 && durationSeconds <= 90;
+  const isVerticalStatus = options?.aspectRatio === "9:16";
 
   // 1. Romantic Song Status Video
   if (
     hasRomanticLyricalCues &&
-    (isShortOrStatusDuration || /\bstatus\b/i.test(lower) || hasMusicOrAudioMarker)
+    (isShortOrStatusDuration || isVerticalStatus || /\bstatus\b/i.test(lower) || hasMusicOrAudioMarker) &&
+    !/\b(?:tutorial|lecture|how\s+to|step\s+by\s+step|code|review|benchmark)\b/i.test(lower)
   ) {
     return "romantic_status";
   }
@@ -135,8 +146,8 @@ export function classifyContentType(
     return "lyrics_video";
   }
 
-  // 3. Music Video
-  if (hasMusicOrAudioMarker && !/\b(?:tutorial|lecture|how\s+to|step\s+by\s+step|review|benchmark)\b/i.test(lower)) {
+  // 3. Music Video (audio track without speech, or music cues, without tutorial markers)
+  if (hasMusicOrAudioMarker && !/\b(?:tutorial|lecture|how\s+to|step\s+by\s+step|review|benchmark|screen\s*cast|ide|editor)\b/i.test(lower)) {
     return "music_video";
   }
 
@@ -245,7 +256,13 @@ export function assembleVideoUnderstanding(params: {
     fullTranscriptText,
     importantScenes.map((s) => s.description),
     duration,
-    { onScreenTexts, musicCues }
+    {
+      onScreenTexts,
+      musicCues,
+      hasAudioTrack: media.hasAudioTrack,
+      hasVideoTrack: media.hasVideoTrack,
+      aspectRatio: media.aspectRatio,
+    }
   );
 
   let groundedSubject = "";
@@ -267,6 +284,9 @@ export function assembleVideoUnderstanding(params: {
         groundedSubject = lyricLine.text.split(/[.!?]/)[0].slice(0, 50).trim();
         topicCandidateReason = `Derived from transcript vocal cue: "${groundedSubject}".`;
       }
+    } else if (visualSubjects.length > 0) {
+      groundedSubject = visualSubjects.slice(0, 2).join(", ");
+      topicCandidateReason = `Derived from visual subject recognition: "${groundedSubject}".`;
     } else {
       groundedSubject = "";
       topicCandidateReason = "Musical format detected, but the specific subject is not established by transcript or readable on-screen evidence.";
@@ -287,7 +307,7 @@ export function assembleVideoUnderstanding(params: {
     } else if (entities.technologies.length > 0 && entities.actions.length > 0) {
       const primaryTech = entities.technologies[0];
       const matchingAction = entities.actions.find((a) => a.toLowerCase().includes(primaryTech.toLowerCase())) || entities.actions[0];
-      groundedSubject = matchingAction.length < 50 ? matchingAction : `${primaryTech} Walkthrough`;
+      groundedSubject = matchingAction.length < 50 ? matchingAction : `${primaryTech} Overview`;
       topicCandidateReason = `Identified concrete demonstrated action "${groundedSubject}" with ${primaryTech}.`;
     } else if (entities.technologies.length > 0) {
       groundedSubject = entities.technologies.slice(0, 2).join(" & ");
@@ -407,12 +427,16 @@ export function assembleVideoUnderstanding(params: {
   if (isAdequatelyUnderstood) {
     if (isMusicOrStatus) {
       summary = `The video is a ${contentType.replace("_", " ")} clip (${Math.round(duration)}s) featuring ${actualTopic}. Visual presentation and audio cues focus on emotional and lyrical pacing. Song identity or lyrics are preserved only as observed in verifiable cues without fabrication.`;
-    } else {
+    } else if (contentType === "teaching" || contentType === "demonstration") {
       const techStr = entities.technologies.length > 0 ? ` featuring ${entities.technologies.join(", ")}` : "";
       const actionStr = entities.actions.length > 0 ? ` Demonstration covers: ${entities.actions.slice(0, 3).join("; ")}.` : "";
       const cuesInfo = cleanCues.length > 0 ? `${cleanCues.length} timestamped speech cues across ${Math.round(duration)}s` : `${Math.round(duration)}s duration`;
       const visionInfo = sampledFrames.length > 0 ? `${sampledFrames.length} representative frames` : "visual stream";
-      summary = `The video demonstrates ${actualTopic}${techStr} (${contentType} format). Verified across ${cuesInfo} and ${visionInfo}.${actionStr}`;
+      summary = `The video covers ${actualTopic}${techStr} (${contentType} format). Verified across ${cuesInfo} and ${visionInfo}.${actionStr}`;
+    } else {
+      const cuesInfo = cleanCues.length > 0 ? `${cleanCues.length} timestamped speech cues` : "no dialogue detected";
+      const visionInfo = sampledFrames.length > 0 ? `${sampledFrames.length} representative frames` : "visual stream";
+      summary = `Video presentation featuring ${actualTopic} (${Math.round(duration)}s). Grounded strictly in verifiable visual and audio cues (${cuesInfo}, ${visionInfo}).`;
     }
   } else {
     summary = `Media inspection of ${media.format.toUpperCase()} video (${Math.round(duration)}s, ${media.width || 1280}x${media.height || 720}) with limited extractable dialogue or readable on-screen graphics.`;
@@ -434,18 +458,32 @@ export function assembleVideoUnderstanding(params: {
     `Grounded evidence verified across ${cleanCues.length} speech/audio cues and ${sampledFrames.length} sampled frames.`,
   ];
 
-  const primaryValueProposition = isAdequatelyUnderstood
-    ? (contentType === "romantic_status"
-        ? `Romantic song status clip featuring "${actualTopic}".`
-        : isMusicOrStatus
-        ? `Music and lyrical clip featuring "${actualTopic}".`
-        : `Practical walkthrough of subject "${actualTopic}".`)
-    : "";
+  let primaryValueProposition = "";
+  if (isAdequatelyUnderstood) {
+    if (contentType === "romantic_status") {
+      primaryValueProposition = `Romantic visual scene featuring "${actualTopic}".`;
+    } else if (contentType === "cinematic_edit") {
+      primaryValueProposition = `Cinematic visual edit featuring "${actualTopic}".`;
+    } else if (isMusicOrStatus) {
+      primaryValueProposition = `Music and visual presentation featuring "${actualTopic}".`;
+    } else if (contentType === "teaching") {
+      primaryValueProposition = `Instructional guide explaining ${actualTopic}.`;
+    } else if (contentType === "demonstration") {
+      primaryValueProposition = `Demonstration showcasing ${actualTopic}.`;
+    } else if (contentType === "review" || contentType === "comparison") {
+      primaryValueProposition = `Evaluation and overview of ${actualTopic}.`;
+    } else {
+      primaryValueProposition = `Visual presentation featuring "${actualTopic}".`;
+    }
+  }
+
+  const analysisMethod = `Multi-pass multimodal fusion: analyzed ${cleanCues.length} speech cues and ${sampledFrames.length} sampled frames (${vision.analyzedFramesCount || 0} parsed) using ${vision.modelUsed || "vision"}.`;
 
   return {
     actualTopic,
     videoSubject: actualTopic,
     videoPurpose: contentType === "unknown" ? undefined : contentType,
+    analysisMethod,
     contentType,
     primaryActions: entities.actions.length > 0 ? entities.actions : cleanCues.slice(0, 4).map((c) => c.text),
     demonstratedTechnologies: entities.technologies,

@@ -157,27 +157,56 @@ export async function runAutonomousVideoWorkflow(params: {
     understanding.contentType === "lyrics_video" ||
     understanding.contentType === "cinematic_edit";
 
-  const hashtags = isRomanticOrMusic
-    ? [`#${topic.replace(/[^a-zA-Z0-9]/g, "").slice(0, 15)}`, "#status", "#romantic", "#musicvideo"]
-    : [`#${topic.replace(/[^a-zA-Z0-9]/g, "").slice(0, 15)}`, "#workflow", "#youtube"];
+  const isInstructional =
+    understanding.contentType === "teaching" ||
+    understanding.contentType === "demonstration";
 
-  const searchQueryOpportunities = isRomanticOrMusic
-    ? [
-        `${topic.toLowerCase()} status video`,
-        `${topic.toLowerCase()} whatsapp status`,
-        `${topic.toLowerCase()} romantic status`,
-      ]
-    : [
-        `${topic.toLowerCase()} walkthrough`,
-        `how to ${topic.toLowerCase()} step by step`,
-        `best ${topic.toLowerCase()} guide 2026`,
+  const cleanTag = topic ? topic.replace(/[^a-zA-Z0-9]/g, "").slice(0, 20) : "";
+  const topicLower = topic ? topic.toLowerCase().trim() : "";
+
+  // Hashtags: evidence-grounded and optional; no generic filler (#workflow, #youtube)
+  const hashtags: string[] = [];
+  if (cleanTag) {
+    hashtags.push(`#${cleanTag}`);
+  }
+  if (isRomanticOrMusic) {
+    hashtags.push("#music", "#status");
+  } else if (isInstructional) {
+    hashtags.push("#tutorial");
+  } else if (understanding.contentType === "cinematic_edit") {
+    hashtags.push("#cinematic");
+  }
+
+  // Search Query Opportunities: grounded in actual topic and content type
+  let searchQueryOpportunities: string[] = [];
+  if (topicLower && understanding.isAdequatelyUnderstood) {
+    if (isRomanticOrMusic) {
+      searchQueryOpportunities = [
+        `${topicLower} song`,
+        `${topicLower} status video`,
+        `${topicLower} lyrical visual`,
       ];
+    } else if (isInstructional) {
+      searchQueryOpportunities = [
+        `how to ${topicLower}`,
+        `${topicLower} tutorial`,
+        `${topicLower} guide`,
+      ];
+    } else if (understanding.contentType === "review" || understanding.contentType === "comparison") {
+      searchQueryOpportunities = [
+        `${topicLower} review`,
+        `${topicLower} comparison`,
+      ];
+    } else {
+      searchQueryOpportunities = [topicLower];
+    }
+  }
 
   const seo = {
     suggestedTitle: publishingPackage.recommendedTitle || "",
     description: publishingPackage.description,
     tags: publishingPackage.tags,
-    hashtags,
+    hashtags: Array.from(new Set(hashtags)),
     searchQueryOpportunities,
   };
 
@@ -206,18 +235,49 @@ export async function runAutonomousVideoWorkflow(params: {
     highestPriority = `Rewrite the first line: ${hookScore.weakest.fix}. Currently scoring ${hookScore.verdict}/100.`;
   }
 
-  const followUpContentPlan = [
-    {
-      topic: `Top 3 Costly Mistakes in ${topic}`,
-      angle: "Highlight counter-intuitive errors that waste time",
-      format: "Long-form" as const,
-    },
-    {
-      topic: `${topic} Shortcut That Saves 30 Minutes`,
-      angle: "Single tactical trick demonstrated in 45 seconds",
-      format: "Shorts" as const,
-    },
-  ];
+  let followUpContentPlan: Array<{ topic: string; angle: string; format: "Long-form" | "Shorts" }> = [];
+  if (topic && understanding.isAdequatelyUnderstood) {
+    if (isRomanticOrMusic) {
+      followUpContentPlan = [
+        {
+          topic: `Extended Lyrical Cut of ${topic}`,
+          angle: "Highlight emotional rhythm and visual climax",
+          format: "Long-form",
+        },
+        {
+          topic: `${topic} Mood Highlights`,
+          angle: "Top 30-second aesthetic moment",
+          format: "Shorts",
+        },
+      ];
+    } else if (isInstructional) {
+      followUpContentPlan = [
+        {
+          topic: `Top Mistakes to Avoid in ${topic}`,
+          angle: "Highlight counter-intuitive implementation errors",
+          format: "Long-form",
+        },
+        {
+          topic: `${topic} Fast Tactical Tip`,
+          angle: "Single workflow shortcut demonstrated concisely",
+          format: "Shorts",
+        },
+      ];
+    } else {
+      followUpContentPlan = [
+        {
+          topic: `Visual Overview of ${topic}`,
+          angle: "Contextual and scene presentation",
+          format: "Long-form",
+        },
+        {
+          topic: `Highlights from ${topic}`,
+          angle: "Concise 30-second visual presentation",
+          format: "Shorts",
+        },
+      ];
+    }
+  }
 
   return {
     jobId,

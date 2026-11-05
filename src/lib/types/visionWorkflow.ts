@@ -35,6 +35,8 @@ export interface SampledFrame {
 
 export interface VisionAnalysisReport {
   sampledFrames: SampledFrame[];
+  sampledFramesCount?: number;
+  analyzedFramesCount?: number;
   detectedSubjects: string[];
   detectedEnvironments: string[];
   visualPacing: "rapid" | "moderate" | "static";
@@ -60,6 +62,7 @@ export interface VideoUnderstandingEvidence {
   actualTopic: string;
   videoSubject?: string;
   videoPurpose?: string;
+  analysisMethod?: string;
   contentType?:
     | "romantic_status"
     | "music_video"
