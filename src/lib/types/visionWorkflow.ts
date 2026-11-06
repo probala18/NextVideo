@@ -138,6 +138,7 @@ export interface PublishingEvidenceGrounding {
 export interface TitleOption {
   title: string;
   formula: string;
+  strategy?: string;
   characterCount: number;
   isTruncated: boolean;
   fitReason?: string;

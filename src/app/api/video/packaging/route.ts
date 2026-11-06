@@ -7,6 +7,7 @@ export async function POST(req: NextRequest) {
     const {
       topic = "",
       currentTitle = "",
+      previousTitles = [],
       transcriptText = "",
       durationSeconds = 600,
       understanding,
@@ -14,6 +15,12 @@ export async function POST(req: NextRequest) {
       candidateFrames = [],
       assetId = "preview",
     } = body;
+
+    const priorTitlesList: string[] = Array.isArray(previousTitles)
+      ? previousTitles
+      : currentTitle
+      ? [currentTitle]
+      : [];
 
     // Packaging must use a topic established by video evidence, not a stale/manual title.
     const evidenceTopic = understanding?.isAdequatelyUnderstood
@@ -32,6 +39,57 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const activeFrames = Array.isArray(candidateFrames) && candidateFrames.length > 0
+      ? candidateFrames
+      : (Array.isArray(visualEvidence) ? visualEvidence : []);
+
+    // If structured understanding is available, run through the multimodal generator
+    if (understanding?.isAdequatelyUnderstood) {
+      const { generatePublishingPackageWithAI } = await import("@/lib/video/generator");
+      const pkg = await generatePublishingPackageWithAI({
+        media: {
+          filename: `${assetId}.mp4`,
+          filesizeBytes: 0,
+          format: "mp4",
+          durationSeconds: Number(durationSeconds) || 60,
+          width: 1280,
+          height: 720,
+          aspectRatio: "16:9",
+          hasVideoTrack: true,
+          hasAudioTrack: true,
+          codec: "h264",
+          inspectedWith: "atom_parser",
+        },
+        evidence: understanding,
+        vision: {
+          sampledFrames: activeFrames,
+          onScreenTextCues: [],
+          candidateThumbnailMoments: [],
+          detectedSubjects: understanding.detectedVisualSubjects || [],
+          detectedEnvironments: [],
+          visualPacing: "moderate",
+          limitations: [],
+          confidenceScore: null,
+          modelUsed: "configured",
+          supportsVision: true,
+        },
+        thumbnails: [],
+        previousTitles: priorTitlesList,
+      });
+
+      if (pkg.titles.length > 0) {
+        return NextResponse.json({
+          success: true,
+          titles: pkg.titles.map((t) => t.title),
+          titleOptions: pkg.titles,
+          suggestedTitle: pkg.recommendedTitle,
+          description: pkg.description,
+          tags: pkg.tags,
+          thumbnails: pkg.thumbnails,
+        });
+      }
+    }
+
     const result = await generatePackagingWithAI({
       topic: cleanTopic,
       currentTitle: String(currentTitle || "").trim(),
@@ -41,10 +99,6 @@ export async function POST(req: NextRequest) {
 
     // Generate real 1280x720 thumbnail image variations from genuine candidate frames
     const { generateYouTubeThumbnails } = await import("@/lib/video/thumbnail-generator");
-    const activeFrames = Array.isArray(candidateFrames) && candidateFrames.length > 0
-      ? candidateFrames
-      : (Array.isArray(visualEvidence) ? visualEvidence : []);
-
     const thumbnails = await generateYouTubeThumbnails({
       assetId,
       topic: cleanTopic,

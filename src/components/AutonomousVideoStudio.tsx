@@ -454,6 +454,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
           assetId: currentJob.assetId,
           topic: report.understanding?.actualTopic || editableTitle,
           currentTitle: editableTitle,
+          previousTitles: (report.publishingPackage?.titles || []).map((t) => t.title),
           transcriptText: report.transcript?.text || "",
           durationSeconds: report.media?.durationSeconds || 600,
           understanding: report.understanding,
@@ -469,7 +470,9 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || "Failed to regenerate packaging");
 
-      const newTitles: TitleOption[] = Array.isArray(data.titles)
+      const newTitles: TitleOption[] = Array.isArray(data.titleOptions) && data.titleOptions.length > 0
+        ? data.titleOptions
+        : Array.isArray(data.titles)
         ? data.titles.map((t: string) => ({
             title: t,
             formula: "Evidence-derived candidate",
@@ -1069,7 +1072,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-[#111827] flex items-center gap-2">
                 <span>1. Select Publishing Title</span>
-                <span className="text-[11px] font-semibold text-[#6B7280]">(Choose 1 of 5)</span>
+                <span className="text-[11px] font-semibold text-[#6B7280]">{titlesList.length > 0 ? `(Choose 1 of ${titlesList.length})` : "(Review options)"}</span>
               </h3>
               <span className="text-[11px] text-[#2563EB] font-bold">
                 Selected: {editableTitle.length} chars
@@ -1132,6 +1135,11 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
                       <div className="space-y-1">
                         <div className="text-sm font-bold text-[#111827]">{item.title}</div>
                         <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#6B7280]">
+                          {item.strategy && (
+                            <span className="px-2 py-0.5 rounded-md font-bold text-[10px] uppercase tracking-wider bg-[#EFF6FF] text-[#2563EB]">
+                              {item.strategy.replace("_", " ")}
+                            </span>
+                          )}
                           <span className="font-semibold text-[#4B5563]">{item.formula}</span>
                           <span>•</span>
                           <span>{item.fitReason || "Accurately represents video demonstration."}</span>
