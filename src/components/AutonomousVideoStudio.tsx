@@ -65,6 +65,8 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishedVideoUrl, setPublishedVideoUrl] = useState<string | null>(null);
   const [publishedVideoId, setPublishedVideoId] = useState<string | null>(null);
+  const [publishedThumbnailStatus, setPublishedThumbnailStatus] = useState<string | null>(null);
+  const [publishedThumbnailError, setPublishedThumbnailError] = useState<string | null>(null);
   const [isOAuthModalOpen, setIsOAuthModalOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -175,7 +177,19 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
             if (["completed", "failed", "cancelled"].includes(updated.status)) {
               setIsPolling(false);
               if (updated.status === "completed") {
-                onToast("Video analysis & asset generation complete!", "success");
+                const hasTitles = (updated.report?.publishingPackage?.titles?.length ?? 0) > 0;
+                const audioStatus = updated.report?.audioAnalysis?.status;
+                const isAudioOk = audioStatus === "completed" || audioStatus === "no_audio";
+
+                if (hasTitles && isAudioOk) {
+                  onToast("Video analysis & publishing package ready for review!", "success");
+                } else if (hasTitles && !isAudioOk) {
+                  onToast("Visual analysis complete. Audio transcription was unavailable; review metadata.", "info");
+                } else if (!hasTitles && isAudioOk) {
+                  onToast("Video analyzed, but metadata generation needs attention. Check provider configuration in Settings.", "info");
+                } else {
+                  onToast("Visual frames analyzed. Audio processing and metadata generation encountered limitations.", "info");
+                }
               } else if (updated.status === "failed") {
                 onToast(updated.errorMessage || "Processing failed.", "error");
               }
@@ -568,6 +582,8 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       const publishedUrl = data.videoUrl || data.publishedUrl || (data.videoId ? `https://youtu.be/${data.videoId}` : null);
       setPublishedVideoUrl(publishedUrl);
       setPublishedVideoId(data.videoId || data.record?.youtubeVideoId || null);
+      setPublishedThumbnailStatus(data.thumbnailStatus || data.record?.thumbnailStatus || null);
+      setPublishedThumbnailError(data.thumbnailError || data.record?.thumbnailError || null);
 
       if (data.isDuplicatePrevented) {
         onToast("Video was already published. Retrieved existing YouTube URL.", "info");
@@ -1373,16 +1389,48 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
 
           {/* Published Video Link Banner */}
           {publishedVideoUrl && (
-            <div className="p-6 bg-[#ECFDF5] border border-[#A7F3D0] rounded-2xl space-y-3">
-              <div className="flex items-center gap-2.5 text-[#065F46] font-bold text-sm">
-                <CheckCircle2 className="w-5 h-5 text-[#059669]" />
-                <span>Video Successfully Published to YouTube!</span>
+            <div className="p-6 bg-[#ECFDF5] border border-[#A7F3D0] rounded-2xl space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5 text-[#065F46] font-bold text-sm">
+                  <CheckCircle2 className="w-5 h-5 text-[#059669]" />
+                  <span>Video Successfully Uploaded & Published to YouTube!</span>
+                </div>
+                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#D1FAE5] text-[#065F46] uppercase tracking-wide">
+                  HTTP 201 Created
+                </span>
               </div>
-              <p className="text-xs text-[#047857]">
-                Your video has been transferred with the selected title, description, tags, and thumbnail.
-              </p>
 
-              <div className="flex flex-wrap items-center gap-2 pt-2">
+              {/* Status details grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-white/70 rounded-xl border border-[#A7F3D0]/60 text-xs">
+                <div>
+                  <span className="text-[11px] text-[#6B7280] block font-medium">YouTube Video ID</span>
+                  <code className="text-[#065F46] font-mono font-bold text-xs">{publishedVideoId || "Confirmed"}</code>
+                </div>
+                <div>
+                  <span className="text-[11px] text-[#6B7280] block font-medium">Upload Privacy</span>
+                  <span className="font-bold text-[#111827] capitalize">{publishPrivacy}</span>
+                </div>
+                <div>
+                  <span className="text-[11px] text-[#6B7280] block font-medium">Custom Thumbnail</span>
+                  <span className={`font-bold ${publishedThumbnailStatus === "applied" ? "text-[#059669]" : publishedThumbnailStatus === "failed" ? "text-[#DC2626]" : "text-[#6B7280]"}`}>
+                    {publishedThumbnailStatus === "applied"
+                      ? "Applied Successfully"
+                      : publishedThumbnailStatus === "failed"
+                      ? "Failed (Channel Verification Required)"
+                      : "Not Requested"}
+                  </span>
+                </div>
+              </div>
+
+              {/* YouTube Background Processing Notice */}
+              <div className="p-3 bg-[#F0FDF4] rounded-xl border border-[#BBF7D0] text-[11px] text-[#047857] flex items-start gap-2">
+                <Info className="w-4 h-4 text-[#059669] shrink-0 mt-0.5" />
+                <p>
+                  <strong>YouTube Processing Note:</strong> Upload transfer complete. YouTube is processing standard (SD) and high-definition (HD) streams in the background. Check YouTube Studio for live resolution and content checks.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 pt-1">
                 <a
                   href={publishedVideoUrl}
                   target="_blank"

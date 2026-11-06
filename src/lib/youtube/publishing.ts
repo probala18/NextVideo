@@ -38,6 +38,21 @@ export interface PublishPackageInput {
   thumbnailPath?: string;
 }
 
+export type PublishStatus =
+  | "pending"
+  | "uploading"
+  | "published"
+  | "completed"
+  | "uploaded_to_youtube"
+  | "failed";
+
+export type ThumbnailPublishStatus =
+  | "not_requested"
+  | "pending"
+  | "applied"
+  | "uploaded"
+  | "failed";
+
 export interface PublishedVideoRecord {
   id: string;
   jobId: string;
@@ -48,8 +63,10 @@ export interface PublishedVideoRecord {
   privacyStatus: string;
   publishedAt: string;
   channelId: string;
-  status: "uploaded_to_youtube" | "live" | "failed";
-  thumbnailStatus?: "not_requested" | "uploaded" | "failed";
+  status: PublishStatus;
+  thumbnailStatus?: ThumbnailPublishStatus;
+  thumbnailError?: string;
+  uploadSessionUrl?: string;
 }
 
 function ensureStorage(): void {
@@ -351,17 +368,27 @@ export async function publishVideoToYouTube(
     duplex: "half",
   });
 
-  if (!uploadRes.ok) {
-    const uploadErr = await uploadRes.text();
-    throw new Error(`YouTube video upload failed during transfer: ${uploadErr}`);
+  // YouTube returns 201 Created upon completion (or 200 with video resource)
+  if (uploadRes.status !== 201 && uploadRes.status !== 200) {
+    const uploadErr = await uploadRes.text().catch(() => "");
+    if (uploadRes.status === 308) {
+      throw new Error(`YouTube resumable upload incomplete (HTTP 308). Upload session preserved at: ${uploadUrl}`);
+    }
+    throw new Error(`YouTube video upload failed during transfer: HTTP ${uploadRes.status} - ${uploadErr}`);
   }
 
   const uploadData = await uploadRes.json();
-  const youtubeVideoId = uploadData.id;
+  const youtubeVideoId = uploadData?.id;
+  if (!youtubeVideoId || typeof youtubeVideoId !== "string" || !youtubeVideoId.trim()) {
+    throw new Error("YouTube API upload did not return a valid video resource with non-empty ID.");
+  }
   const youtubeUrl = `https://youtu.be/${youtubeVideoId}`;
 
-  // Step 3: Upload Custom Thumbnail if provided
-  let thumbnailStatus: PublishedVideoRecord["thumbnailStatus"] = input.thumbnailPath ? "failed" : "not_requested";
+  // Step 3: Decoupled Custom Thumbnail Upload
+  // Video is ALREADY successfully published. A thumbnail error must NOT invalidate video publication.
+  let thumbnailStatus: ThumbnailPublishStatus = input.thumbnailPath ? "pending" : "not_requested";
+  let thumbnailError: string | undefined = undefined;
+
   if (input.thumbnailPath && fs.existsSync(input.thumbnailPath) && youtubeVideoId) {
     try {
       const thumbBuffer = await fs.promises.readFile(input.thumbnailPath);
@@ -377,12 +404,23 @@ export async function publishVideoToYouTube(
           body: thumbBuffer,
         }
       );
-      if (!thumbRes.ok) console.warn(`Custom thumbnail upload failed with HTTP ${thumbRes.status}: ${(await thumbRes.text()).slice(0, 300)}`);
-      else thumbnailStatus = "uploaded";
-    } catch (thumbErr) {
-      console.warn("Custom thumbnail upload failed gracefully:", thumbErr);
+      if (!thumbRes.ok) {
+        const errBody = await thumbRes.text().catch(() => "");
+        thumbnailStatus = "failed";
+        thumbnailError = `HTTP ${thumbRes.status}: ${errBody.slice(0, 200)}`;
+        console.warn(`Custom thumbnail upload failed (${thumbnailError}). Video remains published.`);
+      } else {
+        thumbnailStatus = "applied";
+      }
+    } catch (thumbErr: any) {
+      thumbnailStatus = "failed";
+      thumbnailError = thumbErr instanceof Error ? thumbErr.message : "Unknown thumbnail upload error";
+      console.warn("Custom thumbnail upload failed gracefully:", thumbnailError);
     }
   }
+
+  // If thumbnail succeeded or was not requested, status is completed; if thumbnail failed, status remains published.
+  const finalStatus: PublishStatus = thumbnailStatus === "failed" ? "published" : "completed";
 
   const record: PublishedVideoRecord = {
     id: `pub_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,
@@ -394,10 +432,57 @@ export async function publishVideoToYouTube(
     privacyStatus: privacy,
     publishedAt: new Date().toISOString(),
     channelId: auth.channelId,
-    status: "uploaded_to_youtube",
+    status: finalStatus,
     thumbnailStatus,
+    thumbnailError,
+    uploadSessionUrl: uploadUrl,
   };
 
   recordPublishedVideo(record);
   return record;
+}
+
+/**
+ * Query YouTube for the status of an interrupted resumable upload session.
+ * HTTP 308 Resume Incomplete returns Range header indicating how many bytes have been received.
+ * HTTP 201 Created or 200 OK indicates the upload has already completed.
+ */
+export async function queryUploadSession(
+  uploadUrl: string,
+  totalFileSize: number
+): Promise<{
+  isComplete: boolean;
+  bytesReceived: number;
+  videoId?: string;
+}> {
+  const res = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: {
+      "Content-Range": `bytes */${totalFileSize}`,
+    },
+  });
+
+  if (res.status === 201 || res.status === 200) {
+    const data = await res.json().catch(() => null);
+    return {
+      isComplete: true,
+      bytesReceived: totalFileSize,
+      videoId: data?.id,
+    };
+  }
+
+  if (res.status === 308) {
+    const range = res.headers.get("Range");
+    let bytesReceived = 0;
+    if (range) {
+      const match = range.match(/bytes=0-(\d+)/);
+      if (match) bytesReceived = parseInt(match[1], 10) + 1;
+    }
+    return {
+      isComplete: false,
+      bytesReceived,
+    };
+  }
+
+  throw new Error(`Failed to query upload session: HTTP ${res.status}`);
 }

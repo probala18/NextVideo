@@ -58,6 +58,7 @@ export async function runAutonomousVideoWorkflow(params: {
     media,
     vision,
     transcript,
+    audioAnalysis: transcript.audioAnalysis,
   });
 
   const topic = understanding.actualTopic;

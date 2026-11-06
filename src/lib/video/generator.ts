@@ -294,8 +294,7 @@ export async function generatePublishingPackageWithAI(
 
   // Try live AI generation with configured model if configured
   if (baseConfig.isConfigured && (baseConfig.apiKey || baseConfig.baseUrl.includes("localhost") || baseConfig.baseUrl.includes("127.0.0.1"))) {
-    try {
-      const liveResearchVideos = (research?.videos || []).slice(0, 5);
+    const liveResearchVideos = (research?.videos || []).slice(0, 5);
       const researchContext = liveResearchVideos.length > 0
         ? `Real YouTube Competitive Research (${liveResearchVideos.length} top videos found):\n` +
           liveResearchVideos
@@ -395,18 +394,28 @@ OUTPUT JSON FORMAT ONLY:
 
 ${researchContext}`;
 
-      const aiResponse = await fetchLLMCompletion({
-        provider: baseConfig.provider,
-        model,
-        apiKey: baseConfig.apiKey,
-        baseUrl: baseConfig.baseUrl || providerDef.defaultBaseUrl,
-        systemPrompt,
-        userPrompt,
-      });
+      let diagnosticError: string | null = null;
+      try {
+        console.info(`[Generator Diagnostic] Requesting publishing package | Provider: "${baseConfig.provider}" | Model: "${model}" | Topic: "${cleanTopic}"`);
+        const startTime = Date.now();
 
-      if (!aiResponse) throw new Error("Configured model returned an empty response.");
+        const aiResponse = await fetchLLMCompletion({
+          provider: baseConfig.provider,
+          model,
+          apiKey: baseConfig.apiKey,
+          baseUrl: baseConfig.baseUrl || providerDef.defaultBaseUrl,
+          systemPrompt,
+          userPrompt,
+        });
 
-      if (aiResponse) {
+        const elapsed = Date.now() - startTime;
+
+        if (!aiResponse) {
+          throw new Error(`Configured model "${model}" via ${baseConfig.provider} returned an empty response after ${elapsed}ms.`);
+        }
+
+        console.info(`[Generator Diagnostic] Received response in ${elapsed}ms | Length: ${aiResponse.length} chars | Preview: "${aiResponse.slice(0, 120).replace(/\n/g, " ")}..."`);
+
         const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
         const cleaned = jsonMatch
           ? jsonMatch[0]
@@ -415,7 +424,13 @@ ${researchContext}`;
               .replace(/^```\s*/i, "")
               .replace(/\s*```$/i, "")
               .trim();
-        const parsed = JSON.parse(cleaned);
+
+        let parsed: any;
+        try {
+          parsed = JSON.parse(cleaned);
+        } catch (jsonErr: any) {
+          throw new Error(`JSON parse error (${jsonErr.message}). Preview: "${cleaned.slice(0, 150)}"`);
+        }
 
         if (Array.isArray(parsed.titles) && parsed.titles.length > 0) {
           const rawTitles: TitleOption[] = parsed.titles
@@ -448,7 +463,7 @@ ${researchContext}`;
           const validTitles = rawTitles.filter((t) => validateTitleSemantics(t.title, evidence).isValid);
 
           // If validation filtered out bad titles and we need to replenish with evidence-grounded options:
-          if (validTitles.length < 3 && cleanTopic) {
+          if (validTitles.length < 5 && cleanTopic) {
             const fallbackAngles = isRomanticOrMusic
               ? [
                   { title: `${cleanTopic} | Romantic Status Video (Fullscreen)`, formula: "Romantic Status" },
@@ -483,7 +498,7 @@ ${researchContext}`;
                   characterCount: fb.title.length,
                   isTruncated: fb.title.length > 60,
                   fitReason: `Grounded in verified ${evidence.contentType || "visual"} subject "${cleanTopic}".`,
-                  evidenceSupport: `Direct video subject and visual frame evidence.`,
+                  evidenceSupport: `Direct video subject and visual frame observations.`,
                   scores: {
                     contentRelevance: relevance,
                     specificity: null,
@@ -498,10 +513,12 @@ ${researchContext}`;
             }
           }
 
-          titles = validTitles.slice(0, 5);
-          const requested = typeof parsed.recommendedTitle === "string" ? parsed.recommendedTitle.trim() : "";
-          recommendedTitle = requested && titles.some((t) => t.title === requested) ? requested : (titles[0]?.title || "");
-          recommendedTitleReason = recommendedTitle ? String(parsed.recommendedTitleReason || `Top ranking evidence-grounded title matching ${evidence.contentType}.`) : "";
+          if (validTitles.length > 0) {
+            titles = validTitles.slice(0, 5);
+            const requested = typeof parsed.recommendedTitle === "string" ? parsed.recommendedTitle.trim() : "";
+            recommendedTitle = requested && titles.some((t) => t.title === requested) ? requested : (titles[0]?.title || "");
+            recommendedTitleReason = recommendedTitle ? String(parsed.recommendedTitleReason || `Top ranking evidence-grounded title matching ${evidence.contentType}.`) : "";
+          }
         }
 
         if (typeof parsed.description === "string" && parsed.description.length > 20) {
@@ -519,22 +536,23 @@ ${researchContext}`;
             .filter((tg: string) => tg.length >= 2 && !forbiddenJargon.has(tg));
         }
 
-        // If tags empty or need augmentation, derive topic-specific tags
         if (tags.length === 0 && cleanTopic) {
           const cleanWords = cleanTopic.toLowerCase().split(/\s+/).filter((w: string) => w.length >= 3);
           tags = isRomanticOrMusic
             ? [...cleanWords, "status video", "romantic status", "aesthetic"]
+            : isInstructional
+            ? [...cleanWords, "tutorial", "guide", "overview"]
             : [...cleanWords, "visual presentation"];
         }
+
+        if (!titles.length || !description.trim() || !tags.length) {
+          throw new Error("Response must contain five titles, a description, and tags.");
+        }
+      } catch (err: any) {
+        console.warn(`[Generator Warning] Live model call failed (${err.message}). Leaving unsupported assets unavailable.`);
+        generationNotice = "The configured model did not return a usable publishing package. No AI-generated copy was fabricated; check the provider configuration and retry.";
       }
-      if (!titles.length || !description.trim() || !tags.length) {
-        throw new Error("Response must contain five titles, a description, and tags.");
-      }
-    } catch (err: any) {
-      console.warn(`[Generator Warning] Live model call failed (${err.message}). Leaving unsupported assets unavailable.`);
-      generationNotice = "The configured model did not return a usable publishing package. No AI-generated copy was fabricated; check the provider configuration and retry.";
     }
-  }
 
   let suggestedCategory: FullPublishingPackage["suggestedCategory"];
   if (isRomanticOrMusic) {

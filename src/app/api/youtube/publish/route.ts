@@ -177,13 +177,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: record.thumbnailStatus === "failed"
-        ? `Video uploaded to YouTube as ${record.privacyStatus}, but the selected thumbnail upload failed.`
+        ? `Video uploaded to YouTube as ${record.privacyStatus}, but custom thumbnail upload failed (${record.thumbnailError || "unverified channel or invalid format"}).`
         : `Video successfully uploaded to YouTube as ${record.privacyStatus}`,
       record,
       videoUrl: record.youtubeUrl,
       publishedUrl: record.youtubeUrl,
       youtubeUrl: record.youtubeUrl,
       videoId: record.youtubeVideoId,
+      status: record.status,
+      thumbnailStatus: record.thumbnailStatus,
+      thumbnailError: record.thumbnailError,
     });
   } catch (err: any) {
     return NextResponse.json(

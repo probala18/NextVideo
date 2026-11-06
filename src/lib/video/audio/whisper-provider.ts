@@ -41,6 +41,34 @@ const ISO_LANG_MAP: Record<string, string> = {
 };
 
 /**
+ * Safely resolves the absolute path to whisper-cli.py.
+ * Resolves against process.cwd() to support Next.js bundled API routes (.next/server/...)
+ * and supports Windows paths containing spaces.
+ */
+export function resolveWhisperScriptPath(): string {
+  if (process.env.WHISPER_SCRIPT_PATH) {
+    const custom = path.resolve(process.env.WHISPER_SCRIPT_PATH);
+    if (fs.existsSync(custom)) return custom;
+  }
+
+  const candidates = [
+    path.join(process.cwd(), "src", "lib", "video", "audio", "whisper-cli.py"),
+    path.join(process.cwd(), "lib", "video", "audio", "whisper-cli.py"),
+    path.join(__dirname, "whisper-cli.py"),
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) {
+        return path.resolve(candidate);
+      }
+    } catch {}
+  }
+
+  return path.resolve(candidates[0]);
+}
+
+/**
  * Local Whisper Provider executing through lightweight CPU-quantized runner.
  */
 export class LocalWhisperProvider implements AudioTranscriptionProvider {
@@ -54,6 +82,13 @@ export class LocalWhisperProvider implements AudioTranscriptionProvider {
     if (process.env.WHISPER_ENABLED === "false") return false;
 
     if (this.isAvailableCache !== null) return this.isAvailableCache;
+
+    const scriptPath = resolveWhisperScriptPath();
+    if (!fs.existsSync(scriptPath)) {
+      console.warn(`[Whisper Provider] Runner script not found at: ${scriptPath}`);
+      this.isAvailableCache = false;
+      return false;
+    }
 
     try {
       const pythonBin = process.env.PYTHON_PATH || "python";
@@ -79,7 +114,21 @@ export class LocalWhisperProvider implements AudioTranscriptionProvider {
     const language = options?.language || process.env.WHISPER_LANGUAGE || "auto";
     const timeoutMs = options?.timeoutMs || parseInt(process.env.WHISPER_TIMEOUT_MS || "120000", 10);
     const pythonBin = process.env.PYTHON_PATH || "python";
-    const scriptPath = path.join(__dirname, "whisper-cli.py");
+    const scriptPath = resolveWhisperScriptPath();
+
+    if (!fs.existsSync(scriptPath)) {
+      console.warn(`[Whisper Provider] Runner script missing at: ${scriptPath}`);
+      return {
+        status: "unavailable",
+        provider: "none",
+        model,
+        language: { code: null, name: null, status: "not_applicable" },
+        speechDetected: null,
+        transcript: { rawText: "", segments: [] },
+        limitations: [`Whisper script not found at "${scriptPath}". Ensure src/lib/video/audio/whisper-cli.py exists.`],
+        processing: { durationSeconds: 0, processingTimeMs: Date.now() - startTime },
+      };
+    }
 
     const available = await this.isAvailable();
     if (!available) {
@@ -111,7 +160,21 @@ export class LocalWhisperProvider implements AudioTranscriptionProvider {
         { timeout: timeoutMs, maxBuffer: 10 * 1024 * 1024 }
       );
 
-      const parsed = JSON.parse(stdout.trim());
+      if (stderr && stderr.trim()) {
+        console.info(`[Whisper Notice] ${stderr.trim().slice(0, 200)}`);
+      }
+
+      const trimmedStdout = stdout.trim();
+      if (!trimmedStdout) {
+        throw new Error("Whisper runner produced no output on stdout.");
+      }
+
+      let parsed: any;
+      try {
+        parsed = JSON.parse(trimmedStdout);
+      } catch (parseErr: any) {
+        throw new Error(`Failed to parse Whisper runner output: ${parseErr.message} (Raw: ${trimmedStdout.slice(0, 150)})`);
+      }
       if (!parsed.success) {
         return {
           status: "failed",
@@ -164,6 +227,10 @@ export class LocalWhisperProvider implements AudioTranscriptionProvider {
         },
       };
     } catch (error: any) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      const stderr = error?.stderr ? String(error.stderr).trim() : "";
+      console.warn(`[Whisper Provider Error] Exit code: ${error?.code ?? "unknown"} | ${stderr || errMsg}`);
+
       return {
         status: "failed",
         provider: this.id,
@@ -171,7 +238,7 @@ export class LocalWhisperProvider implements AudioTranscriptionProvider {
         language: { code: null, name: null, status: "unknown" },
         speechDetected: null,
         transcript: { rawText: "", segments: [] },
-        limitations: [error instanceof Error ? error.message : "Local Whisper transcription error."],
+        limitations: [stderr ? `Whisper runner error: ${stderr.slice(0, 200)}` : `Whisper failed: ${errMsg.slice(0, 200)}`],
         processing: { durationSeconds: 0, processingTimeMs: Date.now() - startTime },
       };
     }
