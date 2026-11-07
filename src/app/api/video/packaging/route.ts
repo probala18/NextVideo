@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
     if (understanding?.isAdequatelyUnderstood) {
       const { generatePublishingPackageWithAI } = await import("@/lib/video/generator");
       const pkg = await generatePublishingPackageWithAI({
+        assetId,
         media: {
           filename: `${assetId}.mp4`,
           filesizeBytes: 0,
@@ -77,40 +78,28 @@ export async function POST(req: NextRequest) {
         previousTitles: priorTitlesList,
       });
 
-      if (pkg.titles.length > 0) {
-        return NextResponse.json({
-          success: true,
-          titles: pkg.titles.map((t) => t.title),
-          titleOptions: pkg.titles,
-          suggestedTitle: pkg.recommendedTitle,
-          description: pkg.description,
-          tags: pkg.tags,
-          thumbnails: pkg.thumbnails,
-        });
-      }
+      // Always return the structured generator's result directly.
+      // NEVER fall through to legacy tutorial templates when titles are filtered out.
+      return NextResponse.json({
+        success: true,
+        titles: pkg.titles.map((t) => t.title),
+        titleOptions: pkg.titles,
+        suggestedTitle: pkg.recommendedTitle,
+        description: pkg.description,
+        tags: pkg.tags,
+        thumbnails: pkg.thumbnails,
+        limitationNotice: pkg.limitationNotice,
+      });
     }
 
-    const result = await generatePackagingWithAI({
-      topic: cleanTopic,
-      currentTitle: String(currentTitle || "").trim(),
-      transcriptText: JSON.stringify({ understanding, transcriptText, visualEvidence }).slice(0, 12000),
-      durationSeconds: Number(durationSeconds) || 600,
-    });
-
-    // Generate real 1280x720 thumbnail image variations from genuine candidate frames
-    const { generateYouTubeThumbnails } = await import("@/lib/video/thumbnail-generator");
-    const thumbnails = await generateYouTubeThumbnails({
-      assetId,
-      topic: cleanTopic,
-      candidateFrames: activeFrames,
-      concepts: result.thumbnailConcepts,
-    });
-
-    return NextResponse.json({
-      success: true,
-      ...result,
-      thumbnails,
-    });
+    // If structured evidence was not available, report missing evidence instead of fabricating legacy templates
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Structured video understanding is required for publishing asset generation. Process the uploaded video before generating assets.",
+      },
+      { status: 422 }
+    );
   } catch (error) {
     console.error("[Packaging API Error]", error);
     return NextResponse.json(

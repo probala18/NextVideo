@@ -104,6 +104,7 @@ export async function runAutonomousVideoWorkflow(params: {
 
   // 6. Generate Full Publishing Package with Evidence Grounding & Real Research
   const publishingPackage = await generatePublishingPackageWithAI({
+    assetId,
     media,
     evidence: understanding,
     vision,

@@ -1,4 +1,6 @@
 import { describe, expect, it, beforeEach } from "bun:test";
+import fs from "fs";
+import path from "path";
 import {
   buildStructuredTitleEvidence,
   filterAndDeduplicateTitles,
@@ -142,10 +144,12 @@ describe("Title Generation Improvements: Structured Evidence, Strategies, Qualit
       // Audio language detected as Tamil
       expect(structured.audioLanguage.isTamil).toBe(true);
       expect(structured.audioLanguage.confidenceCheck).toBe("reliable");
+      expect(structured.audioLanguage.meaningConfidence).toBe("unverified");
 
-      // Audio meaning conveys theme without blindly pasting raw text or inventing song title
+      // Audio meaning conveys neutral transcription without assuming romantic or specific lyrical meaning
       expect(structured.audioMeaning).toContain("Tamil");
-      expect(structured.audioMeaning).toContain("romantic");
+      expect(structured.audioMeaning).toContain("unverified");
+      expect(structured.audioMeaning).toContain("Do NOT assume romantic");
 
       // Verified identity strictly marks song and artist as unverified
       expect(structured.verifiedIdentity.isVerified).toBe(false);
@@ -318,7 +322,7 @@ describe("Title Generation Improvements: Structured Evidence, Strategies, Qualit
         },
         {
           title: "Soulful Tamil Lyrical Feelings",
-          formula: "Grounded Audio Meaning",
+          formula: "Emotional hook",
           characterCount: 30,
           isTruncated: false,
         },
@@ -419,6 +423,104 @@ describe("Title Generation Improvements: Structured Evidence, Strategies, Qualit
       recordTitleHistory(fp1, ["Title A", "Title B"]);
       expect(getTitleHistory(fp1)).toHaveLength(2);
       expect(getTitleHistory(fp2)).toHaveLength(0);
+    });
+
+    it("persists title history to durable disk storage and loads on cold access", () => {
+      const fp = "durable_test_asset_999";
+      recordTitleHistory(fp, ["Durable Title 1", "Durable Title 2"]);
+      expect(getTitleHistory(fp)).toContain("Durable Title 1");
+
+      // Verify file exists on disk in data/title_history.json
+      const historyFile = path.join(process.cwd(), "data", "title_history.json");
+      expect(fs.existsSync(historyFile)).toBe(true);
+      const content = JSON.parse(fs.readFileSync(historyFile, "utf-8"));
+      expect(content[fp]).toContain("Durable Title 1");
+    });
+  });
+
+  describe("4. Strategy Diversity & Evidence-Grounded Strategy Validation", () => {
+    const structured = buildStructuredTitleEvidence(mockMedia, mockEvidence, mockVision);
+
+    it("enforces strategy diversity by accepting at most one candidate per strategy", () => {
+      const candidates: TitleOption[] = [
+        {
+          title: "Fine Time Music | Tamil Romantic Status",
+          strategy: "search_focused",
+          formula: "Search Keywords",
+          characterCount: 39,
+          isTruncated: false,
+        },
+        {
+          title: "Fine Time Music Status Clip 2026",
+          strategy: "search_focused", // Second search-focused option
+          formula: "Search Keywords 2",
+          characterCount: 32,
+          isTruncated: false,
+        },
+        {
+          title: "Golden Earrings Sparkle in Tender Romance",
+          strategy: "scene_focused",
+          formula: "Visual Scene",
+          characterCount: 41,
+          isTruncated: false,
+        },
+      ];
+
+      const filtered = filterAndDeduplicateTitles(candidates, mockEvidence, structured, [], mockVision);
+      expect(filtered.length).toBe(2);
+      expect(filtered[0].strategy).toBe("search_focused");
+      expect(filtered[1].strategy).toBe("scene_focused");
+    });
+
+    it("rejects audio_focused candidates when meaningConfidence is unverified", () => {
+      // Audio is Tamil without bilingual verification -> meaningConfidence is unverified
+      expect(structured.audioLanguage.meaningConfidence).toBe("unverified");
+
+      const candidates: TitleOption[] = [
+        {
+          title: "Sweet Tamil Melody Lyrics Spoken",
+          strategy: "audio_focused",
+          formula: "Audio Lyrics",
+          characterCount: 32,
+          isTruncated: false,
+        },
+        {
+          title: "Fine Time Soulful Whisper",
+          strategy: "clean_concise",
+          formula: "Clean & Concise",
+          characterCount: 25,
+          isTruncated: false,
+        },
+      ];
+
+      const filtered = filterAndDeduplicateTitles(candidates, mockEvidence, structured, [], mockVision);
+      // audio_focused must be rejected because meaningConfidence is unverified!
+      expect(filtered.length).toBe(1);
+      expect(filtered[0].strategy).toBe("clean_concise");
+      expect(filtered[0].title).toBe("Fine Time Soulful Whisper");
+    });
+
+    it("rejects scene_focused candidates that claim ungrounded visual specifics not present in vision frames", () => {
+      const candidates: TitleOption[] = [
+        {
+          title: "Fine Time Music Drone 4K Flight", // Drone is ungrounded
+          strategy: "scene_focused",
+          formula: "Scene Focus",
+          characterCount: 32,
+          isTruncated: false,
+        },
+        {
+          title: "Woman with Golden Earrings in Soft Light", // Attested in vision
+          strategy: "scene_focused",
+          formula: "Scene Focus",
+          characterCount: 41,
+          isTruncated: false,
+        },
+      ];
+
+      const filtered = filterAndDeduplicateTitles(candidates, mockEvidence, structured, [], mockVision);
+      expect(filtered.length).toBe(1);
+      expect(filtered[0].title).toBe("Woman with Golden Earrings in Soft Light");
     });
   });
 });

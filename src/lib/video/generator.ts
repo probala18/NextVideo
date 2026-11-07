@@ -6,6 +6,8 @@
  * - Connects all recommendations directly to concrete video evidence and timestamps
  */
 
+import fs from "fs";
+import path from "path";
 import {
   FullPublishingPackage,
   PublishingEvidenceGrounding,
@@ -19,6 +21,7 @@ import { ResearchReport } from "../research/collector";
 import { getLLMConfig, LLM_PROVIDERS } from "../openrouter";
 
 export interface GeneratePublishingInput {
+  assetId?: string;
   media: MediaMetadata;
   evidence: VideoUnderstandingEvidence;
   vision: VisionAnalysisReport;
@@ -232,15 +235,25 @@ export type TitleStrategy =
   | "audio_focused"
   | "clean_concise";
 
+export const VALID_STRATEGIES: TitleStrategy[] = [
+  "search_focused",
+  "emotional_hook",
+  "scene_focused",
+  "audio_focused",
+  "clean_concise",
+];
+
 export interface StructuredTitleEvidence {
   visibleText: string[];
   visualScene: string;
   emotionalContext: string;
+  transcriptionStatus: "detected" | "unavailable";
   audioLanguage: {
     code: string | null;
     name: string | null;
     isTamil: boolean;
     confidenceCheck: "reliable" | "uncertain" | "unavailable";
+    meaningConfidence: "verified" | "unverified";
   };
   audioMeaning: string;
   contentType: string;
@@ -305,8 +318,16 @@ export function buildStructuredTitleEvidence(
   const langName = audioAnalysis?.language?.name || null;
   const isTamil = Boolean((langCode && langCode.toLowerCase().startsWith("ta")) || (langName && langName.toLowerCase().includes("tamil")));
 
+  // 1. Transcription Status
+  const rawTranscript = (audioAnalysis?.transcript?.rawText || (evidence.audioEvidence || []).map((e) => e.cueText).join(" ")).trim();
+  const transcriptionStatus: "detected" | "unavailable" =
+    audioAnalysis?.status === "completed" && Boolean(audioAnalysis?.speechDetected) && rawTranscript.length > 0
+      ? "detected"
+      : "unavailable";
+
+  // 2. Language & Confidence Checks
   let confidenceCheck: "reliable" | "uncertain" | "unavailable" = "unavailable";
-  if (audioAnalysis?.status === "completed" && audioAnalysis?.speechDetected) {
+  if (transcriptionStatus === "detected") {
     confidenceCheck = "reliable";
   } else if (audioAnalysis?.status === "no_audio" || audioAnalysis?.status === "no_speech") {
     confidenceCheck = "unavailable";
@@ -314,26 +335,30 @@ export function buildStructuredTitleEvidence(
     confidenceCheck = "uncertain";
   }
 
+  // 3. Meaning Confidence:
+  // Non-English (e.g. Tamil) without a verified bilingual translation pass must be marked "unverified".
+  // English transcription with speech detected is considered "verified".
+  const isEnglish = Boolean((langCode && langCode.toLowerCase().startsWith("en")) || (langName && langName.toLowerCase().includes("english")));
+  const meaningConfidence: "verified" | "unverified" =
+    transcriptionStatus === "detected" && isEnglish ? "verified" : "unverified";
+
+  // 4. Audio Meaning Grounding
   let audioMeaning = "";
-  if (confidenceCheck === "reliable") {
-    const rawText = audioAnalysis?.transcript?.rawText || (evidence.audioEvidence || []).map((e) => e.cueText).join(" ");
-    if (rawText && rawText.trim().length > 0) {
-      if (isTamil) {
-        audioMeaning = isMusicOrStatus
-          ? `Lyrical vocals in Tamil expressing romantic and poetic sentiments. (Meaning/theme: gentle affection and emotional longing; not a software guide).`
-          : `Spoken dialogue in Tamil discussing: "${rawText.slice(0, 120).replace(/\s+/g, " ").trim()}..."`;
-      } else {
-        audioMeaning = `Spoken audio conveys: "${rawText.slice(0, 140).replace(/\s+/g, " ").trim()}..."`;
-      }
-    } else {
-      audioMeaning = "Vocals detected, but textual transcription is limited.";
-    }
-  } else if (confidenceCheck === "unavailable") {
+  if (transcriptionStatus === "unavailable") {
     audioMeaning = "No speech detected; instrumental music or ambient audio.";
+  } else if (isTamil) {
+    const rawSnippet = rawTranscript.slice(0, 100).replace(/\s+/g, " ").trim();
+    // Neutral representation without assuming romantic or specific lyrical meaning
+    audioMeaning = `Spoken or sung Tamil audio transcribed ("${rawSnippet}..."), but semantic translation/interpretation is unverified. Do NOT assume romantic or specific lyrical meaning.`;
+  } else if (meaningConfidence === "verified") {
+    const rawSnippet = rawTranscript.slice(0, 140).replace(/\s+/g, " ").trim();
+    audioMeaning = `Spoken audio conveys: "${rawSnippet}..."`;
   } else {
-    audioMeaning = "Audio transcription was inconclusive or limited.";
+    const rawSnippet = rawTranscript.slice(0, 100).replace(/\s+/g, " ").trim();
+    audioMeaning = `Audio transcribed in ${langName || "non-English"} ("${rawSnippet}..."), but semantic interpretation is unverified.`;
   }
 
+  // 5. Verified Identity
   const verifiedIdentity = {
     songTitle: null as string | null,
     artist: null as string | null,
@@ -345,11 +370,13 @@ export function buildStructuredTitleEvidence(
     visibleText,
     visualScene,
     emotionalContext,
+    transcriptionStatus,
     audioLanguage: {
       code: langCode,
       name: langName,
       isTamil,
       confidenceCheck,
+      meaningConfidence,
     },
     audioMeaning,
     contentType,
@@ -436,14 +463,54 @@ export function filterAndDeduplicateTitles(
   candidateTitles: TitleOption[],
   evidence: VideoUnderstandingEvidence,
   structuredEvidence: StructuredTitleEvidence,
-  previousTitles: string[] = []
+  previousTitles: string[] = [],
+  vision?: VisionAnalysisReport
 ): TitleOption[] {
   const accepted: TitleOption[] = [];
   const seenNormalized = new Set<string>();
+  const seenStrategies = new Set<string>();
 
   const previousNormalized = new Set(
     previousTitles.map((t) => normalizeTitleForDeduplication(t)).filter(Boolean)
   );
+
+  // Compile attested visual cues for scene grounding validation
+  const attestedVisualKeywords = new Set<string>();
+  const collectWords = (str?: string) => {
+    if (!str) return;
+    str
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length >= 3 && !DEDUPLICATION_STOP_WORDS.has(w))
+      .forEach((w) => attestedVisualKeywords.add(w));
+  };
+
+  (evidence.detectedVisualSubjects || []).forEach(collectWords);
+  (structuredEvidence.visibleText || []).forEach(collectWords);
+  collectWords(structuredEvidence.visualScene);
+  collectWords(evidence.actualTopic);
+
+  if (vision) {
+    (vision.detectedSubjects || []).forEach(collectWords);
+    (vision.detectedEnvironments || []).forEach(collectWords);
+    (vision.sampledFrames || []).forEach((f) => {
+      collectWords(f.semanticDescription);
+      collectWords(f.properties?.focalPoint);
+      (f.properties?.dominantColors || []).forEach(collectWords);
+      (f.properties?.detectedOnScreenText || []).forEach(collectWords);
+    });
+    (vision.onScreenTextCues || []).forEach((c) => collectWords(c.text));
+  }
+
+  // Compile genuine timestamps for timestamp grounding check (within +-4s)
+  const realTimestamps: number[] = [];
+  (vision?.sampledFrames || []).forEach((f) => {
+    if (Number.isFinite(f.timestampSeconds)) realTimestamps.push(f.timestampSeconds);
+  });
+  (evidence.audioEvidence || []).forEach((cue) => {
+    if (Number.isFinite(cue.timestampSeconds)) realTimestamps.push(cue.timestampSeconds);
+  });
 
   for (const candidate of candidateTitles) {
     const title = (candidate.title || "").trim();
@@ -471,29 +538,137 @@ export function filterAndDeduplicateTitles(
       }
     }
 
-    // 4. Exact duplicate check (normalized)
+    // 4. Resolve and Validate Title Strategy
+    let strategy: TitleStrategy | undefined = undefined;
+    if (candidate.strategy && VALID_STRATEGIES.includes(candidate.strategy as TitleStrategy)) {
+      strategy = candidate.strategy as TitleStrategy;
+    } else {
+      const formulaLower = (candidate.formula || "").toLowerCase();
+      if (formulaLower.includes("search")) strategy = "search_focused";
+      else if (formulaLower.includes("emotional") || formulaLower.includes("hook")) strategy = "emotional_hook";
+      else if (formulaLower.includes("scene") || formulaLower.includes("visual")) strategy = "scene_focused";
+      else if (formulaLower.includes("audio") || formulaLower.includes("lyric") || formulaLower.includes("vocal") || formulaLower.includes("meaning")) strategy = "audio_focused";
+      else if (formulaLower.includes("concise") || formulaLower.includes("clean") || formulaLower.includes("short")) strategy = "clean_concise";
+    }
+
+    // Strategy Diversity: At most ONE candidate per strategy
+    if (strategy && seenStrategies.has(strategy)) {
+      continue;
+    }
+
+    // Strategy-specific validation rules
+    if (strategy === "audio_focused") {
+      // Audio focused strategy strictly requires verified audio meaning
+      if (structuredEvidence.audioLanguage.meaningConfidence !== "verified") {
+        continue;
+      }
+    }
+
+    if (strategy === "scene_focused") {
+      // Must reference observed visual entities/actions and avoid ungrounded visual claims
+      const titleTokens = title
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .split(/\s+/)
+        .filter((w) => w.length >= 3 && !DEDUPLICATION_STOP_WORDS.has(w));
+
+      if (attestedVisualKeywords.size > 0 && titleTokens.length > 0) {
+        const hasAttestedVisualTerm = titleTokens.some((tok) => attestedVisualKeywords.has(tok));
+        if (!hasAttestedVisualTerm) {
+          continue;
+        }
+
+        // Check for common hallucinated visual specifics absent from attested keywords
+        const suspiciousVisualTerms = ["amber", "drone", "glasses", "sunglasses", "guitar", "piano", "car", "sunset", "beach", "suit", "rain"];
+        const hasUngroundedVisualSpecific = suspiciousVisualTerms.some(
+          (term) => titleTokens.includes(term) && !attestedVisualKeywords.has(term)
+        );
+        if (hasUngroundedVisualSpecific) {
+          continue;
+        }
+      }
+    }
+
+    if (strategy === "search_focused") {
+      // Natural search keywords, <= 65 chars, no keyword stuffing
+      if (title.length > 65) continue;
+      const separatorCount = (title.match(/[|:–—\-//]/g) || []).length;
+      if (separatorCount > 2) continue; // Reject keyword stuffing
+    }
+
+    if (strategy === "clean_concise") {
+      // Strictly <= 45 characters
+      if (title.length > 45) continue;
+    }
+
+    // 5. Evidence timestamp verification (+-4s tolerance)
+    if (candidate.evidenceSupport && realTimestamps.length > 0) {
+      const timeMatch = candidate.evidenceSupport.match(/(\d+(?:\.\d+)?)\s*(?:s|sec|second|seconds)\b/i) ||
+                         candidate.evidenceSupport.match(/\b(\d+):(\d{2})\b/);
+      if (timeMatch) {
+        const claimedSec = timeMatch[2] !== undefined
+          ? parseInt(timeMatch[1], 10) * 60 + parseInt(timeMatch[2], 10)
+          : parseFloat(timeMatch[1]);
+        if (Number.isFinite(claimedSec)) {
+          const isTimestampGrounded = realTimestamps.some((rt) => Math.abs(rt - claimedSec) <= 4.0);
+          if (!isTimestampGrounded) {
+            continue;
+          }
+        }
+      }
+    }
+
+    // 6. Exact duplicate check (normalized)
     const norm = normalizeTitleForDeduplication(title);
     if (!norm || seenNormalized.has(norm)) continue;
 
-    // 5. Cross-generation exact match check
+    // 7. Cross-generation exact match check
     if (previousNormalized.has(norm)) continue;
 
-    // 6. Semantic near-duplicate check against already accepted titles in this generation
+    // 8. Semantic near-duplicate check against already accepted titles in this generation
     let isNearDuplicateOfCurrent = false;
+    const titleTokenList = title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length >= 3 && !DEDUPLICATION_STOP_WORDS.has(w));
+    const titleTokenSet = new Set(titleTokenList);
+
     for (const acceptedTitle of accepted) {
       const similarity = calculateTokenSimilarity(title, acceptedTitle.title);
-      if (similarity >= 0.60) {
+      if (similarity >= 0.55) {
         isNearDuplicateOfCurrent = true;
         break;
+      }
+
+      // Check token containment
+      const acceptedTokenList = acceptedTitle.title
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .split(/\s+/)
+        .filter((w) => w.length >= 3 && !DEDUPLICATION_STOP_WORDS.has(w));
+      const acceptedTokenSet = new Set(acceptedTokenList);
+
+      if (titleTokenSet.size > 0 && acceptedTokenSet.size > 0) {
+        let titleInAcceptedCount = 0;
+        for (const t of titleTokenSet) {
+          if (acceptedTokenSet.has(t)) titleInAcceptedCount++;
+        }
+        const containmentA = titleInAcceptedCount / titleTokenSet.size;
+        const containmentB = titleInAcceptedCount / acceptedTokenSet.size;
+        if (containmentA >= 0.80 || containmentB >= 0.80) {
+          isNearDuplicateOfCurrent = true;
+          break;
+        }
       }
     }
     if (isNearDuplicateOfCurrent) continue;
 
-    // 7. Semantic near-duplicate check against previous generation titles
+    // 9. Semantic near-duplicate check against previous generation titles
     let isNearDuplicateOfPrevious = false;
     for (const prevTitle of previousTitles) {
       const similarity = calculateTokenSimilarity(title, prevTitle);
-      if (similarity >= 0.65) {
+      if (similarity >= 0.60) {
         isNearDuplicateOfPrevious = true;
         break;
       }
@@ -502,7 +677,11 @@ export function filterAndDeduplicateTitles(
 
     // Accepted candidate
     seenNormalized.add(norm);
-    accepted.push(candidate);
+    if (strategy) seenStrategies.add(strategy);
+    accepted.push({
+      ...candidate,
+      strategy: strategy || candidate.strategy,
+    });
 
     if (accepted.length >= 5) break;
   }
@@ -510,14 +689,52 @@ export function filterAndDeduplicateTitles(
   return accepted;
 }
 
+const TITLE_HISTORY_FILE = path.join(process.cwd(), "data", "title_history.json");
 const titleHistoryByFingerprint = new Map<string, string[]>();
+
+function loadTitleHistoryFromDisk(): void {
+  try {
+    if (fs.existsSync(TITLE_HISTORY_FILE)) {
+      const raw = fs.readFileSync(TITLE_HISTORY_FILE, "utf-8");
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") {
+        for (const [key, val] of Object.entries(parsed)) {
+          if (Array.isArray(val)) {
+            titleHistoryByFingerprint.set(key, val);
+          }
+        }
+      }
+    }
+  } catch {
+    // Disk read failed gracefully; use memory cache
+  }
+}
+
+function persistTitleHistoryToDisk(): void {
+  try {
+    const dir = path.dirname(TITLE_HISTORY_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    const obj: Record<string, string[]> = {};
+    for (const [key, val] of titleHistoryByFingerprint.entries()) {
+      obj[key] = val;
+    }
+    fs.writeFileSync(TITLE_HISTORY_FILE, JSON.stringify(obj, null, 2), "utf-8");
+  } catch {
+    // Disk write failed gracefully
+  }
+}
+
+// Initial sync on module load
+loadTitleHistoryFromDisk();
 
 export function getVideoFingerprint(
   media: { filename?: string; filesizeBytes?: number; assetId?: string },
   actualTopic?: string
 ): string {
-  if (media.assetId && media.assetId !== "preview" && media.assetId !== "test_pkg_asset") {
-    return media.assetId;
+  if (media.assetId && media.assetId.trim() && media.assetId !== "preview" && media.assetId !== "test_pkg_asset") {
+    return media.assetId.trim();
   }
   const cleanFn = (media.filename || "").replace(/[^a-zA-Z0-9_-]/g, "");
   const size = media.filesizeBytes || 0;
@@ -526,6 +743,9 @@ export function getVideoFingerprint(
 }
 
 export function getTitleHistory(fingerprint: string): string[] {
+  if (titleHistoryByFingerprint.size === 0) {
+    loadTitleHistoryFromDisk();
+  }
   return titleHistoryByFingerprint.get(fingerprint) || [];
 }
 
@@ -533,6 +753,7 @@ export function recordTitleHistory(fingerprint: string, titles: string[]): void 
   const existing = titleHistoryByFingerprint.get(fingerprint) || [];
   const combined = Array.from(new Set([...existing, ...titles]));
   titleHistoryByFingerprint.set(fingerprint, combined.slice(-30));
+  persistTitleHistoryToDisk();
 }
 
 export function clearTitleHistory(fingerprint?: string): void {
@@ -541,6 +762,7 @@ export function clearTitleHistory(fingerprint?: string): void {
   } else {
     titleHistoryByFingerprint.clear();
   }
+  persistTitleHistoryToDisk();
 }
 
 /**
@@ -613,7 +835,8 @@ export async function generatePublishingPackageWithAI(
 
   // Build structured title evidence capturing visible text, visual scene, emotional context, audio meaning, and verified identity
   const structuredEvidence = buildStructuredTitleEvidence(media, evidence, vision);
-  const fingerprint = getVideoFingerprint(media, evidence.actualTopic);
+  const effectiveAssetId = input.assetId || (media as any)?.assetId;
+  const fingerprint = getVideoFingerprint({ assetId: effectiveAssetId, ...media }, evidence.actualTopic);
   const historicalTitles = Array.from(
     new Set([...(input.previousTitles || []), ...getTitleHistory(fingerprint)])
   );
@@ -804,12 +1027,13 @@ ${researchContext}`;
               };
             });
 
-          // Validate each title against semantic evidence rules, generic phrases, near-duplicates, and repetition
+          // Validate each title against semantic evidence rules, generic phrases, near-duplicates, strategy diversity, and repetition
           const validTitles = filterAndDeduplicateTitles(
             rawTitles,
             evidence,
             structuredEvidence,
-            historicalTitles
+            historicalTitles,
+            vision
           );
 
           if (validTitles.length > 0) {

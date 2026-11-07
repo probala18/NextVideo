@@ -7,6 +7,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { createReadStream } from "fs";
+import { PublishingLifecycleState } from "../types/publishingLifecycle";
 
 const OAUTH_FILE_PATH = path.join(process.cwd(), "data", "youtube_oauth.json");
 const PUBLISH_LOG_FILE_PATH = path.join(process.cwd(), "data", "youtube_publish_history.json");
@@ -64,6 +65,7 @@ export interface PublishedVideoRecord {
   publishedAt: string;
   channelId: string;
   status: PublishStatus;
+  lifecycleState?: PublishingLifecycleState;
   thumbnailStatus?: ThumbnailPublishStatus;
   thumbnailError?: string;
   uploadSessionUrl?: string;
@@ -421,6 +423,12 @@ export async function publishVideoToYouTube(
 
   // If thumbnail succeeded or was not requested, status is completed; if thumbnail failed, status remains published.
   const finalStatus: PublishStatus = thumbnailStatus === "failed" ? "published" : "completed";
+  const lifecycleState: PublishingLifecycleState =
+    thumbnailStatus === "failed"
+      ? "ThumbnailFailed"
+      : thumbnailStatus === "pending"
+      ? "ThumbnailPending"
+      : "Completed";
 
   const record: PublishedVideoRecord = {
     id: `pub_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,
@@ -433,6 +441,7 @@ export async function publishVideoToYouTube(
     publishedAt: new Date().toISOString(),
     channelId: auth.channelId,
     status: finalStatus,
+    lifecycleState,
     thumbnailStatus,
     thumbnailError,
     uploadSessionUrl: uploadUrl,

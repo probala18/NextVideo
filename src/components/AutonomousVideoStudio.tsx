@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { VideoProcessingJob, ConsolidatedAnalysisReport } from "@/lib/types/videoWorkflow";
 import { TitleOption, GeneratedThumbnail } from "@/lib/types/visionWorkflow";
+import { PublishingLifecycleState } from "@/lib/types/publishingLifecycle";
 import { YouTubeOAuthModal } from "./YouTubeOAuthModal";
 import { upload as uploadBlob } from "@vercel/blob/client";
 
@@ -67,6 +68,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
   const [publishedVideoId, setPublishedVideoId] = useState<string | null>(null);
   const [publishedThumbnailStatus, setPublishedThumbnailStatus] = useState<string | null>(null);
   const [publishedThumbnailError, setPublishedThumbnailError] = useState<string | null>(null);
+  const [lifecycleState, setLifecycleState] = useState<PublishingLifecycleState>("Draft");
   const [isOAuthModalOpen, setIsOAuthModalOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -548,6 +550,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       return;
     }
     setIsPublishing(true);
+    setLifecycleState("Uploading");
     setPublishedVideoUrl(null);
     setPublishedVideoId(null);
 
@@ -556,6 +559,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       if (finalTitle.length > 100) {
         onToast(`Title exceeds YouTube's 100-character limit (${finalTitle.length}/100 characters). Shorten the title before publishing.`, "error");
         setIsPublishing(false);
+        setLifecycleState("Draft");
         return;
       }
       const finalDesc = editableDesc.trim();
@@ -588,12 +592,21 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       setPublishedThumbnailStatus(data.thumbnailStatus || data.record?.thumbnailStatus || null);
       setPublishedThumbnailError(data.thumbnailError || data.record?.thumbnailError || null);
 
+      const nextState: PublishingLifecycleState =
+        data.thumbnailStatus === "failed" ? "ThumbnailFailed" : "Completed";
+      setLifecycleState(nextState);
+
       if (data.isDuplicatePrevented) {
         onToast("Video was already published. Retrieved existing YouTube URL.", "info");
       } else {
         onToast(`Video successfully published to YouTube as ${publishPrivacy.toUpperCase()}!`, "success");
       }
     } catch (err: any) {
+      const isResumable =
+        err.message?.includes("308") ||
+        err.message?.includes("incomplete") ||
+        err.message?.includes("interrupted");
+      setLifecycleState(isResumable ? "UploadInterrupted" : "Failed");
       onToast(err.message || "Failed to publish video to YouTube.", "error");
     } finally {
       setIsPublishing(false);
@@ -610,6 +623,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
     setEditableTitle("");
     setEditableDesc("");
     setEditableTags("");
+    setLifecycleState("Draft");
     setPublishedVideoUrl(null);
     setPublishedVideoId(null);
     if (typeof window !== "undefined") {
@@ -1114,6 +1128,11 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
                     onClick={() => {
                       setSelectedTitle(item.title);
                       setEditableTitle(item.title);
+                      if (selectedThumbnailId) {
+                        setLifecycleState("AwaitingConfirmation");
+                      } else {
+                        setLifecycleState("ReadyForReview");
+                      }
                     }}
                     className={`p-4 rounded-2xl border-2 transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                       isSelected
@@ -1193,7 +1212,14 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
                 return (
                   <div
                     key={thumb.id}
-                    onClick={() => setSelectedThumbnailId(thumb.id)}
+                    onClick={() => {
+                      setSelectedThumbnailId(thumb.id);
+                      if (selectedTitle || editableTitle) {
+                        setLifecycleState("AwaitingConfirmation");
+                      } else {
+                        setLifecycleState("ReadyForReview");
+                      }
+                    }}
                     className={`rounded-2xl border-2 overflow-hidden transition cursor-pointer flex flex-col ${
                       isSelected
                         ? "border-[#2563EB] shadow-md ring-2 ring-[#2563EB]/20"
@@ -1266,7 +1292,12 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
                 type="text"
                 value={editableTitle}
                 maxLength={100}
-                onChange={(e) => setEditableTitle(e.target.value)}
+                onChange={(e) => {
+                  setEditableTitle(e.target.value);
+                  if (lifecycleState === "AwaitingConfirmation") {
+                    setLifecycleState("Draft");
+                  }
+                }}
                 className="w-full px-4 py-2.5 rounded-xl border border-[#D1D5DB] text-xs font-semibold text-[#111827] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] outline-none"
               />
             </div>
@@ -1280,7 +1311,12 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
               <textarea
                 rows={7}
                 value={editableDesc}
-                onChange={(e) => setEditableDesc(e.target.value)}
+                onChange={(e) => {
+                  setEditableDesc(e.target.value);
+                  if (lifecycleState === "AwaitingConfirmation") {
+                    setLifecycleState("Draft");
+                  }
+                }}
                 className="w-full px-4 py-2.5 rounded-xl border border-[#D1D5DB] text-xs text-[#111827] font-mono leading-relaxed focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] outline-none"
               />
             </div>
@@ -1293,7 +1329,12 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
               <input
                 type="text"
                 value={editableTags}
-                onChange={(e) => setEditableTags(e.target.value)}
+                onChange={(e) => {
+                  setEditableTags(e.target.value);
+                  if (lifecycleState === "AwaitingConfirmation") {
+                    setLifecycleState("Draft");
+                  }
+                }}
                 className="w-full px-4 py-2.5 rounded-xl border border-[#D1D5DB] text-xs text-[#111827] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] outline-none"
               />
             </div>
@@ -1315,17 +1356,45 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       {/* STEP 4: Publish Video to YouTube */}
       {isJobComplete && (
         <div className="bg-white rounded-[28px] border border-[#E8EAEE] p-6 sm:p-8 shadow-xs space-y-6">
-          <div>
-            <span className="text-[11px] font-bold text-[#2563EB] uppercase tracking-wider">
-              Step 4 of 4
-            </span>
-            <h2 className="text-xl sm:text-2xl font-bold text-[#111827] mt-0.5">
-              Upload Video to YouTube
-            </h2>
-            <p className="text-xs text-[#6B7280] mt-1">
-              Connect your YouTube channel, choose your privacy preference, and publish the original video with your chosen title and thumbnail.
-            </p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <span className="text-[11px] font-bold text-[#2563EB] uppercase tracking-wider">
+                Step 4 of 4
+              </span>
+              <h2 className="text-xl sm:text-2xl font-bold text-[#111827] mt-0.5">
+                Upload Video to YouTube
+              </h2>
+            </div>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <span className="text-[11px] text-[#6B7280] font-medium">Lifecycle State:</span>
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-bold transition ${
+                  lifecycleState === "Completed"
+                    ? "bg-[#D1FAE5] text-[#065F46] border border-[#A7F3D0]"
+                    : lifecycleState === "ThumbnailFailed"
+                    ? "bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A]"
+                    : lifecycleState === "Published"
+                    ? "bg-[#E0F2FE] text-[#0369A1] border border-[#BAE6FD]"
+                    : lifecycleState === "Uploading"
+                    ? "bg-[#EEF2FF] text-[#4338CA] border border-[#C7D2FE] animate-pulse"
+                    : lifecycleState === "UploadInterrupted"
+                    ? "bg-[#FEE2E2] text-[#B91C1C] border border-[#FECACA]"
+                    : lifecycleState === "Failed"
+                    ? "bg-[#FEE2E2] text-[#B91C1C] border border-[#FECACA]"
+                    : lifecycleState === "AwaitingConfirmation"
+                    ? "bg-[#FEF3C7] text-[#B45309] border border-[#FDE68A]"
+                    : lifecycleState === "ReadyForReview"
+                    ? "bg-[#EFF6FF] text-[#1D4ED8] border border-[#BFDBFE]"
+                    : "bg-[#F3F4F6] text-[#4B5563] border border-[#E5E7EB]"
+                }`}
+              >
+                {lifecycleState}
+              </span>
+            </div>
           </div>
+          <p className="text-xs text-[#6B7280] -mt-3">
+            Connect your YouTube channel, choose your privacy preference, and publish the original video with your chosen title and thumbnail.
+          </p>
 
           {/* YouTube Connection Status Card */}
           <div className="p-4 bg-[#F9FAFB] rounded-2xl border border-[#E5E7EB] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1477,6 +1546,8 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
               <span>
                 {isPublishing
                   ? "Publishing to YouTube..."
+                  : lifecycleState === "UploadInterrupted"
+                  ? "Resume Interrupted Upload"
                   : publishedVideoUrl
                   ? "Re-Publish (Update)"
                   : "Publish Video to YouTube"}
