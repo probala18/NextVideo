@@ -16,6 +16,7 @@ import {
   GeneratedThumbnail,
 } from "./visionWorkflow";
 import { AudioAnalysisResult, MultimodalVideoEvidence } from "../video/audio/types";
+import { PublishingLifecycleRecord } from "./publishingLifecycle";
 
 export type VideoJobStatus =
   | "uploaded"
@@ -163,6 +164,8 @@ export interface VideoProcessingJob {
     edlDownloadUrl?: string;
     generatedThumbnails?: GeneratedThumbnail[];
   };
+  uploadSessionUrl?: string;
+  publishingLifecycle?: PublishingLifecycleRecord;
 }
 
 export interface YouTubePublishingConfig {

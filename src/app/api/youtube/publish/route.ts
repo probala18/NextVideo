@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { publishVideoToYouTube, getStoredAuth, getPublishHistory, isAlreadyPublished } from "@/lib/youtube/publishing";
-import { getJobById } from "@/lib/video/jobs";
+import { getJobById, updateJobStatus } from "@/lib/video/jobs";
 import { materializePrivateBlob, materializePrivateDerivedBlob } from "@/lib/video/storage";
 import path from "path";
 import fs from "fs";
@@ -20,6 +20,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  let currentJob: any = null;
   try {
     const auth = getStoredAuth();
     if (!auth) {
@@ -62,6 +63,7 @@ export async function POST(req: NextRequest) {
     if (!job) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
+    currentJob = job;
 
     const effectiveTargetType = selectedAsset || targetType || "original";
     let targetFilePath = job.localFilePath || "";
@@ -176,6 +178,23 @@ export async function POST(req: NextRequest) {
       resumeSessionUrl,
     });
 
+    // Persist session and publishing lifecycle state against the job on the server
+    await updateJobStatus(job.id, {
+      uploadSessionUrl: record.uploadSessionUrl,
+      publishingLifecycle: {
+        state: record.lifecycleState || "Published",
+        assetId: job.assetId,
+        jobId: job.id,
+        videoId: record.youtubeVideoId,
+        uploadSessionUrl: record.uploadSessionUrl,
+        thumbnailStatus: record.thumbnailStatus,
+        thumbnailError: record.thumbnailError,
+        updatedAt: new Date().toISOString(),
+      },
+    }).catch((err) => {
+      console.warn("[Publish API Warning] Could not update job lifecycle status on server:", err.message);
+    });
+
     return NextResponse.json({
       success: true,
       message: record.thumbnailStatus === "failed"
@@ -200,6 +219,32 @@ export async function POST(req: NextRequest) {
     const uploadSessionUrl =
       err.uploadSessionUrl ||
       err.message?.match(/Upload session preserved at:\s*([^\s]+)/)?.[1];
+
+    if (currentJob?.id) {
+      if (isInterrupted) {
+        await updateJobStatus(currentJob.id, {
+          uploadSessionUrl: uploadSessionUrl || undefined,
+          publishingLifecycle: {
+            state: "UploadInterrupted",
+            assetId: currentJob.assetId,
+            jobId: currentJob.id,
+            uploadSessionUrl: uploadSessionUrl || undefined,
+            error: err.message,
+            updatedAt: new Date().toISOString(),
+          },
+        }).catch(() => {});
+      } else {
+        await updateJobStatus(currentJob.id, {
+          publishingLifecycle: {
+            state: "Failed",
+            assetId: currentJob.assetId,
+            jobId: currentJob.id,
+            error: err.message,
+            updatedAt: new Date().toISOString(),
+          },
+        }).catch(() => {});
+      }
+    }
 
     return NextResponse.json(
       {

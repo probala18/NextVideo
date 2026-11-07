@@ -53,3 +53,32 @@ export async function DELETE(
     );
   }
 }
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const job = await getJobById(params.id);
+    if (!job) {
+      return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    }
+
+    const body = await req.json();
+    const { uploadSessionUrl, publishingLifecycle, status, currentStage } = body;
+
+    const updated = await updateJobStatus(params.id, {
+      ...(uploadSessionUrl !== undefined ? { uploadSessionUrl } : {}),
+      ...(publishingLifecycle !== undefined ? { publishingLifecycle } : {}),
+      ...(status !== undefined ? { status } : {}),
+      ...(currentStage !== undefined ? { currentStage } : {}),
+    });
+
+    return NextResponse.json({ success: true, job: updated });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message || "Failed to update job" },
+      { status: 500 }
+    );
+  }
+}

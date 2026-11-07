@@ -693,6 +693,23 @@ const TITLE_HISTORY_FILE = path.join(process.cwd(), "data", "title_history.json"
 const VERCEL_BLOB_PATHNAME = "nextvideo/metadata/title_history.json";
 const titleHistoryByFingerprint = new Map<string, string[]>();
 
+let activeLoadPromise: Promise<void> | null = null;
+let activeWritePromise: Promise<void> = Promise.resolve();
+
+export function resetTitleHistoryLoadPromise(): void {
+  activeLoadPromise = null;
+}
+
+export function ensureTitleHistoryLoaded(force = false): Promise<void> {
+  if (force || !activeLoadPromise) {
+    activeLoadPromise = loadTitleHistoryDurable().catch((err) => {
+      activeLoadPromise = null; // Clear so subsequent calls can retry
+      throw err;
+    });
+  }
+  return activeLoadPromise;
+}
+
 export async function loadTitleHistoryDurable(): Promise<void> {
   if (process.env.VERCEL || process.env.BLOB_READ_WRITE_TOKEN) {
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
@@ -740,47 +757,59 @@ export async function loadTitleHistoryDurable(): Promise<void> {
 }
 
 export async function persistTitleHistoryDurable(): Promise<void> {
-  const obj: Record<string, string[]> = {};
-  for (const [key, val] of titleHistoryByFingerprint.entries()) {
-    obj[key] = val;
-  }
-  const serialized = JSON.stringify(obj, null, 2);
+  // Chain write onto activeWritePromise to prevent concurrent requests from clobbering each other
+  const writeOp = (async () => {
+    await activeWritePromise;
 
-  if (process.env.VERCEL || process.env.BLOB_READ_WRITE_TOKEN) {
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      console.warn("[TitleHistory Storage Warning] Running on Vercel without BLOB_READ_WRITE_TOKEN. Title history cannot be persisted across serverless instances.");
+    const obj: Record<string, string[]> = {};
+    for (const [key, val] of titleHistoryByFingerprint.entries()) {
+      obj[key] = val;
+    }
+    const serialized = JSON.stringify(obj, null, 2);
+
+    if (process.env.VERCEL || process.env.BLOB_READ_WRITE_TOKEN) {
+      if (!process.env.BLOB_READ_WRITE_TOKEN) {
+        console.warn("[TitleHistory Storage Warning] Running on Vercel without BLOB_READ_WRITE_TOKEN. Title history cannot be persisted across serverless instances.");
+        return;
+      }
+      try {
+        const { put } = await import("@vercel/blob");
+        await put(VERCEL_BLOB_PATHNAME, serialized, {
+          access: "private",
+          addRandomSuffix: false,
+          allowOverwrite: true,
+          contentType: "application/json",
+        });
+      } catch (blobErr: any) {
+        console.error("[TitleHistory Storage Error] Failed to persist durable title history to Vercel Blob:", blobErr);
+        throw new Error(`Durable title history write failed: ${blobErr.message}`);
+      }
       return;
     }
-    try {
-      const { put } = await import("@vercel/blob");
-      await put(VERCEL_BLOB_PATHNAME, serialized, {
-        access: "private",
-        addRandomSuffix: false,
-        allowOverwrite: true,
-        contentType: "application/json",
-      });
-    } catch (blobErr: any) {
-      console.error("[TitleHistory Storage Error] Failed to persist durable title history to Vercel Blob:", blobErr);
-      throw new Error(`Durable title history write failed: ${blobErr.message}`);
-    }
-    return;
-  }
 
-  // Local filesystem storage
-  try {
-    const dir = path.dirname(TITLE_HISTORY_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    // Local filesystem storage
+    try {
+      const dir = path.dirname(TITLE_HISTORY_FILE);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(TITLE_HISTORY_FILE, serialized, "utf-8");
+    } catch (fsErr: any) {
+      console.error("[TitleHistory Storage Error] Failed to write title history to local disk:", fsErr);
+      throw new Error(`Local title history write failed: ${fsErr.message}`);
     }
-    fs.writeFileSync(TITLE_HISTORY_FILE, serialized, "utf-8");
-  } catch (fsErr: any) {
-    console.error("[TitleHistory Storage Error] Failed to write title history to local disk:", fsErr);
-    throw new Error(`Local title history write failed: ${fsErr.message}`);
-  }
+  })();
+
+  activeWritePromise = writeOp.catch(() => {});
+  return writeOp;
 }
 
-// Initial sync on module load
-loadTitleHistoryDurable().catch(() => {});
+// Initial sync on module load (logs warning without terminating server)
+activeLoadPromise = loadTitleHistoryDurable().catch((err) => {
+  activeLoadPromise = null;
+  console.warn(`[TitleHistory Warning] Initial title history load attempt: ${err.message}`);
+  throw err;
+}).catch(() => {});
 
 export function getVideoFingerprint(
   media: { filename?: string; filesizeBytes?: number; assetId?: string },
@@ -795,20 +824,40 @@ export function getVideoFingerprint(
   return `${cleanFn}_${size}_${topicSlug}`;
 }
 
+export async function getTitleHistoryAsync(fingerprint: string): Promise<string[]> {
+  await ensureTitleHistoryLoaded();
+  return titleHistoryByFingerprint.get(fingerprint) || [];
+}
+
 export function getTitleHistory(fingerprint: string): string[] {
   if (titleHistoryByFingerprint.size === 0) {
-    loadTitleHistoryDurable().catch(() => {});
+    if (!process.env.VERCEL && !process.env.BLOB_READ_WRITE_TOKEN) {
+      // Local development disk storage can be read synchronously so sync callers immediately see persisted data
+      try {
+        if (fs.existsSync(TITLE_HISTORY_FILE)) {
+          const raw = fs.readFileSync(TITLE_HISTORY_FILE, "utf-8");
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === "object") {
+            for (const [key, val] of Object.entries(parsed)) {
+              if (Array.isArray(val)) {
+                titleHistoryByFingerprint.set(key, val);
+              }
+            }
+          }
+        }
+      } catch {}
+    } else {
+      ensureTitleHistoryLoaded().catch(() => {});
+    }
   }
   return titleHistoryByFingerprint.get(fingerprint) || [];
 }
 
-export function recordTitleHistory(fingerprint: string, titles: string[]): void {
+export async function recordTitleHistory(fingerprint: string, titles: string[]): Promise<void> {
   const existing = titleHistoryByFingerprint.get(fingerprint) || [];
   const combined = Array.from(new Set([...existing, ...titles]));
   titleHistoryByFingerprint.set(fingerprint, combined.slice(-30));
-  persistTitleHistoryDurable().catch((err) => {
-    console.warn("[TitleHistory Warning] Background persistence error:", err.message);
-  });
+  return persistTitleHistoryDurable();
 }
 
 export function clearTitleHistory(fingerprint?: string, memoryOnly = false): void {
@@ -816,11 +865,24 @@ export function clearTitleHistory(fingerprint?: string, memoryOnly = false): voi
     titleHistoryByFingerprint.delete(fingerprint);
   } else {
     titleHistoryByFingerprint.clear();
+    activeLoadPromise = null;
   }
   if (!memoryOnly) {
     persistTitleHistoryDurable().catch((err) => {
       console.warn("[TitleHistory Warning] Background persistence clear error:", err.message);
     });
+  }
+}
+
+export async function clearTitleHistoryAsync(fingerprint?: string, memoryOnly = false): Promise<void> {
+  if (fingerprint) {
+    titleHistoryByFingerprint.delete(fingerprint);
+  } else {
+    titleHistoryByFingerprint.clear();
+    activeLoadPromise = null;
+  }
+  if (!memoryOnly) {
+    await persistTitleHistoryDurable();
   }
 }
 
@@ -892,17 +954,15 @@ export async function generatePublishingPackageWithAI(
   let tags: string[] = [];
   let generationNotice = evidence.limitationNotice;
 
-  // Durable title history load (Vercel Blob / local disk)
-  await loadTitleHistoryDurable().catch((err) =>
-    console.warn(`[TitleHistory Warning] Could not load prior title history (${err.message}). Continuing with cached state.`)
-  );
-
   // Build structured title evidence capturing visible text, visual scene, emotional context, audio meaning, and verified identity
   const structuredEvidence = buildStructuredTitleEvidence(media, evidence, vision);
   const effectiveAssetId = input.assetId || (media as any)?.assetId;
   const fingerprint = getVideoFingerprint({ assetId: effectiveAssetId, ...media }, evidence.actualTopic);
+
+  // Await race-free title history from durable storage (Vercel Blob / local disk)
+  const durableHistory = await getTitleHistoryAsync(fingerprint);
   const historicalTitles = Array.from(
-    new Set([...(input.previousTitles || []), ...getTitleHistory(fingerprint)])
+    new Set([...(input.previousTitles || []), ...durableHistory])
   );
 
   // Try live AI generation with configured model if configured

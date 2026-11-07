@@ -48,7 +48,7 @@ export interface PublishingLifecycleRecord {
   videoId?: string;
   uploadSessionUrl?: string;
   error?: string;
-  thumbnailStatus?: "not_requested" | "pending" | "applied" | "failed";
+  thumbnailStatus?: "not_requested" | "pending" | "applied" | "uploaded" | "failed";
   thumbnailError?: string;
   updatedAt: string;
 }

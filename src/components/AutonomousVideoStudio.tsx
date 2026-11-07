@@ -122,6 +122,28 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
                 if (!["completed", "failed", "cancelled"].includes(job.status)) {
                   setIsPolling(true);
                 }
+                // Restore publishing lifecycle and interrupted upload session
+                if (job.publishingLifecycle) {
+                  setLifecycleRecord(job.publishingLifecycle);
+                  if (job.publishingLifecycle.videoId) {
+                    setPublishedVideoId(job.publishingLifecycle.videoId);
+                    setPublishedVideoUrl(`https://youtu.be/${job.publishingLifecycle.videoId}`);
+                  }
+                  if (job.publishingLifecycle.thumbnailStatus) {
+                    setPublishedThumbnailStatus(job.publishingLifecycle.thumbnailStatus);
+                  }
+                  if (job.publishingLifecycle.thumbnailError) {
+                    setPublishedThumbnailError(job.publishingLifecycle.thumbnailError);
+                  }
+                } else if (job.uploadSessionUrl) {
+                  setLifecycleRecord({
+                    state: "UploadInterrupted",
+                    assetId: job.assetId,
+                    jobId: job.id,
+                    uploadSessionUrl: job.uploadSessionUrl,
+                    updatedAt: new Date().toISOString(),
+                  });
+                }
               }
             })
             .catch(() => {});
@@ -562,8 +584,11 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
     if (!currentJob) return;
     const sessionUrl = lifecycleRecord.uploadSessionUrl;
     if (!sessionUrl) {
-      onToast("No active upload session found to resume. Starting new upload.", "info");
-      return handlePublishToYouTube();
+      onToast(
+        "The interrupted YouTube upload session URL could not be recovered. To publish this video, confirm publishing to start a fresh upload.",
+        "error"
+      );
+      return;
     }
 
     setIsPublishing(true);
