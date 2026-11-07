@@ -724,17 +724,21 @@ export async function loadAssetTitleHistoryDurable(fingerprint: string): Promise
     }
     try {
       const { get } = await import("@vercel/blob");
-      // 1. Try per-asset distributed record first
+      // 1. Authoritative per-asset distributed record: always queried first
       const assetBlob = await get(assetBlobPath, { access: "private" });
       if (assetBlob) {
         const text = await new Response(assetBlob.stream).text();
         const parsed = JSON.parse(text);
+        let titles: string[] = [];
         if (Array.isArray(parsed)) {
-          titleHistoryByFingerprint.set(fingerprint, parsed);
-          return parsed;
+          titles = parsed;
+        } else if (parsed && typeof parsed === "object" && Array.isArray(parsed.titles)) {
+          titles = parsed.titles;
         }
+        titleHistoryByFingerprint.set(fingerprint, titles);
+        return titles;
       }
-      // 2. Fallback to monolithic blob if per-asset record does not exist
+      // 2. Fallback to monolithic legacy blob ONLY if per-asset record does not exist
       const legacyBlob = await get(VERCEL_BLOB_PATHNAME, { access: "private" });
       if (legacyBlob) {
         const text = await new Response(legacyBlob.stream).text();
@@ -827,28 +831,34 @@ export async function persistTitleHistoryDurable(fingerprint?: string): Promise<
       try {
         const { put } = await import("@vercel/blob");
 
-        // 1. If fingerprint provided, persist isolated per-asset record for distributed serverless safety
         if (fingerprint) {
+          // Authoritative isolated per-asset write. Does NOT touch the shared monolithic legacy file!
           const assetTitles = titleHistoryByFingerprint.get(fingerprint) || [];
-          await put(getAssetBlobPath(fingerprint), JSON.stringify(assetTitles, null, 2), {
+          const payload = {
+            fingerprint,
+            version: Date.now(),
+            updatedAt: new Date().toISOString(),
+            titles: assetTitles,
+          };
+          await put(getAssetBlobPath(fingerprint), JSON.stringify(payload, null, 2), {
+            access: "private",
+            addRandomSuffix: false,
+            allowOverwrite: true,
+            contentType: "application/json",
+          });
+        } else {
+          // Global clear or whole-store write only when fingerprint is omitted
+          const obj: Record<string, string[]> = {};
+          for (const [key, val] of titleHistoryByFingerprint.entries()) {
+            obj[key] = val;
+          }
+          await put(VERCEL_BLOB_PATHNAME, JSON.stringify(obj, null, 2), {
             access: "private",
             addRandomSuffix: false,
             allowOverwrite: true,
             contentType: "application/json",
           });
         }
-
-        // 2. Also persist / update monolithic bundle for aggregate views and backwards compatibility
-        const obj: Record<string, string[]> = {};
-        for (const [key, val] of titleHistoryByFingerprint.entries()) {
-          obj[key] = val;
-        }
-        await put(VERCEL_BLOB_PATHNAME, JSON.stringify(obj, null, 2), {
-          access: "private",
-          addRandomSuffix: false,
-          allowOverwrite: true,
-          contentType: "application/json",
-        });
       } catch (blobErr: any) {
         console.error("[TitleHistory Storage Error] Failed to persist durable title history to Vercel Blob:", blobErr);
         throw new Error(`Durable title history write failed: ${blobErr.message}`);
@@ -862,9 +872,27 @@ export async function persistTitleHistoryDurable(fingerprint?: string): Promise<
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
-      const obj: Record<string, string[]> = {};
-      for (const [key, val] of titleHistoryByFingerprint.entries()) {
-        obj[key] = val;
+      let obj: Record<string, string[]> = {};
+      if (fingerprint) {
+        if (fs.existsSync(TITLE_HISTORY_FILE)) {
+          try {
+            const existing = JSON.parse(fs.readFileSync(TITLE_HISTORY_FILE, "utf-8"));
+            if (existing && typeof existing === "object") {
+              obj = existing;
+            }
+          } catch {}
+        }
+        const assetTitles = titleHistoryByFingerprint.get(fingerprint);
+        if (assetTitles && assetTitles.length > 0) {
+          obj[fingerprint] = assetTitles;
+        } else {
+          delete obj[fingerprint];
+        }
+      } else {
+        // Full clear or whole-store write: persist current Map contents directly
+        for (const [key, val] of titleHistoryByFingerprint.entries()) {
+          obj[key] = val;
+        }
       }
       fs.writeFileSync(TITLE_HISTORY_FILE, JSON.stringify(obj, null, 2), "utf-8");
     } catch (fsErr: any) {
@@ -898,9 +926,8 @@ export function getVideoFingerprint(
 }
 
 export async function getTitleHistoryAsync(fingerprint: string): Promise<string[]> {
-  if (titleHistoryByFingerprint.has(fingerprint)) {
-    return titleHistoryByFingerprint.get(fingerprint)!;
-  }
+  // Authoritative per-asset load: guarantees that newer per-asset Blob records written
+  // by other serverless instances take absolute precedence over stale in-memory or legacy snapshots
   return loadAssetTitleHistoryDurable(fingerprint);
 }
 
@@ -928,11 +955,54 @@ export function getTitleHistory(fingerprint: string): string[] {
   return titleHistoryByFingerprint.get(fingerprint) || [];
 }
 
-export async function recordTitleHistory(fingerprint: string, titles: string[]): Promise<void> {
-  const existing = titleHistoryByFingerprint.get(fingerprint) || [];
-  const combined = Array.from(new Set([...existing, ...titles]));
-  titleHistoryByFingerprint.set(fingerprint, combined.slice(-30));
-  return persistTitleHistoryDurable(fingerprint);
+export async function recordTitleHistory(
+  fingerprint: string,
+  titles: string[],
+  maxRetries = 3
+): Promise<void> {
+  if (!titles || titles.length === 0) return;
+
+  // Immediate synchronous in-memory update so synchronous consumers reflect new titles immediately
+  const immediateExisting = titleHistoryByFingerprint.get(fingerprint) || [];
+  const immediateMerged = Array.from(new Set([...immediateExisting, ...titles])).slice(-50);
+  titleHistoryByFingerprint.set(fingerprint, immediateMerged);
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    // 1. Fetch latest authoritative remote titles for this asset
+    let remoteTitles: string[] = [];
+    try {
+      remoteTitles = await loadAssetTitleHistoryDurable(fingerprint);
+    } catch (err: any) {
+      throw err;
+    }
+
+    // 2. Perform set union merge with any remote titles recorded by concurrent instances
+    const currentInMemory = titleHistoryByFingerprint.get(fingerprint) || [];
+    const merged = Array.from(new Set([...remoteTitles, ...currentInMemory, ...titles])).slice(-50);
+    titleHistoryByFingerprint.set(fingerprint, merged);
+
+    // 3. Persist authoritative per-asset record
+    await persistTitleHistoryDurable(fingerprint);
+
+    // 4. Convergence verification: confirm remote storage contains all newly submitted titles
+    let verifiedRemote: string[] = [];
+    try {
+      verifiedRemote = await loadAssetTitleHistoryDurable(fingerprint);
+    } catch {
+      return;
+    }
+
+    const allPresent = titles.every((t) => verifiedRemote.includes(t));
+    if (allPresent) {
+      return;
+    }
+
+    // Interleaving writer detected; back off with jitter and re-merge
+    if (attempt < maxRetries - 1) {
+      const delay = Math.min(25 * Math.pow(2, attempt) + Math.random() * 25, 200);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
 }
 
 export function clearTitleHistory(fingerprint?: string, memoryOnly = false): void {

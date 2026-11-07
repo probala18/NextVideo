@@ -5,7 +5,7 @@ import {
   UserUploadTranscriptProvider,
 } from "../video/audio";
 import { assembleVideoUnderstanding } from "../video/understanding";
-import { generatePublishingPackageWithAI } from "../video/generator";
+import { generatePublishingPackageWithAI, clearTitleHistoryAsync } from "../video/generator";
 import type { AudioAnalysisResult } from "../video/audio/types";
 import type { VisionAnalysisReport } from "../types/visionWorkflow";
 import type { MediaMetadata, TranscriptionResult } from "../types/videoWorkflow";
@@ -396,6 +396,7 @@ describe("Multimodal Baseline Verification: 4 Scenarios & Audio Fallback", () =>
     };
 
     it("generates publishing metadata from visual evidence alone when audio fails", async () => {
+      await clearTitleHistoryAsync();
       const originalFetch = globalThis.fetch;
       process.env.ENABLE_TEST_LIVE_LLM = "true";
       globalThis.fetch = (async () => {

@@ -75,11 +75,12 @@ describe("Vercel Blob Durable Title History", () => {
 
     await recordTitleHistory(assetId, titles);
 
-    // Verify blob storage contains the serialized JSON
-    const storedBlob = mockBlobStore.get("nextvideo/metadata/title_history.json");
+    // Verify authoritative per-asset blob storage contains the record
+    const storedBlob = mockBlobStore.get(`nextvideo/metadata/titles/${assetId}.json`);
     expect(storedBlob).toBeDefined();
     const parsed = JSON.parse(storedBlob!);
-    expect(parsed[assetId]).toEqual(titles);
+    const actualTitles = Array.isArray(parsed) ? parsed : parsed.titles;
+    expect(actualTitles).toEqual(titles);
 
     // Read back via getTitleHistoryAsync
     const loaded = await getTitleHistoryAsync(assetId);
@@ -92,8 +93,8 @@ describe("Vercel Blob Durable Title History", () => {
 
     // Seed mock blob as if written in a prior serverless invocation
     mockBlobStore.set(
-      "nextvideo/metadata/title_history.json",
-      JSON.stringify({ [assetId]: initialTitles })
+      `nextvideo/metadata/titles/${assetId}.json`,
+      JSON.stringify({ fingerprint: assetId, titles: initialTitles })
     );
 
     // Clear in-memory Map and reset load promise to simulate cold-start
@@ -149,49 +150,61 @@ describe("Vercel Blob Durable Title History", () => {
     }
   });
 
-  it("6. guarantees cross-instance concurrency safety via isolated per-asset records", async () => {
+  it("6. guarantees cross-instance concurrency safety during simultaneous parallel writes to different assets", async () => {
     const assetInstanceA = "concurrent_asset_serverless_node_1";
     const assetInstanceB = "concurrent_asset_serverless_node_2";
 
     const titlesA = ["Serverless Instance 1 - Architecture", "Serverless Instance 1 - Deep Dive"];
     const titlesB = ["Serverless Instance 2 - Concurrency", "Serverless Instance 2 - Edge Storage"];
 
-    // Instance 1 records Asset A
-    await recordTitleHistory(assetInstanceA, titlesA);
+    // Simultaneous parallel writes simulating two distinct serverless nodes executing at the exact same millisecond
+    await Promise.all([
+      recordTitleHistory(assetInstanceA, titlesA),
+      recordTitleHistory(assetInstanceB, titlesB),
+    ]);
 
-    // Verify per-asset distributed record was created in Vercel Blob
+    // Verify per-asset distributed records were both created in Vercel Blob without collision
     const blobPathA = `nextvideo/metadata/titles/${assetInstanceA}.json`;
-    expect(mockBlobStore.get(blobPathA)).toBeDefined();
-    expect(JSON.parse(mockBlobStore.get(blobPathA)!)).toEqual(titlesA);
-
-    // Instance 2 (simulating a separate container) wipes local memory and records Asset B
-    clearTitleHistory(undefined, true);
-    resetTitleHistoryLoadPromise();
-    await recordTitleHistory(assetInstanceB, titlesB);
-
     const blobPathB = `nextvideo/metadata/titles/${assetInstanceB}.json`;
+    expect(mockBlobStore.get(blobPathA)).toBeDefined();
     expect(mockBlobStore.get(blobPathB)).toBeDefined();
-    expect(JSON.parse(mockBlobStore.get(blobPathB)!)).toEqual(titlesB);
 
-    // Simulate an overwrite of the legacy shared bundle by Instance 2 (which only knew about Asset B)
-    mockBlobStore.set(
-      "nextvideo/metadata/title_history.json",
-      JSON.stringify({ [assetInstanceB]: titlesB })
-    );
-
-    // Cold-start Instance 3 spins up and requests Asset A
+    // Verify each node's titles are preserved
     clearTitleHistory(undefined, true);
     resetTitleHistoryLoadPromise();
 
     const loadedA = await getTitleHistoryAsync(assetInstanceA);
-    expect(loadedA).toEqual(titlesA);
+    const loadedB = await getTitleHistoryAsync(assetInstanceB);
 
-    // Cold-start Instance 4 requests Asset B
+    expect(loadedA).toEqual(titlesA);
+    expect(loadedB).toEqual(titlesB);
+  });
+
+  it("7. guarantees atomic convergence during simultaneous parallel writes to the SAME asset", async () => {
+    const sharedAssetId = "concurrent_same_asset_race_condition_test";
+    const titlesNodeA = ["Concurrent Angle Alpha 1", "Concurrent Angle Alpha 2"];
+    const titlesNodeB = ["Concurrent Angle Beta 1", "Concurrent Angle Beta 2"];
+
+    // Simultaneous parallel writes to the SAME asset from two competing instances
+    await Promise.all([
+      recordTitleHistory(sharedAssetId, titlesNodeA),
+      recordTitleHistory(sharedAssetId, titlesNodeB),
+    ]);
+
+    // Clear local in-memory state to simulate cold retrieval by a third independent instance
     clearTitleHistory(undefined, true);
     resetTitleHistoryLoadPromise();
 
-    const loadedB = await getTitleHistoryAsync(assetInstanceB);
-    expect(loadedB).toEqual(titlesB);
+    const finalMergedHistory = await getTitleHistoryAsync(sharedAssetId);
+
+    // Both candidate sets MUST be present in storage - neither can be dropped or overwritten
+    for (const tA of titlesNodeA) {
+      expect(finalMergedHistory).toContain(tA);
+    }
+    for (const tB of titlesNodeB) {
+      expect(finalMergedHistory).toContain(tB);
+    }
+    expect(finalMergedHistory.length).toBeGreaterThanOrEqual(4);
   });
 });
 

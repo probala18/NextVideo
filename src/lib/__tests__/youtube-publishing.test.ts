@@ -317,7 +317,7 @@ describe("YouTube OAuth & Publishing Workflow", () => {
       autoPublishPolicy: "review_first",
     });
 
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes("videos?uploadType=resumable")) {
         return new Response(null, { status: 200, headers: { location: "https://upload.mock/session-2" } });
@@ -459,12 +459,16 @@ describe("YouTube OAuth & Publishing Workflow", () => {
     const videoPath = path.join(tempDir, "video.mp4");
     await fs.promises.writeFile(videoPath, Buffer.from("video bytes"));
 
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes("videos?uploadType=resumable")) {
         return new Response(null, { status: 200, headers: { location: "https://upload.mock/session-200" } });
       }
       if (url === "https://upload.mock/session-200") {
+        // Drain stream body before responding so file handle closes cleanly
+        if (init?.body && typeof (init.body as any)[Symbol.asyncIterator] === "function") {
+          for await (const _ of init.body as any) {}
+        }
         // Violate contract by returning HTTP 200 instead of HTTP 201 Created
         return new Response(JSON.stringify({ id: "rejected-video-id" }), {
           status: 200,
@@ -502,12 +506,16 @@ describe("YouTube OAuth & Publishing Workflow", () => {
     await fs.promises.writeFile(videoPath, Buffer.from("video bytes for query test"));
 
     const expiredSessionUrl = "https://upload.youtube.com/resumable/expired-session-404";
+    const goneSessionUrl = "https://upload.youtube.com/resumable/expired-session-410";
     const networkFailSessionUrl = "https://upload.youtube.com/resumable/network-fail-session";
 
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url === expiredSessionUrl) {
         return new Response("Upload session not found", { status: 404 });
+      }
+      if (url === goneSessionUrl) {
+        return new Response("Upload session expired / gone", { status: 410 });
       }
       if (url === networkFailSessionUrl) {
         throw new Error("DNS resolution failure");
@@ -523,7 +531,7 @@ describe("YouTube OAuth & Publishing Workflow", () => {
           jobId: `job_expired_${Date.now()}`,
           assetId: "asset_expired",
           filePath: videoPath,
-          title: "Expired Session Test",
+          title: "Expired Session Test 404",
           description: "Must flag session expired",
           resumeSessionUrl: expiredSessionUrl,
         });
@@ -535,7 +543,26 @@ describe("YouTube OAuth & Publishing Workflow", () => {
       expect(caughtExpiredErr.message).toContain("expired or was not found");
       expect(caughtExpiredErr.message).toContain("404");
 
-      // 2. Transient network failure querying session
+      // 2. Explicit HTTP 410 (Gone) session expiration
+      let caughtGoneErr: any = null;
+      try {
+        await publishVideoToYouTube({
+          jobId: `job_gone_${Date.now()}`,
+          assetId: "asset_gone",
+          filePath: videoPath,
+          title: "Expired Session Test 410",
+          description: "Must flag session expired on 410",
+          resumeSessionUrl: goneSessionUrl,
+        });
+      } catch (err: any) {
+        caughtGoneErr = err;
+      }
+      expect(caughtGoneErr).toBeDefined();
+      expect(caughtGoneErr.sessionExpired).toBe(true);
+      expect(caughtGoneErr.message).toContain("expired or was not found");
+      expect(caughtGoneErr.message).toContain("410");
+
+      // 3. Transient network failure querying session
       let caughtNetworkErr: any = null;
       try {
         await publishVideoToYouTube({
