@@ -715,30 +715,66 @@ export function getAssetBlobPath(fingerprint: string): string {
   return `nextvideo/metadata/titles/${safeFp}.json`;
 }
 
+export function getAssetEntryBlobPath(fingerprint: string, entryId: string): string {
+  const safeFp = fingerprint.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return `nextvideo/metadata/titles/${safeFp}/entries/${entryId}.json`;
+}
+
 export async function loadAssetTitleHistoryDurable(fingerprint: string): Promise<string[]> {
+  const safeFp = fingerprint.replace(/[^a-zA-Z0-9_-]/g, "_");
   const assetBlobPath = getAssetBlobPath(fingerprint);
+  const entriesPrefix = `nextvideo/metadata/titles/${safeFp}/entries/`;
 
   if (process.env.VERCEL || process.env.BLOB_READ_WRITE_TOKEN) {
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
       return titleHistoryByFingerprint.get(fingerprint) || [];
     }
     try {
-      const { get } = await import("@vercel/blob");
-      // 1. Authoritative per-asset distributed record: always queried first
+      const { get, list } = await import("@vercel/blob");
+      const collectedTitles: string[] = [];
+
+      // 1. Append-only event entries: immutable per-candidate entries guarantee zero lost updates across concurrent instances
+      const { blobs } = await list({ prefix: entriesPrefix });
+      if (blobs && blobs.length > 0) {
+        const entryResults = await Promise.all(
+          blobs.map(async (blobItem) => {
+            const blobObj = await get(blobItem.pathname, { access: "private" });
+            if (!blobObj) return [];
+            try {
+              const text = await new Response(blobObj.stream).text();
+              const parsed = JSON.parse(text);
+              if (Array.isArray(parsed)) return parsed;
+              if (parsed && Array.isArray(parsed.titles)) return parsed.titles;
+              return [];
+            } catch {
+              return [];
+            }
+          })
+        );
+        for (const res of entryResults) {
+          collectedTitles.push(...res);
+        }
+      }
+
+      // 2. Authoritative per-asset snapshot record (if present)
       const assetBlob = await get(assetBlobPath, { access: "private" });
       if (assetBlob) {
         const text = await new Response(assetBlob.stream).text();
         const parsed = JSON.parse(text);
-        let titles: string[] = [];
         if (Array.isArray(parsed)) {
-          titles = parsed;
+          collectedTitles.push(...parsed);
         } else if (parsed && typeof parsed === "object" && Array.isArray(parsed.titles)) {
-          titles = parsed.titles;
+          collectedTitles.push(...parsed.titles);
         }
-        titleHistoryByFingerprint.set(fingerprint, titles);
-        return titles;
       }
-      // 2. Fallback to monolithic legacy blob ONLY if per-asset record does not exist
+
+      if (collectedTitles.length > 0) {
+        const deduped = Array.from(new Set(collectedTitles)).slice(-50);
+        titleHistoryByFingerprint.set(fingerprint, deduped);
+        return deduped;
+      }
+
+      // 3. Fallback to monolithic legacy blob ONLY if per-asset records do not exist
       const legacyBlob = await get(VERCEL_BLOB_PATHNAME, { access: "private" });
       if (legacyBlob) {
         const text = await new Response(legacyBlob.stream).text();
@@ -757,13 +793,34 @@ export async function loadAssetTitleHistoryDurable(fingerprint: string): Promise
 
   // Local filesystem storage
   try {
+    const collectedTitles: string[] = [];
+    const localEntriesDir = path.join(process.cwd(), "data", "titles", safeFp, "entries");
+    if (fs.existsSync(localEntriesDir)) {
+      const files = fs.readdirSync(localEntriesDir);
+      for (const file of files) {
+        if (file.endsWith(".json")) {
+          try {
+            const raw = fs.readFileSync(path.join(localEntriesDir, file), "utf-8");
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) collectedTitles.push(...parsed);
+            else if (parsed && Array.isArray(parsed.titles)) collectedTitles.push(...parsed.titles);
+          } catch {}
+        }
+      }
+    }
+
     if (fs.existsSync(TITLE_HISTORY_FILE)) {
       const raw = fs.readFileSync(TITLE_HISTORY_FILE, "utf-8");
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === "object" && Array.isArray(parsed[fingerprint])) {
-        titleHistoryByFingerprint.set(fingerprint, parsed[fingerprint]);
-        return parsed[fingerprint];
+        collectedTitles.push(...parsed[fingerprint]);
       }
+    }
+
+    const deduped = Array.from(new Set(collectedTitles)).slice(-50);
+    if (deduped.length > 0) {
+      titleHistoryByFingerprint.set(fingerprint, deduped);
+      return deduped;
     }
     return [];
   } catch (fsErr: any) {
@@ -818,8 +875,7 @@ export async function loadTitleHistoryDurable(): Promise<void> {
   }
 }
 
-export async function persistTitleHistoryDurable(fingerprint?: string): Promise<void> {
-  // Chain write onto activeWritePromise to prevent concurrent requests in same process from clobbering each other
+export async function persistTitleHistoryDurable(fingerprint?: string, newTitles?: string[]): Promise<void> {
   const writeOp = (async () => {
     await activeWritePromise;
 
@@ -832,22 +888,40 @@ export async function persistTitleHistoryDurable(fingerprint?: string): Promise<
         const { put } = await import("@vercel/blob");
 
         if (fingerprint) {
-          // Authoritative isolated per-asset write. Does NOT touch the shared monolithic legacy file!
+          const safeFp = fingerprint.replace(/[^a-zA-Z0-9_-]/g, "_");
           const assetTitles = titleHistoryByFingerprint.get(fingerprint) || [];
-          const payload = {
+          const titlesToAppend = (newTitles && newTitles.length > 0) ? newTitles : assetTitles;
+
+          // 1. Append-only immutable entry: guarantees that concurrent serverless writes NEVER overwrite each other
+          const entryId = `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+          const entryPayload = {
+            fingerprint,
+            entryId,
+            timestamp: Date.now(),
+            titles: titlesToAppend,
+          };
+          await put(getAssetEntryBlobPath(fingerprint, entryId), JSON.stringify(entryPayload, null, 2), {
+            access: "private",
+            addRandomSuffix: false,
+            allowOverwrite: true,
+            contentType: "application/json",
+          });
+
+          // 2. Authoritative per-asset snapshot for fast single-object reads
+          const snapshotPayload = {
             fingerprint,
             version: Date.now(),
             updatedAt: new Date().toISOString(),
             titles: assetTitles,
           };
-          await put(getAssetBlobPath(fingerprint), JSON.stringify(payload, null, 2), {
+          await put(getAssetBlobPath(fingerprint), JSON.stringify(snapshotPayload, null, 2), {
             access: "private",
             addRandomSuffix: false,
             allowOverwrite: true,
             contentType: "application/json",
           });
         } else {
-          // Global clear or whole-store write only when fingerprint is omitted
+          // Whole-store aggregate sync only when fingerprint is omitted
           const obj: Record<string, string[]> = {};
           for (const [key, val] of titleHistoryByFingerprint.entries()) {
             obj[key] = val;
@@ -868,33 +942,43 @@ export async function persistTitleHistoryDurable(fingerprint?: string): Promise<
 
     // Local filesystem storage
     try {
-      const dir = path.dirname(TITLE_HISTORY_FILE);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      let obj: Record<string, string[]> = {};
       if (fingerprint) {
+        const safeFp = fingerprint.replace(/[^a-zA-Z0-9_-]/g, "_");
+        const entriesDir = path.join(process.cwd(), "data", "titles", safeFp, "entries");
+        if (!fs.existsSync(entriesDir)) {
+          fs.mkdirSync(entriesDir, { recursive: true });
+        }
+        const entryId = `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+        const assetTitles = titleHistoryByFingerprint.get(fingerprint) || [];
+        const titlesToAppend = (newTitles && newTitles.length > 0) ? newTitles : assetTitles;
+        fs.writeFileSync(
+          path.join(entriesDir, `${entryId}.json`),
+          JSON.stringify({ fingerprint, entryId, timestamp: Date.now(), titles: titlesToAppend }, null, 2),
+          "utf-8"
+        );
+
+        // Update local aggregate file for backward compatibility
+        const dir = path.dirname(TITLE_HISTORY_FILE);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        let obj: Record<string, string[]> = {};
         if (fs.existsSync(TITLE_HISTORY_FILE)) {
           try {
             const existing = JSON.parse(fs.readFileSync(TITLE_HISTORY_FILE, "utf-8"));
-            if (existing && typeof existing === "object") {
-              obj = existing;
-            }
+            if (existing && typeof existing === "object") obj = existing;
           } catch {}
         }
-        const assetTitles = titleHistoryByFingerprint.get(fingerprint);
-        if (assetTitles && assetTitles.length > 0) {
-          obj[fingerprint] = assetTitles;
-        } else {
-          delete obj[fingerprint];
-        }
+        if (assetTitles.length > 0) obj[fingerprint] = assetTitles;
+        else delete obj[fingerprint];
+        fs.writeFileSync(TITLE_HISTORY_FILE, JSON.stringify(obj, null, 2), "utf-8");
       } else {
-        // Full clear or whole-store write: persist current Map contents directly
+        const dir = path.dirname(TITLE_HISTORY_FILE);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        const obj: Record<string, string[]> = {};
         for (const [key, val] of titleHistoryByFingerprint.entries()) {
           obj[key] = val;
         }
+        fs.writeFileSync(TITLE_HISTORY_FILE, JSON.stringify(obj, null, 2), "utf-8");
       }
-      fs.writeFileSync(TITLE_HISTORY_FILE, JSON.stringify(obj, null, 2), "utf-8");
     } catch (fsErr: any) {
       console.error("[TitleHistory Storage Error] Failed to write title history to local disk:", fsErr);
       throw new Error(`Local title history write failed: ${fsErr.message}`);
@@ -957,8 +1041,7 @@ export function getTitleHistory(fingerprint: string): string[] {
 
 export async function recordTitleHistory(
   fingerprint: string,
-  titles: string[],
-  maxRetries = 3
+  titles: string[]
 ): Promise<void> {
   if (!titles || titles.length === 0) return;
 
@@ -967,42 +1050,9 @@ export async function recordTitleHistory(
   const immediateMerged = Array.from(new Set([...immediateExisting, ...titles])).slice(-50);
   titleHistoryByFingerprint.set(fingerprint, immediateMerged);
 
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    // 1. Fetch latest authoritative remote titles for this asset
-    let remoteTitles: string[] = [];
-    try {
-      remoteTitles = await loadAssetTitleHistoryDurable(fingerprint);
-    } catch (err: any) {
-      throw err;
-    }
-
-    // 2. Perform set union merge with any remote titles recorded by concurrent instances
-    const currentInMemory = titleHistoryByFingerprint.get(fingerprint) || [];
-    const merged = Array.from(new Set([...remoteTitles, ...currentInMemory, ...titles])).slice(-50);
-    titleHistoryByFingerprint.set(fingerprint, merged);
-
-    // 3. Persist authoritative per-asset record
-    await persistTitleHistoryDurable(fingerprint);
-
-    // 4. Convergence verification: confirm remote storage contains all newly submitted titles
-    let verifiedRemote: string[] = [];
-    try {
-      verifiedRemote = await loadAssetTitleHistoryDurable(fingerprint);
-    } catch {
-      return;
-    }
-
-    const allPresent = titles.every((t) => verifiedRemote.includes(t));
-    if (allPresent) {
-      return;
-    }
-
-    // Interleaving writer detected; back off with jitter and re-merge
-    if (attempt < maxRetries - 1) {
-      const delay = Math.min(25 * Math.pow(2, attempt) + Math.random() * 25, 200);
-      await new Promise((r) => setTimeout(r, delay));
-    }
-  }
+  // Durable write: appends an immutable entry to storage and updates per-asset snapshot.
+  // Rethrows on any storage failure so caller is alerted immediately without silent swallowing.
+  await persistTitleHistoryDurable(fingerprint, titles);
 }
 
 export function clearTitleHistory(fingerprint?: string, memoryOnly = false): void {
@@ -1013,7 +1063,7 @@ export function clearTitleHistory(fingerprint?: string, memoryOnly = false): voi
     activeLoadPromise = null;
   }
   if (!memoryOnly) {
-    persistTitleHistoryDurable(fingerprint).catch((err) => {
+    clearTitleHistoryAsync(fingerprint, memoryOnly).catch((err) => {
       console.warn("[TitleHistory Warning] Background persistence clear error:", err.message);
     });
   }
@@ -1027,7 +1077,55 @@ export async function clearTitleHistoryAsync(fingerprint?: string, memoryOnly = 
     activeLoadPromise = null;
   }
   if (!memoryOnly) {
-    await persistTitleHistoryDurable(fingerprint);
+    if (process.env.VERCEL || process.env.BLOB_READ_WRITE_TOKEN) {
+      if (process.env.BLOB_READ_WRITE_TOKEN) {
+        const { list, del } = await import("@vercel/blob");
+        if (fingerprint) {
+          const safeFp = fingerprint.replace(/[^a-zA-Z0-9_-]/g, "_");
+          const { blobs } = await list({ prefix: `nextvideo/metadata/titles/${safeFp}` });
+          if (blobs && blobs.length > 0) {
+            await del(blobs.map((b) => b.url));
+          }
+        } else {
+          // Global clear: delete all individual per-asset files and entry logs
+          const { blobs } = await list({ prefix: "nextvideo/metadata/titles/" });
+          if (blobs && blobs.length > 0) {
+            await del(blobs.map((b) => b.url));
+          }
+          const legacy = await list({ prefix: VERCEL_BLOB_PATHNAME });
+          if (legacy.blobs && legacy.blobs.length > 0) {
+            await del(legacy.blobs.map((b) => b.url));
+          }
+        }
+      }
+    } else {
+      // Local disk storage
+      if (fingerprint) {
+        const safeFp = fingerprint.replace(/[^a-zA-Z0-9_-]/g, "_");
+        const assetDir = path.join(process.cwd(), "data", "titles", safeFp);
+        if (fs.existsSync(assetDir)) {
+          fs.rmSync(assetDir, { recursive: true, force: true });
+        }
+        if (fs.existsSync(TITLE_HISTORY_FILE)) {
+          try {
+            const raw = fs.readFileSync(TITLE_HISTORY_FILE, "utf-8");
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === "object") {
+              delete parsed[fingerprint];
+              fs.writeFileSync(TITLE_HISTORY_FILE, JSON.stringify(parsed, null, 2), "utf-8");
+            }
+          } catch {}
+        }
+      } else {
+        const titlesDir = path.join(process.cwd(), "data", "titles");
+        if (fs.existsSync(titlesDir)) {
+          fs.rmSync(titlesDir, { recursive: true, force: true });
+        }
+        if (fs.existsSync(TITLE_HISTORY_FILE)) {
+          fs.writeFileSync(TITLE_HISTORY_FILE, JSON.stringify({}), "utf-8");
+        }
+      }
+    }
   }
 }
 

@@ -675,7 +675,11 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
         }
       }
 
-      onToast(`Upload successfully resumed and published to YouTube as ${publishPrivacy.toUpperCase()}!`, "success");
+      if (data.sessionPersisted === false && data.persistenceWarning) {
+        onToast(data.persistenceWarning, "error");
+      } else {
+        onToast(`Upload successfully resumed and published to YouTube as ${publishPrivacy.toUpperCase()}!`, "success");
+      }
     } catch (err: any) {
       if (!err.isInterrupted) {
         dispatchLifecycle({
@@ -796,7 +800,9 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
         }
       }
 
-      if (data.isDuplicatePrevented) {
+      if (data.sessionPersisted === false && data.persistenceWarning) {
+        onToast(data.persistenceWarning, "error");
+      } else if (data.isDuplicatePrevented) {
         onToast("Video was already published. Retrieved existing YouTube URL.", "info");
       } else {
         onToast(`Video successfully published to YouTube as ${publishPrivacy.toUpperCase()}!`, "success");

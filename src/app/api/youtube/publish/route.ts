@@ -179,21 +179,33 @@ export async function POST(req: NextRequest) {
     });
 
     // Persist session and publishing lifecycle state against the job on the server
-    await updateJobStatus(job.id, {
-      uploadSessionUrl: record.uploadSessionUrl,
-      publishingLifecycle: {
-        state: record.lifecycleState || "Published",
-        assetId: job.assetId,
-        jobId: job.id,
-        videoId: record.youtubeVideoId,
+    let sessionPersisted = true;
+    let persistenceWarning: string | undefined = undefined;
+
+    try {
+      const updatedJob = await updateJobStatus(job.id, {
         uploadSessionUrl: record.uploadSessionUrl,
-        thumbnailStatus: record.thumbnailStatus,
-        thumbnailError: record.thumbnailError,
-        updatedAt: new Date().toISOString(),
-      },
-    }).catch((err) => {
-      console.warn("[Publish API Warning] Could not update job lifecycle status on server:", err.message);
-    });
+        publishingLifecycle: {
+          state: record.lifecycleState || "Published",
+          assetId: job.assetId,
+          jobId: job.id,
+          videoId: record.youtubeVideoId,
+          uploadSessionUrl: record.uploadSessionUrl,
+          thumbnailStatus: record.thumbnailStatus,
+          thumbnailError: record.thumbnailError,
+          updatedAt: new Date().toISOString(),
+        },
+      });
+      if (!updatedJob) {
+        sessionPersisted = false;
+        persistenceWarning = "Video was published to YouTube, but publishing lifecycle state could not be confirmed in persistent storage.";
+        console.warn(`[Publish API Warning] updateJobStatus returned null for job ${job.id}`);
+      }
+    } catch (persistErr: any) {
+      sessionPersisted = false;
+      persistenceWarning = `Video was published to YouTube, but failed to persist publishing state to storage (${persistErr.message}).`;
+      console.error(`[Publish API Persistence Error] Job ${job.id} success lifecycle persistence failed:`, persistErr);
+    }
 
     return NextResponse.json({
       success: true,
@@ -209,6 +221,8 @@ export async function POST(req: NextRequest) {
       lifecycleState: record.lifecycleState,
       thumbnailStatus: record.thumbnailStatus,
       thumbnailError: record.thumbnailError,
+      sessionPersisted,
+      persistenceWarning,
     });
   } catch (err: any) {
     const isInterrupted =

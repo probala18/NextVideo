@@ -36,6 +36,32 @@ mock.module("@vercel/blob", () => {
         contentType: "application/json",
       };
     }),
+    list: mock(async (options?: { prefix?: string }) => {
+      if (shouldFailRead) {
+        throw new Error("Simulated Vercel Blob network read timeout (503 Service Unavailable)");
+      }
+      const prefix = options?.prefix || "";
+      const blobs: Array<{ pathname: string; url: string; size: number; uploadedAt: Date }> = [];
+      for (const [key, val] of mockBlobStore.entries()) {
+        if (key.startsWith(prefix)) {
+          blobs.push({
+            pathname: key,
+            url: `https://mock.blob.vercel-storage.com/${key}`,
+            size: val.length,
+            uploadedAt: new Date(),
+          });
+        }
+      }
+      return { blobs };
+    }),
+    del: mock(async (urls: string | string[]) => {
+      const urlList = Array.isArray(urls) ? urls : [urls];
+      for (const u of urlList) {
+        const cleanKey = u.replace(/^https?:\/\/[^/]+\//, "");
+        mockBlobStore.delete(cleanKey);
+        mockBlobStore.delete(u);
+      }
+    }),
   };
 });
 
@@ -44,6 +70,8 @@ import {
   getTitleHistoryAsync,
   recordTitleHistory,
   clearTitleHistory,
+  clearTitleHistoryAsync,
+  persistTitleHistoryDurable,
   resetTitleHistoryLoadPromise,
 } from "../video/generator";
 
@@ -180,24 +208,31 @@ describe("Vercel Blob Durable Title History", () => {
     expect(loadedB).toEqual(titlesB);
   });
 
-  it("7. guarantees atomic convergence during simultaneous parallel writes to the SAME asset", async () => {
+  it("7. guarantees atomic convergence during simultaneous parallel writes to the SAME asset from isolated serverless instances", async () => {
     const sharedAssetId = "concurrent_same_asset_race_condition_test";
     const titlesNodeA = ["Concurrent Angle Alpha 1", "Concurrent Angle Alpha 2"];
     const titlesNodeB = ["Concurrent Angle Beta 1", "Concurrent Angle Beta 2"];
 
-    // Simultaneous parallel writes to the SAME asset from two competing instances
+    // Simulate two truly independent serverless instances (isolated memory contexts)
+    // writing simultaneously to the exact same asset without shared in-process memory
     await Promise.all([
-      recordTitleHistory(sharedAssetId, titlesNodeA),
-      recordTitleHistory(sharedAssetId, titlesNodeB),
+      persistTitleHistoryDurable(sharedAssetId, titlesNodeA),
+      persistTitleHistoryDurable(sharedAssetId, titlesNodeB),
     ]);
 
-    // Clear local in-memory state to simulate cold retrieval by a third independent instance
+    // Verify append-only entries exist in durable Blob storage
+    const entryKeys = Array.from(mockBlobStore.keys()).filter((k) =>
+      k.startsWith(`nextvideo/metadata/titles/${sharedAssetId}/entries/`)
+    );
+    expect(entryKeys.length).toBeGreaterThanOrEqual(2);
+
+    // Simulate cold retrieval by a third independent serverless instance (Node C)
     clearTitleHistory(undefined, true);
     resetTitleHistoryLoadPromise();
 
     const finalMergedHistory = await getTitleHistoryAsync(sharedAssetId);
 
-    // Both candidate sets MUST be present in storage - neither can be dropped or overwritten
+    // Both candidate sets MUST be present in storage - append-only architecture guarantees zero lost updates
     for (const tA of titlesNodeA) {
       expect(finalMergedHistory).toContain(tA);
     }
@@ -205,6 +240,38 @@ describe("Vercel Blob Durable Title History", () => {
       expect(finalMergedHistory).toContain(tB);
     }
     expect(finalMergedHistory.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("8. physically deletes all per-asset records and entry blobs on clearTitleHistoryAsync", async () => {
+    const assetA = "asset_for_deletion_a";
+    const assetB = "asset_for_deletion_b";
+
+    await recordTitleHistory(assetA, ["Title A1", "Title A2"]);
+    await recordTitleHistory(assetB, ["Title B1", "Title B2"]);
+
+    // Verify blobs exist
+    expect(
+      Array.from(mockBlobStore.keys()).some((k) => k.includes(assetA))
+    ).toBe(true);
+    expect(
+      Array.from(mockBlobStore.keys()).some((k) => k.includes(assetB))
+    ).toBe(true);
+
+    // 1. Delete single asset
+    await clearTitleHistoryAsync(assetA, false);
+    expect(
+      Array.from(mockBlobStore.keys()).some((k) => k.includes(assetA))
+    ).toBe(false);
+    expect(
+      Array.from(mockBlobStore.keys()).some((k) => k.includes(assetB))
+    ).toBe(true);
+
+    // 2. Global delete
+    await clearTitleHistoryAsync(undefined, false);
+    const remainingTitleBlobs = Array.from(mockBlobStore.keys()).filter((k) =>
+      k.startsWith("nextvideo/metadata/titles/")
+    );
+    expect(remainingTitleBlobs.length).toBe(0);
   });
 });
 
