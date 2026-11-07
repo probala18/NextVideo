@@ -324,7 +324,25 @@ export async function publishVideoToYouTube(
 
   if (activeUploadUrl) {
     // Resume existing interrupted upload session from verified byte offset
-    const sessionStatus = await queryUploadSession(activeUploadUrl, stat.size);
+    let sessionStatus;
+    try {
+      sessionStatus = await queryUploadSession(activeUploadUrl, stat.size);
+    } catch (queryErr: any) {
+      if (queryErr.isExpired || queryErr.statusCode === 404 || queryErr.statusCode === 410) {
+        const err: any = new Error(
+          `The YouTube upload session has expired or was not found (HTTP ${queryErr.statusCode || "404/410"}). Confirm publishing to start a fresh upload.`
+        );
+        err.sessionExpired = true;
+        throw err;
+      }
+      const err: any = new Error(
+        `Network failure checking YouTube upload session status: ${queryErr.message}. Session preserved at: ${activeUploadUrl}`
+      );
+      err.isInterrupted = true;
+      err.uploadSessionUrl = activeUploadUrl;
+      throw err;
+    }
+
     if (sessionStatus.isComplete && sessionStatus.videoId) {
       youtubeVideoId = sessionStatus.videoId;
     } else {
@@ -544,20 +562,29 @@ export async function queryUploadSession(
   bytesReceived: number;
   videoId?: string;
 }> {
-  const res = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: {
-      "Content-Range": `bytes */${totalFileSize}`,
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Range": `bytes */${totalFileSize}`,
+      },
+    });
+  } catch (networkErr: any) {
+    const err: any = new Error(`Network failure querying upload session: ${networkErr.message}`);
+    err.isNetworkError = true;
+    throw err;
+  }
 
   if (res.status === 201 || res.status === 200) {
     const data = await res.json().catch(() => null);
-    return {
-      isComplete: true,
-      bytesReceived: totalFileSize,
-      videoId: data?.id,
-    };
+    if (data?.id && typeof data.id === "string" && data.id.trim()) {
+      return {
+        isComplete: true,
+        bytesReceived: totalFileSize,
+        videoId: data.id.trim(),
+      };
+    }
   }
 
   if (res.status === 308) {
@@ -573,5 +600,11 @@ export async function queryUploadSession(
     };
   }
 
-  throw new Error(`Failed to query upload session: HTTP ${res.status}`);
+  const errorText = await res.text().catch(() => "");
+  const err: any = new Error(`Failed to query upload session: HTTP ${res.status} ${errorText}`.trim());
+  err.statusCode = res.status;
+  if (res.status === 404 || res.status === 410) {
+    err.isExpired = true;
+  }
+  throw err;
 }

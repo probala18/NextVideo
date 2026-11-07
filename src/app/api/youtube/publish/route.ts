@@ -220,29 +220,43 @@ export async function POST(req: NextRequest) {
       err.uploadSessionUrl ||
       err.message?.match(/Upload session preserved at:\s*([^\s]+)/)?.[1];
 
+    let sessionPersisted = false;
+    let persistenceWarning: string | undefined = undefined;
+
     if (currentJob?.id) {
-      if (isInterrupted) {
-        await updateJobStatus(currentJob.id, {
-          uploadSessionUrl: uploadSessionUrl || undefined,
-          publishingLifecycle: {
-            state: "UploadInterrupted",
-            assetId: currentJob.assetId,
-            jobId: currentJob.id,
+      try {
+        if (isInterrupted) {
+          const updatedJob = await updateJobStatus(currentJob.id, {
             uploadSessionUrl: uploadSessionUrl || undefined,
-            error: err.message,
-            updatedAt: new Date().toISOString(),
-          },
-        }).catch(() => {});
-      } else {
-        await updateJobStatus(currentJob.id, {
-          publishingLifecycle: {
-            state: "Failed",
-            assetId: currentJob.assetId,
-            jobId: currentJob.id,
-            error: err.message,
-            updatedAt: new Date().toISOString(),
-          },
-        }).catch(() => {});
+            publishingLifecycle: {
+              state: "UploadInterrupted",
+              assetId: currentJob.assetId,
+              jobId: currentJob.id,
+              uploadSessionUrl: uploadSessionUrl || undefined,
+              error: err.message,
+              updatedAt: new Date().toISOString(),
+            },
+          });
+          sessionPersisted = Boolean(updatedJob?.uploadSessionUrl || updatedJob?.publishingLifecycle?.uploadSessionUrl);
+          if (!sessionPersisted) {
+            persistenceWarning = "Upload session could not be confirmed in persistent storage. Do not refresh this page before resuming.";
+            console.error(`[Publish API Persistence Failure] Job ${currentJob.id} status update returned unpersisted state.`);
+          }
+        } else {
+          await updateJobStatus(currentJob.id, {
+            publishingLifecycle: {
+              state: "Failed",
+              assetId: currentJob.assetId,
+              jobId: currentJob.id,
+              error: err.message,
+              updatedAt: new Date().toISOString(),
+            },
+          });
+        }
+      } catch (persistErr: any) {
+        sessionPersisted = false;
+        persistenceWarning = `Failed to persist upload session to storage (${persistErr.message}). Refresh-safe recovery is NOT active; resuming after browser reload will fail.`;
+        console.error(`[Publish API Persistence Error] Job ${currentJob.id} lifecycle persistence failed:`, persistErr);
       }
     }
 
@@ -250,7 +264,10 @@ export async function POST(req: NextRequest) {
       {
         error: err.message || "Failed to publish video to YouTube",
         isInterrupted,
+        sessionExpired: Boolean(err.sessionExpired),
         uploadSessionUrl: uploadSessionUrl || undefined,
+        sessionPersisted,
+        persistenceWarning,
       },
       { status: isInterrupted ? 409 : 500 }
     );

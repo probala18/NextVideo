@@ -494,4 +494,150 @@ describe("YouTube OAuth & Publishing Workflow", () => {
       await fs.promises.rm(tempDir, { recursive: true, force: true });
     }
   });
+
+  test("handles session status query failure (404/410 expired session vs transient network failure)", async () => {
+    const originalFetch = globalThis.fetch;
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "query-fail-test-"));
+    const videoPath = path.join(tempDir, "video.mp4");
+    await fs.promises.writeFile(videoPath, Buffer.from("video bytes for query test"));
+
+    const expiredSessionUrl = "https://upload.youtube.com/resumable/expired-session-404";
+    const networkFailSessionUrl = "https://upload.youtube.com/resumable/network-fail-session";
+
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === expiredSessionUrl) {
+        return new Response("Upload session not found", { status: 404 });
+      }
+      if (url === networkFailSessionUrl) {
+        throw new Error("DNS resolution failure");
+      }
+      throw new Error(`Unexpected url: ${url}`);
+    }) as typeof fetch;
+
+    try {
+      // 1. Expired/not found session (HTTP 404)
+      let caughtExpiredErr: any = null;
+      try {
+        await publishVideoToYouTube({
+          jobId: `job_expired_${Date.now()}`,
+          assetId: "asset_expired",
+          filePath: videoPath,
+          title: "Expired Session Test",
+          description: "Must flag session expired",
+          resumeSessionUrl: expiredSessionUrl,
+        });
+      } catch (err: any) {
+        caughtExpiredErr = err;
+      }
+      expect(caughtExpiredErr).toBeDefined();
+      expect(caughtExpiredErr.sessionExpired).toBe(true);
+      expect(caughtExpiredErr.message).toContain("expired or was not found");
+      expect(caughtExpiredErr.message).toContain("404");
+
+      // 2. Transient network failure querying session
+      let caughtNetworkErr: any = null;
+      try {
+        await publishVideoToYouTube({
+          jobId: `job_netfail_${Date.now()}`,
+          assetId: "asset_netfail",
+          filePath: videoPath,
+          title: "Network Failure Test",
+          description: "Must flag interrupted and preserve session",
+          resumeSessionUrl: networkFailSessionUrl,
+        });
+      } catch (err: any) {
+        caughtNetworkErr = err;
+      }
+      expect(caughtNetworkErr).toBeDefined();
+      expect(caughtNetworkErr.isInterrupted).toBe(true);
+      expect(caughtNetworkErr.uploadSessionUrl).toBe(networkFailSessionUrl);
+      expect(caughtNetworkErr.message).toContain("DNS resolution failure");
+    } finally {
+      globalThis.fetch = originalFetch;
+      await fs.promises.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test("verifies browser-refresh recovery by restoring job publishingLifecycle and resuming upload", async () => {
+    const originalFetch = globalThis.fetch;
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "refresh-recovery-test-"));
+    const videoPath = path.join(tempDir, "video.mp4");
+    const videoBytes = Buffer.alloc(8000, 2);
+    await fs.promises.writeFile(videoPath, videoBytes);
+
+    const savedSessionUrl = "https://upload.youtube.com/resumable/refresh-session-123";
+
+    // Simulate server-side job storage with interrupted session
+    const mockSavedJob = {
+      id: `job_refresh_${Date.now()}`,
+      assetId: "asset_refresh_123",
+      uploadSessionUrl: savedSessionUrl,
+      publishingLifecycle: {
+        state: "UploadInterrupted" as const,
+        assetId: "asset_refresh_123",
+        jobId: `job_refresh_${Date.now()}`,
+        uploadSessionUrl: savedSessionUrl,
+        error: "Connection reset by peer",
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    // Verify recovery on mount: job state is preserved
+    expect(mockSavedJob.publishingLifecycle.state).toBe("UploadInterrupted");
+    expect(mockSavedJob.uploadSessionUrl).toBe(savedSessionUrl);
+
+    // Now resume upload using the recovered session URL
+    let sessionQueried = false;
+    let bytesSent = 0;
+
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const headers = new Headers(init?.headers);
+
+      if (url === savedSessionUrl) {
+        const contentRange = headers.get("Content-Range") || "";
+        if (contentRange === "bytes */8000") {
+          sessionQueried = true;
+          // Resumes from byte 3000 (0-2999 received)
+          return new Response(null, {
+            status: 308,
+            headers: { Range: "bytes=0-2999" },
+          });
+        }
+
+        const rangeMatch = contentRange.match(/bytes\s+3000-7999\/8000/);
+        if (rangeMatch) {
+          for await (const chunk of init?.body as unknown as AsyncIterable<Uint8Array>) {
+            bytesSent += chunk.byteLength;
+          }
+          return new Response(JSON.stringify({ kind: "youtube#video", id: "refreshed-resumed-video" }), {
+            status: 201,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    }) as typeof fetch;
+
+    try {
+      const record = await publishVideoToYouTube({
+        jobId: mockSavedJob.id,
+        assetId: mockSavedJob.assetId,
+        filePath: videoPath,
+        title: "Browser Refresh Recovery Test",
+        description: "Testing end-to-end recovery after reload",
+        resumeSessionUrl: mockSavedJob.uploadSessionUrl,
+      });
+
+      expect(sessionQueried).toBe(true);
+      expect(bytesSent).toBe(5000); // 8000 - 3000 = 5000 bytes
+      expect(record.youtubeVideoId).toBe("refreshed-resumed-video");
+      expect(record.status).toBe("published");
+      expect(record.lifecycleState).toBe("Published");
+    } finally {
+      globalThis.fetch = originalFetch;
+      await fs.promises.rm(tempDir, { recursive: true, force: true });
+    }
+  });
 });

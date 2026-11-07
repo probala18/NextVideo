@@ -148,5 +148,50 @@ describe("Vercel Blob Durable Title History", () => {
       expect(historyA).not.toContain(tB);
     }
   });
+
+  it("6. guarantees cross-instance concurrency safety via isolated per-asset records", async () => {
+    const assetInstanceA = "concurrent_asset_serverless_node_1";
+    const assetInstanceB = "concurrent_asset_serverless_node_2";
+
+    const titlesA = ["Serverless Instance 1 - Architecture", "Serverless Instance 1 - Deep Dive"];
+    const titlesB = ["Serverless Instance 2 - Concurrency", "Serverless Instance 2 - Edge Storage"];
+
+    // Instance 1 records Asset A
+    await recordTitleHistory(assetInstanceA, titlesA);
+
+    // Verify per-asset distributed record was created in Vercel Blob
+    const blobPathA = `nextvideo/metadata/titles/${assetInstanceA}.json`;
+    expect(mockBlobStore.get(blobPathA)).toBeDefined();
+    expect(JSON.parse(mockBlobStore.get(blobPathA)!)).toEqual(titlesA);
+
+    // Instance 2 (simulating a separate container) wipes local memory and records Asset B
+    clearTitleHistory(undefined, true);
+    resetTitleHistoryLoadPromise();
+    await recordTitleHistory(assetInstanceB, titlesB);
+
+    const blobPathB = `nextvideo/metadata/titles/${assetInstanceB}.json`;
+    expect(mockBlobStore.get(blobPathB)).toBeDefined();
+    expect(JSON.parse(mockBlobStore.get(blobPathB)!)).toEqual(titlesB);
+
+    // Simulate an overwrite of the legacy shared bundle by Instance 2 (which only knew about Asset B)
+    mockBlobStore.set(
+      "nextvideo/metadata/title_history.json",
+      JSON.stringify({ [assetInstanceB]: titlesB })
+    );
+
+    // Cold-start Instance 3 spins up and requests Asset A
+    clearTitleHistory(undefined, true);
+    resetTitleHistoryLoadPromise();
+
+    const loadedA = await getTitleHistoryAsync(assetInstanceA);
+    expect(loadedA).toEqual(titlesA);
+
+    // Cold-start Instance 4 requests Asset B
+    clearTitleHistory(undefined, true);
+    resetTitleHistoryLoadPromise();
+
+    const loadedB = await getTitleHistoryAsync(assetInstanceB);
+    expect(loadedB).toEqual(titlesB);
+  });
 });
 

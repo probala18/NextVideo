@@ -623,13 +623,25 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
 
       const data = await res.json();
       if (!res.ok) {
+        if (data.sessionExpired) {
+          dispatchLifecycle({
+            type: "PERMANENT_UPLOAD_ERROR",
+            error: data.error || "Upload session has expired. Start a fresh upload.",
+          });
+          onToast(data.error || "Upload session has expired. Start a fresh upload.", "error");
+          return;
+        }
         if (data.isInterrupted && data.uploadSessionUrl) {
           dispatchLifecycle({
             type: "NETWORK_INTERRUPTION",
             error: data.error,
             sessionUrl: data.uploadSessionUrl,
           });
-          onToast(`Upload interrupted: ${data.error}. Click 'Resume Interrupted Upload' to retry.`, "info");
+          if (data.sessionPersisted === false && data.persistenceWarning) {
+            onToast(data.persistenceWarning, "error");
+          } else {
+            onToast(`Upload interrupted: ${data.error}. Click 'Resume Interrupted Upload' to retry.`, "info");
+          }
           return;
         }
         dispatchLifecycle({
@@ -732,13 +744,25 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
 
       const data = await res.json();
       if (!res.ok) {
+        if (data.sessionExpired) {
+          dispatchLifecycle({
+            type: "PERMANENT_UPLOAD_ERROR",
+            error: data.error || "Upload session has expired. Start a fresh upload.",
+          });
+          onToast(data.error || "Upload session has expired. Start a fresh upload.", "error");
+          return;
+        }
         if (data.isInterrupted && data.uploadSessionUrl) {
           dispatchLifecycle({
             type: "NETWORK_INTERRUPTION",
             error: data.error,
             sessionUrl: data.uploadSessionUrl,
           });
-          onToast(`Upload interrupted: ${data.error}. Click 'Resume Interrupted Upload' to retry.`, "info");
+          if (data.sessionPersisted === false && data.persistenceWarning) {
+            onToast(data.persistenceWarning, "error");
+          } else {
+            onToast(`Upload interrupted: ${data.error}. Click 'Resume Interrupted Upload' to retry.`, "info");
+          }
           return;
         }
         dispatchLifecycle({
