@@ -8,6 +8,8 @@ import {
   recordTitleHistory,
   getTitleHistory,
   clearTitleHistory,
+  loadTitleHistoryDurable,
+  persistTitleHistoryDurable,
   calculateTokenSimilarity,
   normalizeTitleForDeduplication,
   BANNED_GENERIC_PATTERNS,
@@ -425,9 +427,10 @@ describe("Title Generation Improvements: Structured Evidence, Strategies, Qualit
       expect(getTitleHistory(fp2)).toHaveLength(0);
     });
 
-    it("persists title history to durable disk storage and loads on cold access", () => {
+    it("persists title history to durable disk storage and loads on cold access", async () => {
       const fp = "durable_test_asset_999";
       recordTitleHistory(fp, ["Durable Title 1", "Durable Title 2"]);
+      await persistTitleHistoryDurable();
       expect(getTitleHistory(fp)).toContain("Durable Title 1");
 
       // Verify file exists on disk in data/title_history.json
@@ -435,6 +438,10 @@ describe("Title Generation Improvements: Structured Evidence, Strategies, Qualit
       expect(fs.existsSync(historyFile)).toBe(true);
       const content = JSON.parse(fs.readFileSync(historyFile, "utf-8"));
       expect(content[fp]).toContain("Durable Title 1");
+
+      // Verify cold access automatically reloads from disk into memory
+      clearTitleHistory(undefined, true);
+      expect(getTitleHistory(fp)).toContain("Durable Title 1");
     });
   });
 

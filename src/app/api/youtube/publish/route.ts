@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
       tags,
       customTags,
       selectedThumbnailId,
+      resumeSessionUrl,
     } = body;
 
     const candidateTitle = (title || customTitle || "").trim();
@@ -172,6 +173,7 @@ export async function POST(req: NextRequest) {
       privacyStatus: effectivePrivacy,
       thumbnailPath,
       categoryId: job.report?.publishingPackage?.suggestedCategory?.id,
+      resumeSessionUrl,
     });
 
     return NextResponse.json({
@@ -185,13 +187,27 @@ export async function POST(req: NextRequest) {
       youtubeUrl: record.youtubeUrl,
       videoId: record.youtubeVideoId,
       status: record.status,
+      lifecycleState: record.lifecycleState,
       thumbnailStatus: record.thumbnailStatus,
       thumbnailError: record.thumbnailError,
     });
   } catch (err: any) {
+    const isInterrupted =
+      Boolean(err.isInterrupted) ||
+      err.message?.includes("308") ||
+      err.message?.includes("Upload session preserved") ||
+      err.message?.includes("incomplete");
+    const uploadSessionUrl =
+      err.uploadSessionUrl ||
+      err.message?.match(/Upload session preserved at:\s*([^\s]+)/)?.[1];
+
     return NextResponse.json(
-      { error: err.message || "Failed to publish video to YouTube" },
-      { status: 500 }
+      {
+        error: err.message || "Failed to publish video to YouTube",
+        isInterrupted,
+        uploadSessionUrl: uploadSessionUrl || undefined,
+      },
+      { status: isInterrupted ? 409 : 500 }
     );
   }
 }

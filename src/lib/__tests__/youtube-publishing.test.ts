@@ -185,7 +185,7 @@ describe("YouTube OAuth & Publishing Workflow", () => {
       }
       if (url === "https://upload.mock/session") {
         for await (const chunk of init?.body as unknown as AsyncIterable<Uint8Array>) transferredBytes += chunk.byteLength;
-        return Response.json({ id: "mock-youtube-video-id" });
+        return Response.json({ id: "mock-youtube-video-id" }, { status: 201 });
       }
       if (url.includes("thumbnails/set")) {
         thumbnailType = new Headers(init?.headers).get("Content-Type") || "";
@@ -381,6 +381,117 @@ describe("YouTube OAuth & Publishing Workflow", () => {
       expect(status.bytesReceived).toBe(2097152); // received 2MB
     } finally {
       globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("resumes interrupted upload from byte offset when resumeSessionUrl is provided", async () => {
+    const originalFetch = globalThis.fetch;
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "resume-upload-test-"));
+    const videoPath = path.join(tempDir, "video.mp4");
+    const videoData = Buffer.alloc(10000, 1); // 10000 bytes
+    await fs.promises.writeFile(videoPath, videoData);
+
+    const savedSessionUrl = "https://upload.youtube.com/resumable/active-session-789";
+    let statusQueried = false;
+    let resumedByteStart = -1;
+    let resumedByteEnd = -1;
+    let transferredBytes = 0;
+
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const headers = new Headers(init?.headers);
+
+      if (url === savedSessionUrl) {
+        const contentRange = headers.get("Content-Range") || "";
+        if (contentRange === "bytes */10000") {
+          statusQueried = true;
+          // Return HTTP 308 showing 4000 bytes already received (0-3999)
+          return new Response(null, {
+            status: 308,
+            headers: { Range: "bytes=0-3999" },
+          });
+        }
+
+        // Resumed chunk PUT
+        const rangeMatch = contentRange.match(/bytes\s+(\d+)-(\d+)\/(\d+)/);
+        if (rangeMatch) {
+          resumedByteStart = parseInt(rangeMatch[1], 10);
+          resumedByteEnd = parseInt(rangeMatch[2], 10);
+          for await (const chunk of init?.body as unknown as AsyncIterable<Uint8Array>) {
+            transferredBytes += chunk.byteLength;
+          }
+          return new Response(JSON.stringify({ kind: "youtube#video", id: "resumed-vid-success" }), {
+            status: 201,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+      }
+      throw new Error(`Unexpected request in resume test: ${url}`);
+    }) as typeof fetch;
+
+    try {
+      const record = await publishVideoToYouTube({
+        jobId: `job_resume_${Date.now()}`,
+        assetId: "asset_resume",
+        filePath: videoPath,
+        title: "Resumed Upload Test",
+        description: "Testing byte offset resumption",
+        resumeSessionUrl: savedSessionUrl,
+      });
+
+      expect(statusQueried).toBe(true);
+      expect(resumedByteStart).toBe(4000);
+      expect(resumedByteEnd).toBe(9999);
+      expect(transferredBytes).toBe(6000); // 10000 - 4000 bytes transferred
+      expect(record.youtubeVideoId).toBe("resumed-vid-success");
+      expect(record.status).toBe("published");
+      expect(record.lifecycleState).toBe("Published"); // No thumbnail requested
+      expect(record.thumbnailStatus).toBe("not_requested");
+    } finally {
+      globalThis.fetch = originalFetch;
+      await fs.promises.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test("strictly enforces HTTP 201 Created and rejects HTTP 200 on completed upload", async () => {
+    const originalFetch = globalThis.fetch;
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "strict-201-test-"));
+    const videoPath = path.join(tempDir, "video.mp4");
+    await fs.promises.writeFile(videoPath, Buffer.from("video bytes"));
+
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("videos?uploadType=resumable")) {
+        return new Response(null, { status: 200, headers: { location: "https://upload.mock/session-200" } });
+      }
+      if (url === "https://upload.mock/session-200") {
+        // Violate contract by returning HTTP 200 instead of HTTP 201 Created
+        return new Response(JSON.stringify({ id: "rejected-video-id" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      throw new Error(`Unexpected: ${url}`);
+    }) as typeof fetch;
+
+    try {
+      let rejected = false;
+      try {
+        await publishVideoToYouTube({
+          jobId: `job_200_${Date.now()}`,
+          assetId: "asset_200",
+          filePath: videoPath,
+          title: "Strict 201 Rejection Test",
+          description: "Must reject 200 OK",
+        });
+      } catch (err: any) {
+        rejected = true;
+        expect(err.message).toContain("HTTP 201 Created");
+      }
+      expect(rejected).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+      await fs.promises.rm(tempDir, { recursive: true, force: true });
     }
   });
 });

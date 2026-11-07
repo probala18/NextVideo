@@ -59,13 +59,24 @@ describe("YouTube Publishing Workflow State Machine", () => {
       ...createInitialRecord(),
       state: "Uploading",
     };
-    const next = transitionPublishingState(record, {
+    const nextWithThumb = transitionPublishingState(record, {
       type: "YOUTUBE_RETURNED_201",
       videoId: "youtube_vid_abc",
       hasCustomThumbnail: true,
     });
-    expect(next.state).toBe("Published");
-    expect(next.videoId).toBe("youtube_vid_abc");
+    expect(nextWithThumb.state).toBe("Published");
+    expect(nextWithThumb.thumbnailStatus).toBe("pending");
+    expect(nextWithThumb.videoId).toBe("youtube_vid_abc");
+
+    // When thumbnail was not requested, it remains in Published state and is NOT falsely marked Completed
+    const nextNoThumb = transitionPublishingState(record, {
+      type: "YOUTUBE_RETURNED_201",
+      videoId: "youtube_vid_xyz",
+      hasCustomThumbnail: false,
+    });
+    expect(nextNoThumb.state).toBe("Published");
+    expect(nextNoThumb.thumbnailStatus).toBe("not_requested");
+    expect(nextNoThumb.videoId).toBe("youtube_vid_xyz");
   });
 
   it("handles decoupled thumbnail: Published -> ThumbnailPending -> Completed", () => {

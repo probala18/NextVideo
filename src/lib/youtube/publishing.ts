@@ -37,6 +37,7 @@ export interface PublishPackageInput {
   publishAt?: string; // ISO 8601 for scheduled publishing
   isShort?: boolean;
   thumbnailPath?: string;
+  resumeSessionUrl?: string;
 }
 
 export type PublishStatus =
@@ -318,76 +319,141 @@ export async function publishVideoToYouTube(
   const stat = await fs.promises.stat(input.filePath);
   const privacy = input.privacyStatus || auth.privacyDefault || "private";
 
-  // Step 1: Initiate Resumable Upload Session
-  const metadata = {
-    snippet: {
-      title: input.title.slice(0, 100),
-      description: input.description,
-      tags: input.tags || [],
-      categoryId: input.categoryId && /^\d+$/.test(input.categoryId) ? input.categoryId : undefined,
-    },
-    status: {
-      privacyStatus: privacy,
-      selfDeclaredMadeForKids: false,
-      publishAt: input.publishAt || undefined,
-    },
-  };
+  let activeUploadUrl = input.resumeSessionUrl;
+  let youtubeVideoId = "";
 
-  const initRes = await fetch(
-    "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json; charset=UTF-8",
-        "X-Upload-Content-Length": stat.size.toString(),
-        "X-Upload-Content-Type": "video/mp4",
+  if (activeUploadUrl) {
+    // Resume existing interrupted upload session from verified byte offset
+    const sessionStatus = await queryUploadSession(activeUploadUrl, stat.size);
+    if (sessionStatus.isComplete && sessionStatus.videoId) {
+      youtubeVideoId = sessionStatus.videoId;
+    } else {
+      const startOffset = sessionStatus.bytesReceived;
+      const remainingBytes = stat.size - startOffset;
+      const resumeStream = createReadStream(input.filePath, { start: startOffset });
+
+      let uploadRes: Response;
+      try {
+        uploadRes = await fetch(activeUploadUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "video/mp4",
+            "Content-Range": `bytes ${startOffset}-${stat.size - 1}/${stat.size}`,
+            "Content-Length": remainingBytes.toString(),
+          },
+          body: resumeStream as unknown as BodyInit,
+          // @ts-expect-error Node.js fetch extension for streaming request bodies
+          duplex: "half",
+        });
+      } catch (networkErr: any) {
+        const err: any = new Error(`Network interruption while resuming upload: ${networkErr.message}. Session preserved at: ${activeUploadUrl}`);
+        err.isInterrupted = true;
+        err.uploadSessionUrl = activeUploadUrl;
+        throw err;
+      }
+
+      if (uploadRes.status !== 201) {
+        const uploadErr = await uploadRes.text().catch(() => "");
+        if (uploadRes.status === 308) {
+          const err: any = new Error(`YouTube resumable upload incomplete (HTTP 308). Upload session preserved at: ${activeUploadUrl}`);
+          err.isInterrupted = true;
+          err.uploadSessionUrl = activeUploadUrl;
+          throw err;
+        }
+        throw new Error(`YouTube video upload did not return HTTP 201 Created (received HTTP ${uploadRes.status}: ${uploadErr})`);
+      }
+
+      const uploadData = await uploadRes.json();
+      youtubeVideoId = uploadData?.id;
+      if (!youtubeVideoId || typeof youtubeVideoId !== "string" || !youtubeVideoId.trim()) {
+        throw new Error("YouTube API upload did not return a valid video resource with non-empty ID.");
+      }
+    }
+  } else {
+    // Step 1: Initiate brand new Resumable Upload Session
+    const metadata = {
+      snippet: {
+        title: input.title.slice(0, 100),
+        description: input.description,
+        tags: input.tags || [],
+        categoryId: input.categoryId && /^\d+$/.test(input.categoryId) ? input.categoryId : undefined,
       },
-      body: JSON.stringify(metadata),
+      status: {
+        privacyStatus: privacy,
+        selfDeclaredMadeForKids: false,
+        publishAt: input.publishAt || undefined,
+      },
+    };
+
+    const initRes = await fetch(
+      "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json; charset=UTF-8",
+          "X-Upload-Content-Length": stat.size.toString(),
+          "X-Upload-Content-Type": "video/mp4",
+        },
+        body: JSON.stringify(metadata),
+      }
+    );
+
+    if (!initRes.ok) {
+      const errText = await initRes.text();
+      throw new Error(`YouTube API upload initiation failed: ${errText}`);
     }
-  );
 
-  if (!initRes.ok) {
-    const errText = await initRes.text();
-    throw new Error(`YouTube API upload initiation failed: ${errText}`);
-  }
-
-  const uploadUrl = initRes.headers.get("location");
-  if (!uploadUrl) {
-    throw new Error("YouTube API did not return a resumable upload location URL.");
-  }
-
-  // Step 2: Stream the video to avoid buffering large uploads in application memory.
-  const uploadRes = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "video/mp4",
-      "Content-Length": stat.size.toString(),
-    },
-    // Node's fetch requires the duplex option when given a streaming request body.
-    body: createReadStream(input.filePath) as unknown as BodyInit,
-    // @ts-expect-error Node.js fetch extension for streaming request bodies
-    duplex: "half",
-  });
-
-  // YouTube returns 201 Created upon completion (or 200 with video resource)
-  if (uploadRes.status !== 201 && uploadRes.status !== 200) {
-    const uploadErr = await uploadRes.text().catch(() => "");
-    if (uploadRes.status === 308) {
-      throw new Error(`YouTube resumable upload incomplete (HTTP 308). Upload session preserved at: ${uploadUrl}`);
+    const uploadUrl = initRes.headers.get("location");
+    if (!uploadUrl) {
+      throw new Error("YouTube API did not return a resumable upload location URL.");
     }
-    throw new Error(`YouTube video upload failed during transfer: HTTP ${uploadRes.status} - ${uploadErr}`);
+    activeUploadUrl = uploadUrl;
+
+    // Step 2: Stream the video
+    let uploadRes: Response;
+    try {
+      uploadRes = await fetch(activeUploadUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "video/mp4",
+          "Content-Length": stat.size.toString(),
+        },
+        // Node's fetch requires the duplex option when given a streaming request body.
+        body: createReadStream(input.filePath) as unknown as BodyInit,
+        // @ts-expect-error Node.js fetch extension for streaming request bodies
+        duplex: "half",
+      });
+    } catch (networkErr: any) {
+      const err: any = new Error(`Network interruption during upload transfer: ${networkErr.message}. Session preserved at: ${activeUploadUrl}`);
+      err.isInterrupted = true;
+      err.uploadSessionUrl = activeUploadUrl;
+      throw err;
+    }
+
+    // Strictly enforce HTTP 201 Created
+    if (uploadRes.status !== 201) {
+      const uploadErr = await uploadRes.text().catch(() => "");
+      if (uploadRes.status === 308) {
+        const err: any = new Error(`YouTube resumable upload incomplete (HTTP 308). Upload session preserved at: ${activeUploadUrl}`);
+        err.isInterrupted = true;
+        err.uploadSessionUrl = activeUploadUrl;
+        throw err;
+      }
+      throw new Error(`YouTube video upload did not return HTTP 201 Created (received HTTP ${uploadRes.status}: ${uploadErr})`);
+    }
+
+    const uploadData = await uploadRes.json();
+    youtubeVideoId = uploadData?.id;
+    if (!youtubeVideoId || typeof youtubeVideoId !== "string" || !youtubeVideoId.trim()) {
+      throw new Error("YouTube API upload did not return a valid video resource with non-empty ID.");
+    }
   }
 
-  const uploadData = await uploadRes.json();
-  const youtubeVideoId = uploadData?.id;
-  if (!youtubeVideoId || typeof youtubeVideoId !== "string" || !youtubeVideoId.trim()) {
-    throw new Error("YouTube API upload did not return a valid video resource with non-empty ID.");
-  }
   const youtubeUrl = `https://youtu.be/${youtubeVideoId}`;
 
   // Step 3: Decoupled Custom Thumbnail Upload
-  // Video is ALREADY successfully published. A thumbnail error must NOT invalidate video publication.
+  // Video is ALREADY successfully published (HTTP 201 verified). A thumbnail error must NOT invalidate video publication.
   let thumbnailStatus: ThumbnailPublishStatus = input.thumbnailPath ? "pending" : "not_requested";
   let thumbnailError: string | undefined = undefined;
 
@@ -421,14 +487,28 @@ export async function publishVideoToYouTube(
     }
   }
 
-  // If thumbnail succeeded or was not requested, status is completed; if thumbnail failed, status remains published.
-  const finalStatus: PublishStatus = thumbnailStatus === "failed" ? "published" : "completed";
-  const lifecycleState: PublishingLifecycleState =
-    thumbnailStatus === "failed"
-      ? "ThumbnailFailed"
-      : thumbnailStatus === "pending"
-      ? "ThumbnailPending"
-      : "Completed";
+  // Enforce distinct lifecycle and publishing states:
+  // - applied -> Completed
+  // - failed -> ThumbnailFailed
+  // - not_requested -> Published (Never falsely mark as Completed)
+  // - pending -> ThumbnailPending
+  let lifecycleState: PublishingLifecycleState = "Published";
+  let finalStatus: PublishStatus = "published";
+
+  if (thumbnailStatus === "applied") {
+    lifecycleState = "Completed";
+    finalStatus = "completed";
+  } else if (thumbnailStatus === "failed") {
+    lifecycleState = "ThumbnailFailed";
+    finalStatus = "published";
+  } else if (thumbnailStatus === "pending") {
+    lifecycleState = "ThumbnailPending";
+    finalStatus = "published";
+  } else {
+    // not_requested
+    lifecycleState = "Published";
+    finalStatus = "published";
+  }
 
   const record: PublishedVideoRecord = {
     id: `pub_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,
@@ -444,7 +524,7 @@ export async function publishVideoToYouTube(
     lifecycleState,
     thumbnailStatus,
     thumbnailError,
-    uploadSessionUrl: uploadUrl,
+    uploadSessionUrl: activeUploadUrl,
   };
 
   recordPublishedVideo(record);

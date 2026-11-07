@@ -25,7 +25,12 @@ import {
 } from "lucide-react";
 import { VideoProcessingJob, ConsolidatedAnalysisReport } from "@/lib/types/videoWorkflow";
 import { TitleOption, GeneratedThumbnail } from "@/lib/types/visionWorkflow";
-import { PublishingLifecycleState } from "@/lib/types/publishingLifecycle";
+import {
+  PublishingLifecycleRecord,
+  PublishingLifecycleEvent,
+  PublishingLifecycleState,
+  transitionPublishingState,
+} from "@/lib/types/publishingLifecycle";
 import { YouTubeOAuthModal } from "./YouTubeOAuthModal";
 import { upload as uploadBlob } from "@vercel/blob/client";
 
@@ -58,7 +63,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
   const [showTranscriptSegments, setShowTranscriptSegments] = useState(false);
   const [isRegeneratingPackaging, setIsRegeneratingPackaging] = useState(false);
 
-  // Step 4: YouTube OAuth & Publishing state
+  // Step 4: YouTube OAuth & Publishing state driven by lifecycle state machine
   const [isYoutubeConnected, setIsYoutubeConnected] = useState(false);
   const [channelTitle, setChannelTitle] = useState<string | null>(null);
   const [channelAvatar, setChannelAvatar] = useState<string | null>(null);
@@ -68,9 +73,29 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
   const [publishedVideoId, setPublishedVideoId] = useState<string | null>(null);
   const [publishedThumbnailStatus, setPublishedThumbnailStatus] = useState<string | null>(null);
   const [publishedThumbnailError, setPublishedThumbnailError] = useState<string | null>(null);
-  const [lifecycleState, setLifecycleState] = useState<PublishingLifecycleState>("Draft");
+  const [lifecycleRecord, setLifecycleRecord] = useState<PublishingLifecycleRecord>({
+    state: "Draft",
+    assetId: "",
+    jobId: "",
+    updatedAt: new Date().toISOString(),
+  });
   const [isOAuthModalOpen, setIsOAuthModalOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+
+  const dispatchLifecycle = (event: PublishingLifecycleEvent) => {
+    setLifecycleRecord((prev) => transitionPublishingState(prev, event));
+  };
+
+  // Sync current job details with lifecycle record
+  useEffect(() => {
+    if (currentJob?.id) {
+      setLifecycleRecord((prev) => ({
+        ...prev,
+        jobId: currentJob.id,
+        assetId: currentJob.assetId || prev.assetId,
+      }));
+    }
+  }, [currentJob?.id, currentJob?.assetId]);
 
   // Check YouTube OAuth connection status on mount & restore active job
   useEffect(() => {
@@ -180,6 +205,9 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
               setIsPolling(false);
               if (updated.status === "completed") {
                 const hasTitles = (updated.report?.publishingPackage?.titles?.length ?? 0) > 0;
+                if (hasTitles) {
+                  dispatchLifecycle({ type: "READY_FOR_REVIEW" });
+                }
                 const audioStatus = updated.report?.audioAnalysis?.status;
                 const isAudioOk = audioStatus === "completed" || audioStatus === "no_audio";
 
@@ -529,6 +557,101 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
     }
   };
 
+  // Resume Interrupted Upload from Saved YouTube Session and Byte Offset
+  const handleResumeUpload = async () => {
+    if (!currentJob) return;
+    const sessionUrl = lifecycleRecord.uploadSessionUrl;
+    if (!sessionUrl) {
+      onToast("No active upload session found to resume. Starting new upload.", "info");
+      return handlePublishToYouTube();
+    }
+
+    setIsPublishing(true);
+    dispatchLifecycle({ type: "RESUME_SESSION", sessionUrl });
+
+    try {
+      const finalTitle = editableTitle.trim() || selectedTitle.trim();
+      if (finalTitle.length > 100) {
+        onToast(`Title exceeds YouTube's 100-character limit (${finalTitle.length}/100 characters). Shorten the title before publishing.`, "error");
+        setIsPublishing(false);
+        return;
+      }
+      const finalDesc = editableDesc.trim();
+      const finalTags = editableTags
+        ? editableTags.split(",").map((s) => s.trim()).filter(Boolean)
+        : [];
+
+      const res = await fetch("/api/youtube/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobId: currentJob.id,
+          targetType: "original",
+          privacyStatus: publishPrivacy,
+          title: finalTitle,
+          description: finalDesc,
+          tags: finalTags,
+          selectedThumbnailId,
+          resumeSessionUrl: sessionUrl,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.isInterrupted && data.uploadSessionUrl) {
+          dispatchLifecycle({
+            type: "NETWORK_INTERRUPTION",
+            error: data.error,
+            sessionUrl: data.uploadSessionUrl,
+          });
+          onToast(`Upload interrupted: ${data.error}. Click 'Resume Interrupted Upload' to retry.`, "info");
+          return;
+        }
+        dispatchLifecycle({
+          type: "PERMANENT_UPLOAD_ERROR",
+          error: data.error || "Resuming upload failed",
+        });
+        throw new Error(data.error || "Resuming upload failed");
+      }
+
+      const publishedUrl = data.videoUrl || data.publishedUrl || (data.videoId ? `https://youtu.be/${data.videoId}` : null);
+      setPublishedVideoUrl(publishedUrl);
+      setPublishedVideoId(data.videoId || data.record?.youtubeVideoId || null);
+      setPublishedThumbnailStatus(data.thumbnailStatus || data.record?.thumbnailStatus || null);
+      setPublishedThumbnailError(data.thumbnailError || data.record?.thumbnailError || null);
+
+      dispatchLifecycle({
+        type: "YOUTUBE_RETURNED_201",
+        videoId: data.videoId || data.record?.youtubeVideoId,
+        hasCustomThumbnail: Boolean(selectedThumbnailId),
+      });
+
+      if (selectedThumbnailId) {
+        dispatchLifecycle({ type: "START_THUMBNAIL_UPLOAD" });
+        if (data.thumbnailStatus === "applied") {
+          dispatchLifecycle({ type: "THUMBNAIL_APPLIED" });
+        } else if (data.thumbnailStatus === "failed") {
+          dispatchLifecycle({
+            type: "THUMBNAIL_ERROR",
+            error: data.thumbnailError || "Custom thumbnail upload failed",
+          });
+        }
+      }
+
+      onToast(`Upload successfully resumed and published to YouTube as ${publishPrivacy.toUpperCase()}!`, "success");
+    } catch (err: any) {
+      if (!err.isInterrupted) {
+        dispatchLifecycle({
+          type: "PERMANENT_UPLOAD_ERROR",
+          error: err.message || "Failed to resume upload",
+        });
+      }
+      onToast(err.message || "Failed to resume upload.", "error");
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
   // Publish to YouTube
   const handlePublishToYouTube = async () => {
     if (!currentJob) return;
@@ -549,8 +672,9 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       onToast("That thumbnail option is no longer available. Select a current thumbnail.", "info");
       return;
     }
+
     setIsPublishing(true);
-    setLifecycleState("Uploading");
+    dispatchLifecycle({ type: "USER_CONFIRM_PUBLISH" });
     setPublishedVideoUrl(null);
     setPublishedVideoId(null);
 
@@ -559,7 +683,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       if (finalTitle.length > 100) {
         onToast(`Title exceeds YouTube's 100-character limit (${finalTitle.length}/100 characters). Shorten the title before publishing.`, "error");
         setIsPublishing(false);
-        setLifecycleState("Draft");
+        dispatchLifecycle({ type: "USER_EDIT" });
         return;
       }
       const finalDesc = editableDesc.trim();
@@ -583,6 +707,19 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
 
       const data = await res.json();
       if (!res.ok) {
+        if (data.isInterrupted && data.uploadSessionUrl) {
+          dispatchLifecycle({
+            type: "NETWORK_INTERRUPTION",
+            error: data.error,
+            sessionUrl: data.uploadSessionUrl,
+          });
+          onToast(`Upload interrupted: ${data.error}. Click 'Resume Interrupted Upload' to retry.`, "info");
+          return;
+        }
+        dispatchLifecycle({
+          type: "PERMANENT_UPLOAD_ERROR",
+          error: data.error || "Publishing failed",
+        });
         throw new Error(data.error || "Publishing failed");
       }
 
@@ -592,9 +729,23 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
       setPublishedThumbnailStatus(data.thumbnailStatus || data.record?.thumbnailStatus || null);
       setPublishedThumbnailError(data.thumbnailError || data.record?.thumbnailError || null);
 
-      const nextState: PublishingLifecycleState =
-        data.thumbnailStatus === "failed" ? "ThumbnailFailed" : "Completed";
-      setLifecycleState(nextState);
+      dispatchLifecycle({
+        type: "YOUTUBE_RETURNED_201",
+        videoId: data.videoId || data.record?.youtubeVideoId,
+        hasCustomThumbnail: Boolean(selectedThumbnailId),
+      });
+
+      if (selectedThumbnailId) {
+        dispatchLifecycle({ type: "START_THUMBNAIL_UPLOAD" });
+        if (data.thumbnailStatus === "applied") {
+          dispatchLifecycle({ type: "THUMBNAIL_APPLIED" });
+        } else if (data.thumbnailStatus === "failed") {
+          dispatchLifecycle({
+            type: "THUMBNAIL_ERROR",
+            error: data.thumbnailError || "Custom thumbnail upload failed",
+          });
+        }
+      }
 
       if (data.isDuplicatePrevented) {
         onToast("Video was already published. Retrieved existing YouTube URL.", "info");
@@ -602,11 +753,12 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
         onToast(`Video successfully published to YouTube as ${publishPrivacy.toUpperCase()}!`, "success");
       }
     } catch (err: any) {
-      const isResumable =
-        err.message?.includes("308") ||
-        err.message?.includes("incomplete") ||
-        err.message?.includes("interrupted");
-      setLifecycleState(isResumable ? "UploadInterrupted" : "Failed");
+      if (!err.isInterrupted) {
+        dispatchLifecycle({
+          type: "PERMANENT_UPLOAD_ERROR",
+          error: err.message || "Failed to publish video to YouTube",
+        });
+      }
       onToast(err.message || "Failed to publish video to YouTube.", "error");
     } finally {
       setIsPublishing(false);
@@ -623,7 +775,12 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
     setEditableTitle("");
     setEditableDesc("");
     setEditableTags("");
-    setLifecycleState("Draft");
+    setLifecycleRecord({
+      state: "Draft",
+      assetId: "",
+      jobId: "",
+      updatedAt: new Date().toISOString(),
+    });
     setPublishedVideoUrl(null);
     setPublishedVideoId(null);
     if (typeof window !== "undefined") {
@@ -1129,9 +1286,9 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
                       setSelectedTitle(item.title);
                       setEditableTitle(item.title);
                       if (selectedThumbnailId) {
-                        setLifecycleState("AwaitingConfirmation");
+                        dispatchLifecycle({ type: "SELECTION_MADE" });
                       } else {
-                        setLifecycleState("ReadyForReview");
+                        dispatchLifecycle({ type: "READY_FOR_REVIEW" });
                       }
                     }}
                     className={`p-4 rounded-2xl border-2 transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
@@ -1215,9 +1372,9 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
                     onClick={() => {
                       setSelectedThumbnailId(thumb.id);
                       if (selectedTitle || editableTitle) {
-                        setLifecycleState("AwaitingConfirmation");
+                        dispatchLifecycle({ type: "SELECTION_MADE" });
                       } else {
-                        setLifecycleState("ReadyForReview");
+                        dispatchLifecycle({ type: "READY_FOR_REVIEW" });
                       }
                     }}
                     className={`rounded-2xl border-2 overflow-hidden transition cursor-pointer flex flex-col ${
@@ -1294,9 +1451,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
                 maxLength={100}
                 onChange={(e) => {
                   setEditableTitle(e.target.value);
-                  if (lifecycleState === "AwaitingConfirmation") {
-                    setLifecycleState("Draft");
-                  }
+                  dispatchLifecycle({ type: "USER_EDIT" });
                 }}
                 className="w-full px-4 py-2.5 rounded-xl border border-[#D1D5DB] text-xs font-semibold text-[#111827] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] outline-none"
               />
@@ -1313,9 +1468,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
                 value={editableDesc}
                 onChange={(e) => {
                   setEditableDesc(e.target.value);
-                  if (lifecycleState === "AwaitingConfirmation") {
-                    setLifecycleState("Draft");
-                  }
+                  dispatchLifecycle({ type: "USER_EDIT" });
                 }}
                 className="w-full px-4 py-2.5 rounded-xl border border-[#D1D5DB] text-xs text-[#111827] font-mono leading-relaxed focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] outline-none"
               />
@@ -1331,9 +1484,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
                 value={editableTags}
                 onChange={(e) => {
                   setEditableTags(e.target.value);
-                  if (lifecycleState === "AwaitingConfirmation") {
-                    setLifecycleState("Draft");
-                  }
+                  dispatchLifecycle({ type: "USER_EDIT" });
                 }}
                 className="w-full px-4 py-2.5 rounded-xl border border-[#D1D5DB] text-xs text-[#111827] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] outline-none"
               />
@@ -1369,26 +1520,26 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
               <span className="text-[11px] text-[#6B7280] font-medium">Lifecycle State:</span>
               <span
                 className={`px-3 py-1 rounded-full text-xs font-bold transition ${
-                  lifecycleState === "Completed"
+                  lifecycleRecord.state === "Completed"
                     ? "bg-[#D1FAE5] text-[#065F46] border border-[#A7F3D0]"
-                    : lifecycleState === "ThumbnailFailed"
+                    : lifecycleRecord.state === "ThumbnailFailed"
                     ? "bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A]"
-                    : lifecycleState === "Published"
+                    : lifecycleRecord.state === "Published"
                     ? "bg-[#E0F2FE] text-[#0369A1] border border-[#BAE6FD]"
-                    : lifecycleState === "Uploading"
+                    : lifecycleRecord.state === "Uploading"
                     ? "bg-[#EEF2FF] text-[#4338CA] border border-[#C7D2FE] animate-pulse"
-                    : lifecycleState === "UploadInterrupted"
+                    : lifecycleRecord.state === "UploadInterrupted"
                     ? "bg-[#FEE2E2] text-[#B91C1C] border border-[#FECACA]"
-                    : lifecycleState === "Failed"
+                    : lifecycleRecord.state === "Failed"
                     ? "bg-[#FEE2E2] text-[#B91C1C] border border-[#FECACA]"
-                    : lifecycleState === "AwaitingConfirmation"
+                    : lifecycleRecord.state === "AwaitingConfirmation"
                     ? "bg-[#FEF3C7] text-[#B45309] border border-[#FDE68A]"
-                    : lifecycleState === "ReadyForReview"
+                    : lifecycleRecord.state === "ReadyForReview"
                     ? "bg-[#EFF6FF] text-[#1D4ED8] border border-[#BFDBFE]"
                     : "bg-[#F3F4F6] text-[#4B5563] border border-[#E5E7EB]"
                 }`}
               >
-                {lifecycleState}
+                {lifecycleRecord.state}
               </span>
             </div>
           </div>
@@ -1530,6 +1681,27 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
             </div>
           )}
 
+          {/* Upload Interrupted Session Banner */}
+          {lifecycleRecord.state === "UploadInterrupted" && (
+            <div className="p-4 bg-[#FEF2F2] border border-[#FECACA] rounded-2xl flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-[#DC2626] shrink-0 mt-0.5" />
+              <div className="text-xs text-[#991B1B] space-y-1">
+                <p className="font-bold">
+                  Resumable Upload Interrupted
+                </p>
+                <p>
+                  Network connection was interrupted. Your YouTube upload session is preserved.
+                  Click &quot;Resume Interrupted Upload&quot; below to restore byte offset and finish publishing without restarting from byte 0.
+                </p>
+                {lifecycleRecord.uploadSessionUrl && (
+                  <p className="text-[10px] font-mono text-[#B91C1C] truncate">
+                    Session: {lifecycleRecord.uploadSessionUrl}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Action Row */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
             <span className="text-xs text-[#6B7280]">
@@ -1538,7 +1710,11 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
 
             <button
               type="button"
-              onClick={handlePublishToYouTube}
+              onClick={
+                lifecycleRecord.state === "UploadInterrupted"
+                  ? handleResumeUpload
+                  : handlePublishToYouTube
+              }
               disabled={isPublishing || !isYoutubeConnected || !editableTitle.trim() || editableTitle.trim().length > 100}
               className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-[#EF4444] hover:bg-[#DC2626] text-white font-bold text-sm shadow-sm transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
@@ -1546,7 +1722,7 @@ export const AutonomousVideoStudio: React.FC<AutonomousVideoStudioProps> = ({
               <span>
                 {isPublishing
                   ? "Publishing to YouTube..."
-                  : lifecycleState === "UploadInterrupted"
+                  : lifecycleRecord.state === "UploadInterrupted"
                   ? "Resume Interrupted Upload"
                   : publishedVideoUrl
                   ? "Re-Publish (Update)"

@@ -48,6 +48,7 @@ export interface PublishingLifecycleRecord {
   videoId?: string;
   uploadSessionUrl?: string;
   error?: string;
+  thumbnailStatus?: "not_requested" | "pending" | "applied" | "failed";
   thumbnailError?: string;
   updatedAt: string;
 }
@@ -115,6 +116,7 @@ export function transitionPublishingState(
           ...current,
           state: "Published",
           videoId: event.videoId,
+          thumbnailStatus: event.hasCustomThumbnail ? "pending" : "not_requested",
           error: undefined,
           updatedAt: now,
         };
@@ -162,17 +164,17 @@ export function transitionPublishingState(
 
     case "Published": {
       if (event.type === "START_THUMBNAIL_UPLOAD") {
-        return { ...current, state: "ThumbnailPending", updatedAt: now };
+        return { ...current, state: "ThumbnailPending", thumbnailStatus: "pending", updatedAt: now };
       }
       return current;
     }
 
     case "ThumbnailPending": {
       if (event.type === "THUMBNAIL_APPLIED") {
-        return { ...current, state: "Completed", thumbnailError: undefined, updatedAt: now };
+        return { ...current, state: "Completed", thumbnailStatus: "applied", thumbnailError: undefined, updatedAt: now };
       }
       if (event.type === "THUMBNAIL_ERROR") {
-        return { ...current, state: "ThumbnailFailed", thumbnailError: event.error, updatedAt: now };
+        return { ...current, state: "ThumbnailFailed", thumbnailStatus: "failed", thumbnailError: event.error, updatedAt: now };
       }
       return current;
     }
